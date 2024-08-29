@@ -9,6 +9,17 @@ const airtableBase = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base
 // Initialize Supabase
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_API_KEY);
 
+async function checkAirtableAuth() {
+  try {
+    const bases = await Airtable.base(process.env.AIRTABLE_BASE_ID)('Prompt Categories').select().firstPage();
+    console.log('Airtable authentication successful');
+    return true;
+  } catch (error) {
+    console.error('Airtable authentication failed:', error.message);
+    return false;
+  }
+}
+
 async function fetchAirtableRecords(tableName) {
   try {
     const records = [];
@@ -28,9 +39,9 @@ async function upsertSupabaseRecords(tableName, records) {
     const { data, error } = await supabase
       .from(tableName)
       .upsert(records, { onConflict: 'airtable_record_id' });
-
     if (error) {
       console.error(`Error upserting ${tableName}:`, error);
+      console.error('First record being upserted:', records[0]);
     } else {
       console.log(`Successfully upserted ${records.length} records to ${tableName}`);
     }
@@ -50,7 +61,7 @@ async function syncPromptCategories() {
 }
 
 async function syncPrompts() {
-  const records = await fetchAirtableRecords('Prompts');
+  const records = await fetchAirtableRecords('Prompts Primary');  // Changed from 'Primary Prompts' to 'Prompts Primary'
   const formattedRecords = records.map(record => ({
     prompt: record.fields.Prompt,
     prompt_type: record.fields['Prompt Type'],
@@ -58,11 +69,11 @@ async function syncPrompts() {
     created_at: record.fields['Created At'],
     airtable_record_id: record.id
   }));
-  await upsertSupabaseRecords('prompts', formattedRecords);
+  await upsertSupabaseRecords('prompts_primary', formattedRecords);  // Changed from 'prompts' to 'prompts_primary'
 }
 
 async function syncPromptCategoryLinks() {
-  const records = await fetchAirtableRecords('Prompts');
+  const records = await fetchAirtableRecords('Prompts Primary');  // Changed from 'Primary Prompts' to 'Prompts Primary'
   const formattedRecords = records.flatMap(record =>
     (record.fields['Prompt Category'] || []).map(categoryId => ({
       prompt_id: record.id,
@@ -75,6 +86,12 @@ async function syncPromptCategoryLinks() {
 
 async function syncAll() {
   try {
+    console.log('Checking Airtable authentication...');
+    const isAuthValid = await checkAirtableAuth();
+    if (!isAuthValid) {
+      console.error('Airtable authentication failed. Please check your personal access token.');
+      return;
+    }
     console.log('Starting sync process...');
     await syncPromptCategories();
     await syncPrompts();
