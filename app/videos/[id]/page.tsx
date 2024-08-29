@@ -2,7 +2,7 @@
 import React from 'react';
 import { createClient } from '@supabase/supabase-js';
 import VideoPlayer from '@/components/VideoPlayer';
-import VideoNavigation from '@/components/VideoNavigation';
+import VideoNavigation from '../../../src/components/VideoNavigation';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

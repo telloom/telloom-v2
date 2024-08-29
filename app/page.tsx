@@ -1,6 +1,12 @@
+import { Metadata } from 'next'
 import Layout from '../src/components/Layout'
 import { createClient } from '../utils/supabase/server'
 import { cookies } from 'next/headers'
+
+export const metadata: Metadata = {
+  title: 'Telloom',
+  description: 'Bridging Generations through Video Storytelling',
+}
 
 export default async function Home() {
   const cookieStore = cookies()
