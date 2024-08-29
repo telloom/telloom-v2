@@ -3,7 +3,7 @@
 
 import React from 'react';
 import VideoUpload from '@/components/VideoUpload';
-import VideoNavigation from '@/components/VideoNavigation';
+import VideoNavigation from '../../../src/components/VideoNavigation';
 
 export default function UploadVideoPage() {
   return (

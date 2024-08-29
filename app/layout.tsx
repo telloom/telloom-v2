@@ -3,7 +3,10 @@ import type { Metadata } from 'next'
 import '../app/globals.css'
 
 export const metadata: Metadata = {
-  title: 'Telloom',
+  title: {
+    default: 'Telloom',
+    template: '%s | Telloom',
+  },
   description: 'Bridging Generations through Video Storytelling',
 }
 

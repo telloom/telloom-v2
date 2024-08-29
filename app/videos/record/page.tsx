@@ -3,7 +3,7 @@
 
 import React from 'react';
 import VideoRecorder from '@/components/VideoRecorder';
-import VideoNavigation from '@/components/VideoNavigation';
+import VideoNavigation from '../../../src/components/VideoNavigation';
 
 export default function RecordVideoPage() {
   return (
