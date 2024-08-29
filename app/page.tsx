@@ -1,13 +1,26 @@
-export default function Home() {
+import Layout from '../src/components/Layout'
+import { createClient } from '../utils/supabase/server'
+import { cookies } from 'next/headers'
+
+export default async function Home() {
+  const cookieStore = cookies()
+  const supabase = createClient(cookieStore)
+  const { data: todos } = await supabase.from('todos').select()
+
   return (
-    <>
-      <h1 className="text-4xl font-bold text-center my-8">
+    <Layout>
+      <h1 className="text-4xl font-bold text-center my-8 text-blue-600">
         Welcome to Telloom
       </h1>
-      <p className="text-center">
+      <p className="text-center text-gray-700">
         Bridging Generations through Video Storytelling
       </p>
-<div className="text-blue-500">Hello Tailwind!</div>
-    </>
+      <div className="text-green-500">Hello Tailwind!</div>
+      <ul>
+        {todos?.map((todo) => (
+          <li key={todo.id}>{todo.title}</li>
+        ))}
+      </ul>
+    </Layout>
   )
 }
