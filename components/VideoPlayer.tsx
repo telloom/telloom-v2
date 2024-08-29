@@ -1,0 +1,22 @@
+// components/VideoPlayer.tsx
+import React from 'react';
+import MuxPlayer from '@mux/mux-player-react';
+
+interface VideoPlayerProps {
+  playbackId: string;
+}
+
+const VideoPlayer: React.FC<VideoPlayerProps> = ({ playbackId }) => {
+  return (
+    <MuxPlayer
+      streamType="on-demand"
+      playbackId={playbackId}
+      metadata={{
+        video_id: playbackId,
+        video_title: 'Telloom Video',
+      }}
+    />
+  );
+};
+
+export default VideoPlayer;
