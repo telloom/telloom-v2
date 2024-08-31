@@ -11,7 +11,7 @@ const __dirname = dirname(__filename);
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    appDir: true,
+    // appDir: true, // Remove or comment out this line
   },
   images: {
     domains: ['placeholder.com'], // Add domains for external images here

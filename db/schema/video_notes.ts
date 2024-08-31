@@ -6,3 +6,6 @@ export const videoNotes = pgTable("video_notes", {
   content: text("content").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+export type InsertVideoNote = typeof videoNotes.$inferInsert;
+export type SelectVideoNote = typeof videoNotes.$inferSelect;
