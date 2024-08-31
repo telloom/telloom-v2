@@ -38,7 +38,7 @@ async function upsertSupabaseRecords(tableName, records) {
   try {
     const { data, error } = await supabase
       .from(tableName)
-      .upsert(records, { onConflict: 'airtable_record_id' });
+      .upsert(records, { onConflict: 'airtable_id' });
     if (error) {
       console.error(`Error upserting ${tableName}:`, error);
       console.error('First record being upserted:', records[0]);
@@ -52,32 +52,39 @@ async function upsertSupabaseRecords(tableName, records) {
 
 async function syncPromptCategories() {
   const records = await fetchAirtableRecords('Prompt Categories');
+  console.log('Airtable Prompt Categories data (first 5 records):');
+  console.log(JSON.stringify(records.slice(0, 5), null, 2));
+
   const formattedRecords = records.map(record => ({
-    category_name: record.fields.Name,
-    description: record.fields.Description,
-    airtable_record_id: record.id
+    airtable_id: record.id,
+    category: record.fields.Name || null,
+    description: record.fields.Description || null,
   }));
+
+  console.log('Formatted Prompt Categories (first 5 records):');
+  console.log(JSON.stringify(formattedRecords.slice(0, 5), null, 2));
+
   await upsertSupabaseRecords('prompt_categories', formattedRecords);
 }
 
 async function syncPrompts() {
-  const records = await fetchAirtableRecords('Prompts Primary');  // Changed from 'Primary Prompts' to 'Prompts Primary'
+  const records = await fetchAirtableRecords('Prompts Primary');
   const formattedRecords = records.map(record => ({
-    prompt: record.fields.Prompt,
-    prompt_type: record.fields['Prompt Type'],
-    context_establishing_question: record.fields['Context Establishing Question'],
-    created_at: record.fields['Created At'],
-    airtable_record_id: record.id
+    airtable_id: record.id,
+    prompt: record.fields.Prompt || null,
+    prompt_type: record.fields['Prompt Type'] || null,
+    context_establishing_question: record.fields['Context Establishing Question'] || null,
+    created_at: record.fields['Created At'] || null,
   }));
-  await upsertSupabaseRecords('prompts_primary', formattedRecords);  // Changed from 'prompts' to 'prompts_primary'
+  await upsertSupabaseRecords('prompts_primary', formattedRecords);
 }
 
 async function syncPromptCategoryLinks() {
-  const records = await fetchAirtableRecords('Prompts Primary');  // Changed from 'Primary Prompts' to 'Prompts Primary'
+  const records = await fetchAirtableRecords('Prompts Primary');
   const formattedRecords = records.flatMap(record =>
     (record.fields['Prompt Category'] || []).map(categoryId => ({
-      prompt_id: record.id,
-      category_id: categoryId,
+      prompt_airtable_id: record.id,
+      category_airtable_id: categoryId,
       airtable_record_id: `${record.id}_${categoryId}`
     }))
   );
