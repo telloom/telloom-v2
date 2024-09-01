@@ -1,27 +1,32 @@
 "use server";
 
-import { db } from "../db";
-import { entitlementsTable } from "../schema/entitlements";
+import { sql } from '@vercel/postgres';
+import { drizzle } from 'drizzle-orm/vercel-postgres';
+import * as schema from "../schema";
 import { eq } from "drizzle-orm";
+import { InsertEntitlement, SelectEntitlement } from "../schema/entitlements";
+
+// Create a typed database instance
+const typedDb = drizzle(sql, { schema });
 
 export const createEntitlement = async (data: InsertEntitlement) => {
-  return db.insert(entitlementsTable).values(data).returning();
+  return typedDb.insert(schema.entitlementsTable).values(data).returning();
 };
 
 export const getEntitlementById = async (id: bigint) => {
-  return db.query.entitlementsTable.findFirst({
-    where: eq(entitlementsTable.id, id),
+  return typedDb.query.entitlementsTable.findFirst({
+    where: eq(schema.entitlementsTable.id, Number(id)),
   });
 };
 
 export const getAllEntitlements = async () => {
-  return db.query.entitlementsTable.findMany();
+  return typedDb.query.entitlementsTable.findMany();
 };
 
 export const updateEntitlement = async (id: bigint, data: Partial<InsertEntitlement>) => {
-  return db.update(entitlementsTable).set(data).where(eq(entitlementsTable.id, id)).returning();
+  return typedDb.update(schema.entitlementsTable).set(data).where(eq(schema.entitlementsTable.id, Number(id))).returning();
 };
 
 export const deleteEntitlement = async (id: bigint) => {
-  return db.delete(entitlementsTable).where(eq(entitlementsTable.id, id));
+  return typedDb.delete(schema.entitlementsTable).where(eq(schema.entitlementsTable.id, Number(id)));
 };

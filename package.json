@@ -2,14 +2,14 @@
   "name": "telloom",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
+
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "node --loader ts-node/esm db/migrate.ts"
+    "db:generate": "drizzle-kit generate:pg",
+    "db:migrate": "node --experimental-specifier-resolution=node --loader ts-node/esm db/migrate.ts"
   },
   "dependencies": {
     "@mux/mux-node": "^8.8.0",
