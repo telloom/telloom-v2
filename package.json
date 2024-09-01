@@ -2,11 +2,14 @@
   "name": "telloom",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:migrate": "node -r dotenv/config --loader ts-node/esm db/migrate.ts",
+    "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
     "@mux/mux-node": "^8.8.0",
@@ -19,12 +22,13 @@
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.33.0",
     "next": "14.2.7",
+    "pg": "^8.12.0",
     "postgres": "^3.4.4",
     "react": "^18",
     "react-dom": "^18"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@types/node": "^20.16.2",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.4.20",
@@ -32,6 +36,7 @@
     "postcss": "^8.4.41",
     "supabase": "^1.191.3",
     "tailwindcss": "^3.4.10",
-    "typescript": "^5"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.2"
   }
 }
