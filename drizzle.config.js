@@ -21,6 +21,7 @@ export default defineConfig({
   schema: './db/schema/*',
   out: './db/migrations',
   driver: 'pg',
+  dialect: 'pg', // Add this line
   dbCredentials: {
     connectionString: process.env.DATABASE_URL,
   },

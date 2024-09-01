@@ -10,6 +10,6 @@ export const objectsTable = pgTable("objects", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().$onUpdate(() => new Date()),
 });
-
 export type InsertObject = typeof objectsTable.$inferInsert;
 export type SelectObject = typeof objectsTable.$inferSelect;
+
