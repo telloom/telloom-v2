@@ -4,26 +4,27 @@ import { dirname, resolve } from 'path';
 
 dotenv.config();
 
-const nextFilename = fileURLToPath(import.meta.url);
-const nextDirname = dirname(nextFilename);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  swcMinify: true,
   experimental: {
-    // appDir: true, // Remove or comment out this line
+    // appDir: true, // This line is already commented out
   },
   images: {
-    domains: ['placeholder.com'], // Add domains for external images here
+    domains: ['placeholder.com'], // Keep the existing image domain configuration
   },
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@': resolve(nextDirname),
-      '@/components': resolve(nextDirname, 'components'),
-      '@/lib': resolve(nextDirname, 'lib'),
-      '@/styles': resolve(nextDirname, 'styles'),
-      '@/utils': resolve(nextDirname, 'utils'),
+      '@': resolve(__dirname),
+      '@/components': resolve(__dirname, 'components'),
+      '@/lib': resolve(__dirname, 'lib'),
+      '@/styles': resolve(__dirname, 'styles'),
+      '@/utils': resolve(__dirname, 'utils'),
     };
     return config;
   },
