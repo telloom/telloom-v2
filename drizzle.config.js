@@ -6,15 +6,15 @@ import fs from 'fs';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const configFilename = fileURLToPath(import.meta.url);
+const configDirname = path.dirname(configFilename);
 
 console.log('Current working directory:', process.cwd());
 console.log('Database URL:', process.env.DATABASE_URL);
-console.log('Schema path:', path.resolve(__dirname, './db/schema'));
+console.log('Schema path:', path.resolve(configDirname, './db/schema'));
 
 // List schema files
-const schemaDir = path.resolve(__dirname, './db/schema');
+const schemaDir = path.resolve(configDirname, './db/schema');
 console.log('Schema files:', fs.readdirSync(schemaDir));
 
 export default defineConfig({
