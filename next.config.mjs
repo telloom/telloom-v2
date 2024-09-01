@@ -4,8 +4,8 @@ import { dirname, resolve } from 'path';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const nextFilename = fileURLToPath(import.meta.url);
+const nextDirname = dirname(nextFilename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -19,11 +19,11 @@ const nextConfig = {
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@': resolve(__dirname),
-      '@/components': resolve(__dirname, 'components'),
-      '@/lib': resolve(__dirname, 'lib'),
-      '@/styles': resolve(__dirname, 'styles'),
-      '@/utils': resolve(__dirname, 'utils'),
+      '@': resolve(nextDirname),
+      '@/components': resolve(nextDirname, 'components'),
+      '@/lib': resolve(nextDirname, 'lib'),
+      '@/styles': resolve(nextDirname, 'styles'),
+      '@/utils': resolve(nextDirname, 'utils'),
     };
     return config;
   },
