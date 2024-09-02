@@ -9,7 +9,7 @@ export * from './profiles';
 export * from './prompt_categories';
 export * from './prompt_category_links';
 export * from './prompt_responses';
-export * from './prompts';
+export * from './prompts_primary';
 export * from './purchases';
 export * from './subscription_entitlements';
 export * from './subscriptions';

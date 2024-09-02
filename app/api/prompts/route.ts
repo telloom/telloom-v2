@@ -1,12 +1,19 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db/db';
-import { promptsTable } from '@/db/schema';
+import { promptsPrimaryTable, InsertPrompt } from '@/db/schema';
 import { desc } from 'drizzle-orm';
 
 export async function POST(request: Request) {
   try {
     const { text, categoryId } = await request.json();
-    const result = await db.insert(promptsTable).values({ text, categoryId }).returning();
+    const newPrompt: InsertPrompt = { 
+      id: 0, // or any default value, if 'id' is auto-generated, you can omit it
+      text,
+      createdAt: new Date(), // or any default value
+      updatedAt: new Date(), // or any default value
+      categoryId: categoryId !== undefined ? Number(categoryId) : null,
+    };
+    const result = await db.insert(promptsPrimaryTable).values(newPrompt).returning();
     return NextResponse.json(result[0]);
   } catch (error) {
     console.error('Error creating prompt:', error);
@@ -16,7 +23,7 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const prompts = await db.select().from(promptsTable).orderBy(desc(promptsTable.createdAt));
+    const prompts = await db.select().from(promptsPrimaryTable).orderBy(desc(promptsPrimaryTable.createdAt));
     return NextResponse.json(prompts);
   } catch (error) {
     console.error('Error fetching prompts:', error);
