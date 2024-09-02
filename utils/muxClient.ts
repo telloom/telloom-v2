@@ -15,8 +15,8 @@ interface MuxInstance {
 }
 
 const muxClient = new Mux({
-  tokenId: process.env.MUX_ACCESS_TOKEN_ID!,
-  tokenSecret: process.env.MUX_SECRET_KEY!
+  tokenId: process.env.MUX_TOKEN_ID,
+  tokenSecret: process.env.MUX_SECRET_KEY
 }) as unknown as MuxInstance;
 
 export const createUploadUrl = async () => {
