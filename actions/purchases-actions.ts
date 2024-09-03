@@ -2,6 +2,7 @@
 
 import { createPurchase, deletePurchase, getAllPurchases, getPurchaseById, updatePurchase } from "@/db/queries/purchases-queries";
 import { ActionState } from "@/types";
+import { InsertPurchase } from "@/db/schema/purchases"; // Add this import
 import { revalidatePath } from "next/cache";
 
 export async function createPurchaseAction(data: InsertPurchase): Promise<ActionState> {

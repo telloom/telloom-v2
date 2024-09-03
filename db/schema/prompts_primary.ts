@@ -1,13 +1,16 @@
-import { bigint, pgTable, text, timestamp } from "drizzle-orm/pg-core";
-import { promptCategoriesTable } from "./prompt_categories";
+import { pgTable, bigserial, text, integer, timestamp, varchar, boolean } from 'drizzle-orm/pg-core';
+import { InferModel } from 'drizzle-orm';
 
-export const promptsPrimaryTable = pgTable("prompts_primary", {
-  id: bigint("id", { mode: "number" }).primaryKey(),
-  text: text("text").notNull(),
-  categoryId: bigint("category_id", { mode: "number" }).references(() => promptCategoriesTable.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().$onUpdate(() => new Date()),
+export const promptsPrimaryTable = pgTable('prompts_primary', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  prompt: text('prompt').notNull(),
+  promptType: varchar('prompt_type', { length: 255 }),
+  contextEstablishingQuestion: boolean('context_establishing_question').default(false),
+  airtableId: text('airtable_id'),
+  categoryId: integer('category_id'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
 
-export type InsertPrompt = typeof promptsPrimaryTable.$inferInsert;
-export type SelectPrompt = typeof promptsPrimaryTable.$inferSelect;
+export type PromptPrimary = InferModel<typeof promptsPrimaryTable>;
+export type InsertPromptPrimary = InferModel<typeof promptsPrimaryTable, 'insert'>;

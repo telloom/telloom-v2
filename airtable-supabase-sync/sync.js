@@ -41,9 +41,14 @@ async function upsertSupabaseRecords(tableName, records) {
       .upsert(records, { onConflict: 'airtable_id' });
     if (error) {
       console.error(`Error upserting ${tableName}:`, error);
-      console.error('First record being upserted:', records[0]);
+      console.error('First record being upserted:', JSON.stringify(records[0], null, 2));
     } else {
       console.log(`Successfully upserted ${records.length} records to ${tableName}`);
+      if (data && data.length > 0) {
+        console.log('Sample upserted record:', JSON.stringify(data[0], null, 2));
+      } else {
+        console.log('No records were modified during upsert.');
+      }
     }
   } catch (error) {
     console.error(`Error in upsertSupabaseRecords for ${tableName}:`, error);
@@ -55,11 +60,14 @@ async function syncPromptCategories() {
   console.log('Airtable Prompt Categories data (first 5 records):');
   console.log(JSON.stringify(records.slice(0, 5), null, 2));
 
-  const formattedRecords = records.map(record => ({
-    airtable_id: record.id,
-    category: record.fields.Name || null,
-    description: record.fields.Description || null,
-  }));
+  const formattedRecords = records.map(record => {
+    console.log('Processing record:', JSON.stringify(record, null, 2));
+    return {
+      airtable_id: record.id,
+      category: record.fields.category || null,
+      description: record.fields.Description || null,
+    };
+  });
 
   console.log('Formatted Prompt Categories (first 5 records):');
   console.log(JSON.stringify(formattedRecords.slice(0, 5), null, 2));
@@ -69,13 +77,24 @@ async function syncPromptCategories() {
 
 async function syncPrompts() {
   const records = await fetchAirtableRecords('Prompts Primary');
-  const formattedRecords = records.map(record => ({
-    airtable_id: record.id,
-    prompt: record.fields.Prompt || null,
-    prompt_type: record.fields['Prompt Type'] || null,
-    context_establishing_question: record.fields['Context Establishing Question'] || null,
-    created_at: record.fields['Created At'] || null,
-  }));
+  const formattedRecords = records.map(record => {
+    const categoryId = record.fields['Prompt Category'] && record.fields['Prompt Category'].length > 0
+      ? record.fields['Prompt Category'][0]
+      : null;
+
+    return {
+      airtable_id: record.id,
+      prompt: record.fields.Prompt || null,
+      prompt_type: record.fields['Prompt Type'] || null,
+      context_establishing_question: record.fields['Context Establishing Question'] || null,
+      created_at: record.fields['Created At'] || null,
+      category_airtable_id: categoryId, // Store the Airtable category ID
+    };
+  });
+
+  console.log('Formatted Prompts (first 5 records):');
+  console.log(JSON.stringify(formattedRecords.slice(0, 5), null, 2));
+
   await upsertSupabaseRecords('prompts_primary', formattedRecords);
 }
 
@@ -102,7 +121,7 @@ async function syncAll() {
     console.log('Starting sync process...');
     await syncPromptCategories();
     await syncPrompts();
-    await syncPromptCategoryLinks();
+    await updatePromptCategoryIds(); // Add this line
     console.log('Sync process completed successfully.');
   } catch (error) {
     console.error('Error during sync process:', error);

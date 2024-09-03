@@ -7,8 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:generate": "drizzle-kit generate:pg",
-    "db:migrate": "node --experimental-specifier-resolution=node --loader ts-node/esm db/migrate.ts"
+    "db:generate": "drizzle-kit generate --config=drizzle.config.mjs",
+    "db:push": "drizzle-kit push --config=drizzle.config.mjs",
+    "vercel": "vercel",
+    "sync": "node airtable-supabase-sync/sync.js"
   },
   "dependencies": {
     "@mux/mux-node": "^8.8.0",
@@ -39,10 +41,12 @@
     "@radix-ui/react-toggle-group": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.2",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
+    "@supabase/auth-helpers-react": "^0.5.0",
     "@supabase/ssr": "^0.5.1",
-    "@supabase/supabase-js": "^2.45.2",
+    "@supabase/supabase-js": "^2.45.3",
     "@tanstack/react-table": "^8.20.5",
     "@vercel/postgres": "^0.9.0",
+    "ai": "^3.3.25",
     "airtable": "^0.12.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
@@ -50,6 +54,7 @@
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.33.0",
     "embla-carousel-react": "^8.2.0",
+    "framer-motion": "^11.3.31",
     "input-otp": "^1.2.4",
     "lucide-react": "^0.438.0",
     "mysql2": "^3.11.0",
@@ -62,12 +67,15 @@
     "react-dom": "^18",
     "react-resizable-panels": "^2.1.2",
     "recharts": "^2.12.7",
+    "replicate": "^0.32.1",
     "sonner": "^1.5.0",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
     "tsconfig-paths": "^4.2.0",
+    "utility-types": "^3.11.0",
     "uuid": "^10.0.0",
-    "vaul": "^0.9.1"
+    "vaul": "^0.9.1",
+    "vercel": "^37.2.1"
   },
   "devDependencies": {
     "@types/node": "^20.16.3",

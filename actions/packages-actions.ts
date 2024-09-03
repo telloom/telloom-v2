@@ -3,6 +3,7 @@
 import { createPackage, deletePackage, getAllPackages, getPackageById, updatePackage } from "@/db/queries/packages-queries";
 import { ActionState } from "@/types";
 import { revalidatePath } from "next/cache";
+import { InsertPackage } from "@/db/schema/packages";
 
 export async function createPackageAction(data: InsertPackage): Promise<ActionState> {
   try {
@@ -36,8 +37,8 @@ export async function deletePackageAction(id: bigint): Promise<ActionState> {
 
 export async function getPackageByIdAction(id: bigint): Promise<ActionState> {
   try {
-    const package = await getPackageById(id);
-    return { status: "success", message: "Package retrieved successfully", data: package };
+    const packageData = await getPackageById(id);
+    return { status: "success", message: "Package retrieved successfully", data: packageData };
   } catch (error) {
     return { status: "error", message: "Failed to retrieve package" };
   }

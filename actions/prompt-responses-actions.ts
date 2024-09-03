@@ -2,6 +2,7 @@
 
 import { createPromptResponse, deletePromptResponse, getAllPromptResponses, getPromptResponseById, updatePromptResponse } from "@/db/queries/prompt_responses-queries";
 import { ActionState } from "@/types";
+import { InsertPromptResponse } from "@/db/schema/prompt_responses"; // Add this import
 import { revalidatePath } from "next/cache";
 
 export async function createPromptResponseAction(data: InsertPromptResponse): Promise<ActionState> {

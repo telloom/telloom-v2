@@ -26,5 +26,9 @@
     "types": ["phoenix"]
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "drizzle.config.mjs"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "tailwind.config.js",
+    "tailwind.config.mjs"
+  ]
 }

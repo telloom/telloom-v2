@@ -2,6 +2,7 @@
 
 import { createThematicVideo, deleteThematicVideo, getAllThematicVideos, getThematicVideoById, updateThematicVideo } from "@/db/queries/thematic_videos-queries";
 import { ActionState } from "@/types";
+import { InsertThematicVideo } from "@/db/schema/thematic_videos"; // Add this import
 import { revalidatePath } from "next/cache";
 
 export async function createThematicVideoAction(data: InsertThematicVideo): Promise<ActionState> {

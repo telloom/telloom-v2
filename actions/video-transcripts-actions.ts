@@ -2,6 +2,7 @@
 
 import { createVideoTranscript, deleteVideoTranscript, getAllVideoTranscripts, getVideoTranscriptById, updateVideoTranscript } from "@/db/queries/video_transcripts-queries";
 import { ActionState } from "@/types";
+import { InsertVideoTranscript } from "@/db/schema/video_transcripts"; // Add this import
 import { revalidatePath } from "next/cache";
 
 export async function createVideoTranscriptAction(data: InsertVideoTranscript): Promise<ActionState> {
