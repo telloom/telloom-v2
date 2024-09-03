@@ -1,7 +1,7 @@
-import { bigint, pgTable, text, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, jsonb, bigserial } from "drizzle-orm/pg-core";
 
 export const thematicVideosTable = pgTable("thematic_videos", {
-  id: bigint("id", { mode: "number" }).primaryKey(),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   title: text("title").notNull(),
   description: text("description"),
   url: text("url").notNull(),

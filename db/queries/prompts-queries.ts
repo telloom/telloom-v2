@@ -4,13 +4,14 @@ import { sql } from '@vercel/postgres';
 import { drizzle } from 'drizzle-orm/vercel-postgres';
 import * as schema from "../schema";
 import { eq } from "drizzle-orm";
-import { InsertPrompt, SelectPrompt } from "../schema/prompts_primary";
+import { InsertPromptPrimary } from "../schema/prompts_primary";
 
 // Create a typed database instance
 const typedDb = drizzle(sql, { schema });
 
-export const createPrompt = async (data: InsertPrompt) => {
-  return typedDb.insert(schema.promptsPrimaryTable).values(data).returning();
+export const createPrompt = async (data: InsertPromptPrimary) => {
+  const result = await typedDb.insert(schema.promptsPrimaryTable).values(data).returning();
+  return result[0];
 };
 
 export const getPromptById = async (id: bigint) => {
@@ -23,7 +24,7 @@ export const getAllPrompts = async () => {
   return typedDb.query.promptsPrimaryTable.findMany();
 };
 
-export const updatePrompt = async (id: bigint, data: Partial<InsertPrompt>) => {
+export const updatePrompt = async (id: bigint, data: Partial<InsertPromptPrimary>) => {
   return typedDb.update(schema.promptsPrimaryTable).set(data).where(eq(schema.promptsPrimaryTable.id, Number(id))).returning();
 };
 

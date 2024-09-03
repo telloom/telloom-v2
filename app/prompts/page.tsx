@@ -1,10 +1,18 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { SelectPrompt } from '@/db/schema';
+import { PromptPrimary } from '@/db/schema';
+import { InferSelectModel } from 'drizzle-orm';
+
+type SelectPromptPrimary = {
+  id: number;
+  prompt: string;
+  categoryId: number | null;
+  // Add any other fields that are part of your PromptPrimary type
+};
 
 export default function PromptsPage() {
-  const [prompts, setPrompts] = useState<SelectPrompt[]>([]);
+  const [prompts, setPrompts] = useState<SelectPromptPrimary[]>([]);
   const [newPrompt, setNewPrompt] = useState('');
   const [categoryId, setCategoryId] = useState<number | null>(null);
 
@@ -68,7 +76,7 @@ export default function PromptsPage() {
       <ul>
         {prompts.map((prompt) => (
           <li key={prompt.id} className="mb-2">
-            {prompt.text} (Category ID: {prompt.categoryId || 'N/A'})
+            {prompt.prompt} (Category ID: {prompt.categoryId || 'N/A'})
           </li>
         ))}
       </ul>

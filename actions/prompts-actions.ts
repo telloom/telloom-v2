@@ -2,9 +2,10 @@
 
 import { createPrompt, deletePrompt, getAllPrompts, getPromptById, updatePrompt } from "@/db/queries/prompts-queries";
 import { ActionState } from "@/types";
+import { InsertPromptPrimary } from "@/db/schema/prompts_primary";
 import { revalidatePath } from "next/cache";
 
-export async function createPromptAction(data: InsertPrompt): Promise<ActionState> {
+export async function createPromptAction(data: InsertPromptPrimary): Promise<ActionState> {
   try {
     const newPrompt = await createPrompt(data);
     revalidatePath("/prompts");
@@ -14,7 +15,7 @@ export async function createPromptAction(data: InsertPrompt): Promise<ActionStat
   }
 }
 
-export async function updatePromptAction(id: bigint, data: Partial<InsertPrompt>): Promise<ActionState> {
+export async function updatePromptAction(id: bigint, data: Partial<InsertPromptPrimary>): Promise<ActionState> {
   try {
     const updatedPrompt = await updatePrompt(id, data);
     revalidatePath("/prompts");

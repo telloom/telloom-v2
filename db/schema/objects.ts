@@ -1,15 +1,15 @@
-import { bigint, pgTable, text, timestamp, jsonb } from "drizzle-orm/pg-core";
-import { objectCategoriesTable } from "./object_categories";
+import { pgTable, bigserial, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const objectsTable = pgTable("objects", {
-  id: bigint("id", { mode: "number" }).primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-  categoryId: bigint("category_id", { mode: "number" }).references(() => objectCategoriesTable.id),
-  metadata: jsonb("metadata"),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  userId: uuid("user_id"),
+  objectName: text("object_name").notNull(),
+  objectDescription: text("object_description"),
+  airtableRecordId: text("airtable_record_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().$onUpdate(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
+
 export type InsertObject = typeof objectsTable.$inferInsert;
 export type SelectObject = typeof objectsTable.$inferSelect;
 

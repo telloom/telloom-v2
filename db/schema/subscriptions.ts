@@ -1,16 +1,22 @@
-import { bigint, pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
-import { profilesTable } from "./profiles";
-import { entitlementsTable } from "./entitlements";
+import { bigserial, pgTable, text, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
+import { productsTable } from "./products";
 
 export const subscriptionsTable = pgTable("subscriptions", {
-  id: bigint("id", { mode: "number" }).primaryKey(),
-  userId: bigint("user_id", { mode: "number" }).references(() => profilesTable.id),
-  entitlementId: bigint("entitlement_id", { mode: "number" }).references(() => entitlementsTable.id),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  revenuecatId: text("revenuecat_id").notNull(),
+  userId: uuid("user_id"),
+  productId: bigserial("product_id", { mode: "number" }).references(() => productsTable.id),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  currentPeriodStartsAt: timestamp("current_period_starts_at", { withTimezone: true }).notNull(),
+  currentPeriodEndsAt: timestamp("current_period_ends_at", { withTimezone: true }),
+  givesAccess: boolean("gives_access").notNull(),
+  autoRenewalStatus: text("auto_renewal_status"),
   status: text("status").notNull(),
-  isActive: boolean("is_active").notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  store: text("store").notNull(),
+  environment: text("environment").notNull(),
+  storeSubscriptionIdentifier: text("store_subscription_identifier"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().$onUpdate(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 export type InsertSubscription = typeof subscriptionsTable.$inferInsert;

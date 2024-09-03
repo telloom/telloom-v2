@@ -1,14 +1,17 @@
-import { bigint, pgTable, text, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { bigserial, pgTable, text, timestamp, integer } from "drizzle-orm/pg-core";
 import { offeringsTable } from "./offerings";
+import { productsTable } from "./products";
 
 export const packagesTable = pgTable("packages", {
-  id: bigint("id", { mode: "number" }).primaryKey(),
-  offeringId: bigint("offering_id", { mode: "number" }).references(() => offeringsTable.id),
-  name: text("name").notNull(),
-  description: text("description"),
-  metadata: jsonb("metadata"),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  revenuecatId: text("revenuecat_id").notNull(),
+  offeringId: bigserial("offering_id", { mode: "number" }).references(() => offeringsTable.id),
+  productId: bigserial("product_id", { mode: "number" }).references(() => productsTable.id),
+  lookupKey: text("lookup_key").notNull(),
+  displayName: text("display_name").notNull(),
+  position: integer("position"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().$onUpdate(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 export type InsertPackage = typeof packagesTable.$inferInsert;

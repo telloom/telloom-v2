@@ -17,3 +17,5 @@ export * from './thematic_videos';
 export * from './video_notes';
 export * from './video_transcripts';
 export * from './videos';
+
+export { type InsertPromptPrimary, type PromptPrimary } from './prompts_primary';

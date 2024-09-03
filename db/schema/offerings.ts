@@ -1,12 +1,13 @@
-import { bigint, pgTable, text, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { bigserial, pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
 
 export const offeringsTable = pgTable("offerings", {
-  id: bigint("id", { mode: "number" }).primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-  metadata: jsonb("metadata"),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  revenuecatId: text("revenuecat_id").notNull(),
+  lookupKey: text("lookup_key").notNull(),
+  displayName: text("display_name").notNull(),
+  isCurrent: boolean("is_current").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().$onUpdate(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 export type InsertOffering = typeof offeringsTable.$inferInsert;

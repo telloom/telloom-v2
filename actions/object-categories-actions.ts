@@ -3,6 +3,7 @@
 import { createObjectCategory, deleteObjectCategory, getAllObjectCategories, getObjectCategoryById, updateObjectCategory } from "@/db/queries/object_categories-queries";
 import { ActionState } from "@/types";
 import { revalidatePath } from "next/cache";
+import { InsertObjectCategory } from "@/db/schema/object_categories";
 
 export async function createObjectCategoryAction(data: InsertObjectCategory): Promise<ActionState> {
   try {

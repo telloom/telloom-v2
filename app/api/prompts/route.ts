@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db/db';
-import { promptsPrimaryTable, InsertPrompt } from '@/db/schema';
+import { promptsPrimaryTable, InsertPromptPrimary } from '@/db/schema/prompts_primary';
 import { desc } from 'drizzle-orm';
 
 export async function POST(request: Request) {
@@ -8,9 +8,11 @@ export async function POST(request: Request) {
     const { text, categoryId } = await request.json();
     console.log("Received POST request with data:", { text, categoryId });
     
-    const newPrompt: InsertPrompt = { 
-      text,
+    const newPrompt: InsertPromptPrimary = {
+      prompt: text,
       categoryId: categoryId !== undefined ? Number(categoryId) : null,
+      promptType: 'default', // Adding a default value for promptType
+      contextEstablishingQuestion: false, // Adding a default value for contextEstablishingQuestion
     };
     
     console.log("Attempting to insert new prompt:", newPrompt);
@@ -18,9 +20,9 @@ export async function POST(request: Request) {
     console.log("Insert result:", result);
     
     return NextResponse.json(result[0]);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error creating prompt:', error);
-    return NextResponse.json({ error: 'Error creating prompt', details: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Error creating prompt', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }
 
@@ -30,8 +32,8 @@ export async function GET() {
     const prompts = await db.select().from(promptsPrimaryTable).orderBy(desc(promptsPrimaryTable.createdAt));
     console.log("Fetched prompts:", prompts);
     return NextResponse.json(prompts);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error fetching prompts:', error);
-    return NextResponse.json({ error: 'Error fetching prompts', details: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Error fetching prompts', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }

@@ -1,53 +1,49 @@
 "use server";
 
-import { createPromptCategory, deletePromptCategory, getAllPromptCategories, getPromptCategoryById, updatePromptCategory } from "@/db/queries/prompt_categories-queries";
-import { ActionState } from "@/types";
-import { revalidatePath } from "next/cache";
+import { NextResponse } from 'next/server';
+import { db } from '@/db/db';
+import { promptsPrimaryTable, InsertPromptPrimary } from '@/db/schema/prompts_primary';
+import { desc } from 'drizzle-orm';
 
-export async function createPromptCategoryAction(data: InsertPromptCategory): Promise<ActionState> {
+// Remove this local declaration as we're importing it now
+// export type InsertPromptPrimary = {
+//   prompt: string;
+//   categoryId?: number | null;
+//   createdAt?: Date | null;
+//   updatedAt?: Date | null;
+// };
+
+export async function POST(request: Request) {
   try {
-    const newPromptCategory = await createPromptCategory(data);
-    revalidatePath("/prompt-categories");
-    return { status: "success", message: "Prompt category created successfully", data: newPromptCategory };
-  } catch (error) {
-    return { status: "error", message: "Failed to create prompt category" };
+    const { text, categoryId } = await request.json();
+    console.log("Received POST request with data:", { text, categoryId });
+    
+    const newPrompt: InsertPromptPrimary = {
+      prompt: text,
+      categoryId: categoryId !== undefined ? Number(categoryId) : null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    console.log("Attempting to insert new prompt:", newPrompt);
+    const result = await db.insert(promptsPrimaryTable).values(newPrompt).returning();
+    console.log("Insert result:", result);
+    
+    return NextResponse.json(result[0]);
+  } catch (error: unknown) {
+    console.error('Error creating prompt:', error);
+    return NextResponse.json({ error: 'Error creating prompt', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }
 
-export async function updatePromptCategoryAction(id: bigint, data: Partial<InsertPromptCategory>): Promise<ActionState> {
+export async function GET() {
   try {
-    const updatedPromptCategory = await updatePromptCategory(id, data);
-    revalidatePath("/prompt-categories");
-    return { status: "success", message: "Prompt category updated successfully", data: updatedPromptCategory };
-  } catch (error) {
-    return { status: "error", message: "Failed to update prompt category" };
-  }
-}
-
-export async function deletePromptCategoryAction(id: bigint): Promise<ActionState> {
-  try {
-    await deletePromptCategory(id);
-    revalidatePath("/prompt-categories");
-    return { status: "success", message: "Prompt category deleted successfully" };
-  } catch (error) {
-    return { status: "error", message: "Failed to delete prompt category" };
-  }
-}
-
-export async function getPromptCategoryByIdAction(id: bigint): Promise<ActionState> {
-  try {
-    const promptCategory = await getPromptCategoryById(id);
-    return { status: "success", message: "Prompt category retrieved successfully", data: promptCategory };
-  } catch (error) {
-    return { status: "error", message: "Failed to retrieve prompt category" };
-  }
-}
-
-export async function getAllPromptCategoriesAction(): Promise<ActionState> {
-  try {
-    const promptCategories = await getAllPromptCategories();
-    return { status: "success", message: "Prompt categories retrieved successfully", data: promptCategories };
-  } catch (error) {
-    return { status: "error", message: "Failed to retrieve prompt categories" };
+    console.log("Attempting to fetch prompts...");
+    const prompts = await db.select().from(promptsPrimaryTable).orderBy(desc(promptsPrimaryTable.createdAt));
+    console.log("Fetched prompts:", prompts);
+    return NextResponse.json(prompts);
+  } catch (error: unknown) {
+    console.error('Error fetching prompts:', error);
+    return NextResponse.json({ error: 'Error fetching prompts', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }

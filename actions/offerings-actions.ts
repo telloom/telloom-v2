@@ -3,6 +3,7 @@
 import { createOffering, deleteOffering, getAllOfferings, getOfferingById, updateOffering } from "@/db/queries/offerings-queries";
 import { ActionState } from "@/types";
 import { revalidatePath } from "next/cache";
+import { InsertOffering } from "@/db/schema/offerings";
 
 export async function createOfferingAction(data: InsertOffering): Promise<ActionState> {
   try {
