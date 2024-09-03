@@ -1,7 +1,7 @@
-import { bigint, pgTable, text, timestamp, bigserial } from "drizzle-orm/pg-core";
+import { bigint, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 export const entitlementsTable = pgTable("entitlements", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
+  id: bigint("id", { mode: "number" }).primaryKey().notNull(),
   revenuecatId: text("revenuecat_id").notNull(),
   lookupKey: text("lookup_key").notNull(),
   displayName: text("display_name").notNull(),

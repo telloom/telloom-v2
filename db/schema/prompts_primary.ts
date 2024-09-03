@@ -1,8 +1,8 @@
-import { pgTable, bigserial, text, integer, timestamp, varchar, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, bigint, text, integer, timestamp, varchar, boolean } from 'drizzle-orm/pg-core';
 import { InferModel } from 'drizzle-orm';
 
 export const promptsPrimaryTable = pgTable('prompts_primary', {
-  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  id: bigint('id', { mode: 'number' }).primaryKey().notNull(),
   prompt: text('prompt').notNull(),
   promptType: varchar('prompt_type', { length: 255 }),
   contextEstablishingQuestion: boolean('context_establishing_question').default(false),
@@ -13,4 +13,4 @@ export const promptsPrimaryTable = pgTable('prompts_primary', {
 });
 
 export type PromptPrimary = InferModel<typeof promptsPrimaryTable>;
-export type InsertPromptPrimary = InferModel<typeof promptsPrimaryTable, 'insert'>;
+export type InsertPromptPrimary = Omit<InferModel<typeof promptsPrimaryTable, 'insert'>, 'id'>;

@@ -1,11 +1,11 @@
-import { bigserial, pgTable, text, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
+import { bigint, pgTable, text, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
 import { productsTable } from "./products";
 
 export const subscriptionsTable = pgTable("subscriptions", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
+  id: bigint("id", { mode: "number" }).primaryKey().notNull(),
   revenuecatId: text("revenuecat_id").notNull(),
   userId: uuid("user_id"),
-  productId: bigserial("product_id", { mode: "number" }).references(() => productsTable.id),
+  productId: bigint("product_id", { mode: "number" }).references(() => productsTable.id),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   currentPeriodStartsAt: timestamp("current_period_starts_at", { withTimezone: true }).notNull(),
   currentPeriodEndsAt: timestamp("current_period_ends_at", { withTimezone: true }),

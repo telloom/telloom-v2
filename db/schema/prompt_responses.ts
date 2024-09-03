@@ -1,12 +1,12 @@
-import { bigserial, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { promptsPrimaryTable } from "./prompts_primary";
 import { videosTable } from "./videos";
 
 export const promptResponsesTable = pgTable("prompt_responses", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
+  id: bigint("id", { mode: "number" }).primaryKey().notNull(),
   userId: uuid("user_id"),
-  promptId: bigserial("prompt_id", { mode: "number" }).references(() => promptsPrimaryTable.id),
-  videoId: bigserial("video_id", { mode: "number" }).references(() => videosTable.id),
+  promptId: bigint("prompt_id", { mode: "number" }).references(() => promptsPrimaryTable.id),
+  videoId: bigint("video_id", { mode: "number" }).references(() => videosTable.id),
   responseText: text("response_text"),
   privacyLevel: text("privacy_level").default('Private'),
   airtableRecordId: text("airtable_record_id"),
