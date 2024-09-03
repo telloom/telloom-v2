@@ -1,7 +1,7 @@
-import { pgTable, bigserial, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, bigint, text, timestamp } from "drizzle-orm/pg-core";
 
 export const objectCategoriesTable = pgTable("object_categories", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
+  id: bigint("id", { mode: "number" }).primaryKey().notNull(),
   categoryName: text("category_name").notNull(),
   description: text("description"),
   airtableRecordId: text("airtable_record_id"),

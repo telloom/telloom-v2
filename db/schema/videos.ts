@@ -1,7 +1,7 @@
-import { bigserial, pgTable, text, timestamp, uuid, doublePrecision } from "drizzle-orm/pg-core";
+import { bigint, pgTable, text, timestamp, uuid, doublePrecision } from "drizzle-orm/pg-core";
 
 export const videosTable = pgTable("videos", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),  // Added the mode as 'number'
+  id: bigint("id", { mode: "number" }).primaryKey().notNull(),
   userId: uuid("user_id"),
   muxAssetId: text("mux_asset_id").notNull(),
   muxPlaybackId: text("mux_playback_id").notNull(),

@@ -47,3 +47,18 @@ export async function GET() {
     return NextResponse.json({ error: 'Error fetching prompts', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }
+
+import { createPromptCategory, deletePromptCategory, getAllPromptCategories, getPromptCategoryById, updatePromptCategory } from "@/db/queries/prompt_categories-queries";
+import { ActionState } from "@/types";
+import { InsertPromptCategory } from "@/db/schema/prompt_categories";
+import { revalidatePath } from "next/cache";
+
+export async function createPromptCategoryAction(data: InsertPromptCategory): Promise<ActionState> {
+  try {
+    const newPromptCategory = await createPromptCategory(data);
+    revalidatePath("/prompt-categories");
+    return { status: "success", message: "Prompt category created successfully", data: newPromptCategory };
+  } catch (error) {
+    return { status: "error", message: "Failed to create prompt category" };
+  }
+}

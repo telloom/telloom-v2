@@ -1,7 +1,7 @@
-import { bigserial, pgTable, timestamp, text } from "drizzle-orm/pg-core";
+import { bigint, pgTable, timestamp, text } from "drizzle-orm/pg-core";
 
 export const promptCategoryLinksTable = pgTable("prompt_category_links", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
+  id: bigint("id", { mode: "number" }).primaryKey().notNull(),
   airtableId: text("airtable_id"),
   promptAirtableId: text("prompt_airtable_id"),
   categoryAirtableId: text("category_airtable_id"),
