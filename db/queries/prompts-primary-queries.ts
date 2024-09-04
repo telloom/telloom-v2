@@ -39,7 +39,7 @@ export const deletePrompt = async (id: string) => {
 // New function to get prompts by category
 export const getPromptsByCategory = async (categoryId: number) => {
   return typedDb.query.promptsPrimaryTable.findMany({
-    where: eq(schema.promptsPrimaryTable.categoryId, categoryId),
+    where: eq(schema.promptsPrimaryTable.promptCategoryId, categoryId),
   });
 };
 

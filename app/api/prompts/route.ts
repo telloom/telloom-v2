@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     
     const newPrompt: InsertPromptPrimary = {
       prompt,
-      categoryId: categoryId !== undefined ? Number(categoryId) : null,
+      promptCategoryId: categoryId !== undefined ? Number(categoryId) : null,
       promptType: promptType || 'default',
       contextEstablishingQuestion: contextEstablishingQuestion || false,
     };
