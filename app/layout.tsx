@@ -2,6 +2,7 @@ import React from 'react'
 import type { Metadata } from 'next'
 import '../app/globals.css'
 import { Toaster } from "@/components/ui/sonner"
+import { ThemeProvider } from 'next-themes'
 
 export const metadata: Metadata = {
   title: {
@@ -19,10 +20,12 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
-        {children}
-        <Toaster />
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          {children}
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   )
