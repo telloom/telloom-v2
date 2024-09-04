@@ -20,7 +20,15 @@ export const getPromptCategoryById = async (id: bigint) => {
 };
 
 export const getAllPromptCategories = async () => {
-  return typedDb.query.promptCategoriesTable.findMany();
+  try {
+    console.log('Executing getAllPromptCategories query...');
+    const result = await typedDb.query.promptCategoriesTable.findMany();
+    console.log('getAllPromptCategories result:', result);
+    return result;
+  } catch (error) {
+    console.error('Error in getAllPromptCategories:', error);
+    throw error;
+  }
 };
 
 export const updatePromptCategory = async (id: bigint, data: Partial<InsertPromptCategory>) => {
