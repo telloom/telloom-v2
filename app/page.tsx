@@ -1,32 +1,12 @@
-import { Metadata } from 'next'
-import Layout from '../src/components/Layout'
-import { createClient } from '../utils/supabase/server'
-import { cookies } from 'next/headers'
+import Link from 'next/link';
 
-export const metadata: Metadata = {
-  title: 'Telloom',
-  description: 'Bridging Generations through Video Storytelling',
-}
-
-export default async function Home() {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
-  const { data: todos } = await supabase.from('todos').select()
-
+export default function Home() {
   return (
-    <Layout>
-      <h1 className="text-4xl font-bold text-center my-8 text-blue-600">
-        Welcome to Telloom
-      </h1>
-      <p className="text-center text-gray-700">
-        Bridging Generations through Video Storytelling
-      </p>
-      <div className="text-green-500">Hello Tailwind!</div>
-      <ul>
-        {todos?.map((todo) => (
-          <li key={todo.id}>{todo.title}</li>
-        ))}
-      </ul>
-    </Layout>
-  )
+    <div>
+      <h1>Welcome to My App</h1>
+      <Link href="/signin">Sign In</Link>
+      <Link href="/signup">Sign Up</Link>
+      <Link href="/dashboard">Dashboard</Link>
+    </div>
+  );
 }

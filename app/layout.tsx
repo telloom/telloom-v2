@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import '../app/globals.css'
 import { Toaster } from "sonner"
 import { ThemeProvider } from '../components/theme-provider'
+import ClientWrapper from './ClientWrapper'
 
 export const metadata: Metadata = {
   title: {
@@ -18,17 +19,11 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <body>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
+        <ClientWrapper>
           {children}
-          <Toaster />
-        </ThemeProvider>
+        </ClientWrapper>
       </body>
     </html>
   )

@@ -13,6 +13,9 @@ export async function createVideoAction(data: InsertVideo): Promise<ActionState>
       throw new Error("Upload ID is required");
     }
     const asset = await createAsset(uploadId);
+    if (!asset || !asset.id || !asset.playback_ids?.[0]?.id) {
+      throw new Error("Invalid asset data returned from createAsset");
+    }
     const newVideo = await createVideo({
       ...videoData,
       muxAssetId: asset.id,
