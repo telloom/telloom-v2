@@ -1,7 +1,7 @@
-import { bigserial, pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { bigint, pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
 
 export const offeringsTable = pgTable("offerings", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
+  id: bigint("id", { mode: "number" }).primaryKey().notNull(),
   revenuecatId: text("revenuecat_id").notNull(),
   lookupKey: text("lookup_key").notNull(),
   displayName: text("display_name").notNull(),

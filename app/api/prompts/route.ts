@@ -5,14 +5,14 @@ import { desc } from 'drizzle-orm';
 
 export async function POST(request: Request) {
   try {
-    const { text, categoryId } = await request.json();
-    console.log("Received POST request with data:", { text, categoryId });
+    const { prompt, categoryId, promptType, contextEstablishingQuestion } = await request.json();
+    console.log("Received POST request with data:", { prompt, categoryId, promptType, contextEstablishingQuestion });
     
     const newPrompt: InsertPromptPrimary = {
-      prompt: text,
+      prompt,
       categoryId: categoryId !== undefined ? Number(categoryId) : null,
-      promptType: 'default', // Adding a default value for promptType
-      contextEstablishingQuestion: false, // Adding a default value for contextEstablishingQuestion
+      promptType: promptType || 'default',
+      contextEstablishingQuestion: contextEstablishingQuestion || false,
     };
     
     console.log("Attempting to insert new prompt:", newPrompt);

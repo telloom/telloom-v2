@@ -4,30 +4,23 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db/db';
 import { promptsPrimaryTable, InsertPromptPrimary } from '@/db/schema/prompts_primary';
 import { desc } from 'drizzle-orm';
-
-// Remove this local declaration as we're importing it now
-// export type InsertPromptPrimary = {
-//   prompt: string;
-//   categoryId?: number | null;
-//   createdAt?: Date | null;
-//   updatedAt?: Date | null;
-// };
+import { createPromptCategory, deletePromptCategory, getAllPromptCategories, getPromptCategoryById, updatePromptCategory } from "@/db/queries/prompt_categories-queries";
+import { ActionState } from "@/types";
+import { InsertPromptCategory } from "@/db/schema/prompt_categories";
+import { revalidatePath } from "next/cache";
 
 export async function POST(request: Request) {
   try {
     const { text, categoryId } = await request.json();
-    console.log("Received POST request with data:", { text, categoryId });
     
     const newPrompt: InsertPromptPrimary = {
       prompt: text,
       categoryId: categoryId !== undefined ? Number(categoryId) : null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      promptType: 'default',
+      contextEstablishingQuestion: false,
     };
     
-    console.log("Attempting to insert new prompt:", newPrompt);
     const result = await db.insert(promptsPrimaryTable).values(newPrompt).returning();
-    console.log("Insert result:", result);
     
     return NextResponse.json(result[0]);
   } catch (error: unknown) {
@@ -47,11 +40,6 @@ export async function GET() {
     return NextResponse.json({ error: 'Error fetching prompts', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }
-
-import { createPromptCategory, deletePromptCategory, getAllPromptCategories, getPromptCategoryById, updatePromptCategory } from "@/db/queries/prompt_categories-queries";
-import { ActionState } from "@/types";
-import { InsertPromptCategory } from "@/db/schema/prompt_categories";
-import { revalidatePath } from "next/cache";
 
 export async function createPromptCategoryAction(data: InsertPromptCategory): Promise<ActionState> {
   try {
