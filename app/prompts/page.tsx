@@ -6,11 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const PROMPT_TYPES = [
+  'Advice/Reflections/Perspectives',
+  'Stories',
+  'Personal or Family History',
+  'Expertise in a Topic'
+];
 
 export default function PromptsPage() {
   const { toast } = useToast();
   const [prompts, setPrompts] = useState<PromptPrimary[]>([]);
   const [newPrompt, setNewPrompt] = useState('');
+  const [promptType, setPromptType] = useState(PROMPT_TYPES[0]);
 
   const fetchPrompts = useCallback(async () => {
     const response = await fetch('/api/prompts');
@@ -36,11 +45,12 @@ export default function PromptsPage() {
     const response = await fetch('/api/prompts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: newPrompt }),
+      body: JSON.stringify({ prompt: newPrompt, promptType }),
     });
 
     if (response.ok) {
       setNewPrompt('');
+      setPromptType(PROMPT_TYPES[0]);
       fetchPrompts();
       toast({
         title: "Success",
@@ -65,16 +75,27 @@ export default function PromptsPage() {
           <CardTitle>Create New Prompt</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="flex space-x-2">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <Input
               type="text"
               value={newPrompt}
               onChange={(e) => setNewPrompt(e.target.value)}
               placeholder="Enter new prompt"
-              className="flex-grow"
               required
             />
-            <Button type="submit">Add Prompt</Button>
+            <Select value={promptType} onValueChange={setPromptType}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select prompt type" />
+              </SelectTrigger>
+              <SelectContent>
+                {PROMPT_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button type="submit" className="w-full">Add Prompt</Button>
           </form>
         </CardContent>
       </Card>
