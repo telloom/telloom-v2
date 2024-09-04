@@ -1,119 +1,109 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { PromptPrimary } from '@/db/schema';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Suspense } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { db } from '@/db';
+import { promptCategoriesTable } from '@/db/schema/prompt_categories';
+import { promptsPrimaryTable } from '@/db/schema/prompts_primary';
 
-const PROMPT_TYPES = [
-  'Advice/Reflections/Perspectives',
-  'Stories',
-  'Personal or Family History',
-  'Expertise in a Topic'
-];
+async function getPromptsGroupedByCategory(): Promise<Category[]> {
+  const promptsWithCategories = await db.select({
+    categoryId: promptCategoriesTable.id,
+    category: promptCategoriesTable.category,
+    promptId: promptsPrimaryTable.id,
+    prompt: promptsPrimaryTable.prompt,
+    promptType: promptsPrimaryTable.promptType,
+  })
+  .from(promptCategoriesTable)
+  .leftJoin(promptsPrimaryTable, promptsPrimaryTable.promptCategoryId, promptCategoriesTable.id);
 
-export default function PromptsPage() {
-  const { toast } = useToast();
-  const [prompts, setPrompts] = useState<PromptPrimary[]>([]);
-  const [newPrompt, setNewPrompt] = useState('');
-  const [promptType, setPromptType] = useState(PROMPT_TYPES[0]);
-
-  const fetchPrompts = useCallback(async () => {
-    const response = await fetch('/api/prompts');
-    if (response.ok) {
-      const data = await response.json();
-      setPrompts(data);
-    } else {
-      console.error('Failed to fetch prompts');
-      toast({
-        title: "Error",
-        description: "Failed to fetch prompts",
-        variant: "destructive",
+  const groupedPrompts = promptsWithCategories.reduce((acc: Record<number, { category: string, prompts: Array<{ id: string, prompt: string, promptType: string | null }> }>, item: {
+    categoryId: number;
+    category: string;
+    promptId: string | null;
+    prompt: string | null;
+    promptType: string | null;
+  }) => {
+    if (!acc[item.categoryId]) {
+      acc[item.categoryId] = {
+        category: item.category,
+        prompts: []
+      };
+    }
+    if (item.promptId) {
+      acc[item.categoryId].prompts.push({
+        id: item.promptId,
+        prompt: item.prompt,
+        promptType: item.promptType
       });
     }
-  }, [toast]);
+    return acc;
+  }, {} as Record<number, { category: string, prompts: Array<{ id: string, prompt: string, promptType: string | null }> }>);
 
-  useEffect(() => {
-    fetchPrompts();
-  }, [fetchPrompts]);
+  return Object.values(groupedPrompts);
+}
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const response = await fetch('/api/prompts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: newPrompt, promptType }),
-    });
+type Category = {
+  category: string;
+  prompts: Array<{ id: string; prompt: string; promptType: string | null }>;
+};
 
-    if (response.ok) {
-      setNewPrompt('');
-      setPromptType(PROMPT_TYPES[0]);
-      fetchPrompts();
-      toast({
-        title: "Success",
-        description: "Prompt created successfully",
-      });
-    } else {
-      console.error('Failed to create prompt');
-      toast({
-        title: "Error",
-        description: "Failed to create prompt",
-        variant: "destructive",
-      });
-    }
-  };
+function PromptList({ prompts }: { prompts: Array<{ id: string, prompt: string, promptType: string | null }> }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Prompt</TableHead>
+          <TableHead>Type</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {prompts.map((prompt) => (
+          <TableRow key={prompt.id}>
+            <TableCell>{prompt.prompt}</TableCell>
+            <TableCell>{prompt.promptType || 'N/A'}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function PromptCategories({ categories }: { categories: Category[] }) {
+  return (
+    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {categories.map((category, index) => (
+        <Card key={index}>
+          <CardHeader>
+            <CardTitle>{category.category}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Accordion type="single" collapsible>
+              <AccordionItem value="prompts">
+                <AccordionTrigger>View Prompts</AccordionTrigger>
+                <AccordionContent>
+                  <PromptList prompts={category.prompts} />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+export default async function PromptsPage() {
+  const categories = await getPromptsGroupedByCategory();
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Prompts Management</h1>
-      
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Create New Prompt</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              type="text"
-              value={newPrompt}
-              onChange={(e) => setNewPrompt(e.target.value)}
-              placeholder="Enter new prompt"
-              required
-            />
-            <Select value={promptType} onValueChange={setPromptType}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select prompt type" />
-              </SelectTrigger>
-              <SelectContent>
-                {PROMPT_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button type="submit" className="w-full">Add Prompt</Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Existing Prompts</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="space-y-2">
-            {prompts.map((prompt) => (
-              <li key={prompt.id} className="bg-gray-100 p-2 rounded">
-                {prompt.prompt}
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
+    <div className="container mx-auto py-10">
+      <h1 className="text-3xl font-bold mb-6">Prompts by Category</h1>
+      <Suspense fallback={<div>Loading...</div>}>
+        <PromptCategories categories={categories} />
+      </Suspense>
     </div>
   );
 }
