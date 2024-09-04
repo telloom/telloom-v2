@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -43,7 +44,8 @@ export default function SignUp() {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to create profile');
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create profile');
         }
 
         router.push('/dashboard');
@@ -94,6 +96,14 @@ export default function SignUp() {
             <Button type="submit" className="w-full mt-4">Sign Up</Button>
           </form>
         </CardContent>
+        <CardFooter>
+          <p className="text-sm text-center w-full">
+            Already have an account?{' '}
+            <Link href="/signin" className="text-blue-500 hover:underline">
+              Sign in
+            </Link>
+          </p>
+        </CardFooter>
       </Card>
     </div>
   );
