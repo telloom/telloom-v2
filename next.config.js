@@ -5,14 +5,10 @@ const nextConfig = {
     serverActions: true,
   },
   env: {
-    // ... other env variables ...
-    POSTGRES_URL: process.env.POSTGRES_URL,
-    POSTGRES_PRISMA_URL: process.env.POSTGRES_PRISMA_URL,
-    POSTGRES_URL_NON_POOLING: process.env.POSTGRES_URL_NON_POOLING,
-    POSTGRES_USER: process.env.POSTGRES_USER,
-    POSTGRES_HOST: process.env.POSTGRES_HOST,
-    POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD,
-    POSTGRES_DATABASE: process.env.POSTGRES_DATABASE,
+    MUX_ACCESS_TOKEN_ID: process.env.MUX_ACCESS_TOKEN_ID,
+    MUX_SECRET_KEY: process.env.MUX_SECRET_KEY,
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    DATABASE_URL: process.env.DATABASE_URL,
   },
 }
 

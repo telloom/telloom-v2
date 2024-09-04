@@ -1,17 +1,34 @@
 "use server";
 
-import { createPromptResponse, deletePromptResponse, getAllPromptResponses, getPromptResponseById, updatePromptResponse } from "../db/queries/prompt_responses-queries";
+import { createPromptResponse as dbCreatePromptResponse } from "../db/queries/prompt-responses-queries";
 import { ActionState } from "../types";
-import { InsertPromptResponse } from "../db/schema/prompt_responses";
 import { revalidatePath } from "next/cache";
 
-export async function createPromptResponseAction(data: InsertPromptResponse): Promise<ActionState> {
+interface CreatePromptResponseData {
+  userId: string;
+  promptId: string;
+  videoId: string;
+  muxPlaybackId: string;
+}
+
+export async function createPromptResponse(data: CreatePromptResponseData): Promise<ActionState> {
   try {
-    const newPromptResponse = await createPromptResponse(data);
+    console.log('Creating prompt response with data:', data);
+    if (!data.userId || !data.promptId || !data.videoId || !data.muxPlaybackId) {
+      throw new Error('Missing required fields for creating prompt response');
+    }
+    const newPromptResponse = await dbCreatePromptResponse({
+      userId: data.userId,
+      promptId: data.promptId,
+      videoId: BigInt(data.videoId), // Convert string to BigInt
+      muxPlaybackId: data.muxPlaybackId,
+    });
+    console.log('Prompt response created:', newPromptResponse);
     revalidatePath("/prompt-responses");
     return { status: "success", message: "Prompt response created successfully", data: newPromptResponse };
   } catch (error) {
-    return { status: "error", message: "Failed to create prompt response" };
+    console.error("Failed to create prompt response:", error);
+    return { status: "error", message: `Failed to create prompt response: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 
