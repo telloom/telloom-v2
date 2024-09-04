@@ -1,8 +1,24 @@
 {
-  "extends": ["next/core-web-vitals"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "next/core-web-vitals"
+  ],
   "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint"],
+  "root": true,
   "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module",
     "project": "./tsconfig.json"
+  },
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+  "rules": {
+    "@typescript-eslint/explicit-function-return-type": "off",
+    "@typescript-eslint/no-explicit-any": "off"
   },
   "overrides": [
     {
@@ -16,7 +32,7 @@
       "files": ["tailwind.config.js", "tailwind.config.mjs"],
       "parser": "espree",
       "parserOptions": {
-        "ecmaVersion": 2020
+        "ecmaVersion": 2022
       }
     }
   ]
