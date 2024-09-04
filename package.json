@@ -4,13 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && tsc",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "next lint && eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
     "db:generate": "drizzle-kit generate --config=drizzle.config.mjs",
     "db:push": "drizzle-kit push --config=drizzle.config.mjs",
     "vercel": "vercel",
-    "sync": "node airtable-supabase-sync/sync.js"
+    "sync": "ts-node airtable-supabase-sync/sync.ts",
+    "sync:dev": "ts-node-dev --respawn airtable-supabase-sync/sync.ts"
   },
   "dependencies": {
     "@mux/mux-node": "^8.8.0",
@@ -43,18 +45,20 @@
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/auth-helpers-react": "^0.5.0",
     "@supabase/ssr": "^0.5.1",
-    "@supabase/supabase-js": "^2.45.3",
+    "@supabase/supabase-js": "^2.39.3",
     "@tanstack/react-table": "^8.20.5",
+    "@vercel/fun": "^1.1.1",
     "@vercel/postgres": "^0.9.0",
     "ai": "^3.3.25",
     "airtable": "^0.12.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.4.4",
     "drizzle-orm": "^0.33.0",
     "embla-carousel-react": "^8.2.0",
     "framer-motion": "^11.3.31",
+    "fsevents": "^2.3.3",
     "input-otp": "^1.2.4",
     "lucide-react": "^0.438.0",
     "mysql2": "^3.11.0",
@@ -75,23 +79,34 @@
     "utility-types": "^3.11.0",
     "uuid": "^10.0.0",
     "vaul": "^0.9.1",
-    "vercel": "^37.2.1"
+    "vercel": "^32.3.0"
   },
   "devDependencies": {
-    "@types/node": "^20.16.3",
+    "@types/airtable": "^0.10.1",
+    "@types/node": "^20.11.19",
     "@types/phoenix": "^1.6.5",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/uuid": "^10.0.0",
-    "@typescript-eslint/parser": "^8.4.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.1",
+    "@typescript-eslint/parser": "^7.0.1",
     "autoprefixer": "^10.4.20",
+    "debug": "^4.3.6",
     "drizzle-kit": "^0.24.2",
-    "eslint": "^8.57.0",
+    "eslint": "^8.56.0",
     "eslint-config-next": "^14.2.7",
     "postcss": "^8.4.41",
+    "semver": "^7.6.3",
     "supabase": "^1.191.3",
     "tailwindcss": "^3.4.10",
+    "tar": "^7.4.3",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.4"
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3"
+  },
+  "resolutions": {
+    "debug": "^4.3.1",
+    "semver": "^7.5.2",
+    "tar": "^6.2.2"
   }
 }
