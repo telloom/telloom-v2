@@ -2,7 +2,6 @@ import React from 'react'
 import type { Metadata } from 'next'
 import '../app/globals.css'
 import { Toaster } from "@/components/ui/sonner"
-import ClientWrapper from './ClientWrapper'
 
 export const metadata: Metadata = {
   title: {
@@ -21,12 +20,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <ClientLayout>
-        <body>
-          {children}
-          <Toaster />
-        </body>
-      </ClientLayout>
+      <body>
+        {children}
+        <Toaster />
+      </body>
     </html>
   )
 }
