@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db/db';
-import { promptsPrimaryTable, InsertPromptPrimary } from '@/db/schema/prompts_primary';
+import { db } from '../../../db/db';
+import { promptsPrimaryTable, InsertPromptPrimary } from '../../../db/schema/prompts_primary';
 import { desc, sql } from 'drizzle-orm';
 
 const VALID_PROMPT_TYPES = [

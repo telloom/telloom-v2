@@ -1,8 +1,14 @@
+'use client';
+
 // components/VideoRecorder.tsx
 import React, { useRef, useState } from 'react';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 
-const VideoRecorder: React.FC = () => {
+interface VideoRecorderProps {
+  promptId: string;
+}
+
+const VideoRecorder: React.FC<VideoRecorderProps> = ({ promptId }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [recording, setRecording] = useState(false);
@@ -58,27 +64,53 @@ const VideoRecorder: React.FC = () => {
         },
       });
 
-      // Notify your backend about the upload
-      await fetch('/api/videos/create', {
+      // Notify your backend about the upload and create a prompt response
+      const createResponse = await fetch('/api/prompt-responses/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ uploadId: uploadUrl.split('/').pop() }),
+        body: JSON.stringify({ 
+          uploadId: uploadUrl.split('/').pop(),
+          promptId: promptId
+        }),
       });
 
-      router.push('/videos'); // Redirect to video list page
+      const { promptResponseId } = await createResponse.json();
+
+      router.push(`/prompt-responses/${promptResponseId}`);
     } catch (error) {
       console.error('Upload failed:', error);
     }
   };
 
   return (
-    <div>
-      <video ref={videoRef} autoPlay muted />
-      {!recording && !videoBlob && <button onClick={startRecording}>Start Recording</button>}
-      {recording && <button onClick={stopRecording}>Stop Recording</button>}
-      {videoBlob && <button onClick={uploadRecording}>Upload Recording</button>}
+    <div className="mt-2">
+      <video ref={videoRef} autoPlay muted className="w-full h-48 bg-black mb-2" />
+      {!recording && !videoBlob && (
+        <button
+          onClick={startRecording}
+          className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+        >
+          Start Recording
+        </button>
+      )}
+      {recording && (
+        <button
+          onClick={stopRecording}
+          className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
+        >
+          Stop Recording
+        </button>
+      )}
+      {videoBlob && (
+        <button
+          onClick={uploadRecording}
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+        >
+          Upload Recording
+        </button>
+      )}
     </div>
   );
 };
