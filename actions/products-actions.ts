@@ -1,8 +1,8 @@
 "use server";
 
-import { createProduct, deleteProduct, getAllProducts, getProductById, updateProduct } from "@/db/queries/products-queries";
-import { ActionState } from "@/types";
-import { InsertProduct } from "@/db/schema/products"; // Add this import
+import { createProduct, deleteProduct, getAllProducts, getProductById, updateProduct } from "../db/queries/products-queries";
+import { ActionState } from "../types";
+import { InsertProduct } from "../db/schema/products";
 import { revalidatePath } from "next/cache";
 
 export async function createProductAction(data: InsertProduct): Promise<ActionState> {

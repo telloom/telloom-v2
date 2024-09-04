@@ -1,8 +1,8 @@
 "use server";
 
-import { createProfile, deleteProfile, getAllProfiles, getProfileById, updateProfile } from "@/db/queries/profiles-queries";
-import { ActionState } from "@/types";
-import { InsertProfile } from "@/db/schema/profiles"; // Add this import
+import { createProfile, deleteProfile, getAllProfiles, getProfileById, updateProfile } from "../db/queries/profiles-queries";
+import { ActionState } from "../types";
+import { InsertProfile } from "../db/schema/profiles"; // Add this import
 import { revalidatePath } from "next/cache";
 
 export async function createProfileAction(data: InsertProfile): Promise<ActionState> {

@@ -4,13 +4,24 @@ import { createVideo, deleteVideo, getAllVideos, getVideoById, updateVideo } fro
 import { ActionState } from "../types/action-types";
 import { InsertVideo } from "../db/schema/videos";
 import { revalidatePath } from "next/cache";
+import { createAsset } from "../utils/muxClient";
 
 export async function createVideoAction(data: InsertVideo): Promise<ActionState> {
   try {
-    const newVideo = await createVideo(data);
+    const { uploadId, ...videoData } = data;
+    if (!uploadId) {
+      throw new Error("Upload ID is required");
+    }
+    const asset = await createAsset(uploadId);
+    const newVideo = await createVideo({
+      ...videoData,
+      muxAssetId: asset.id,
+      muxPlaybackId: asset.playback_ids[0].id,
+    });
     revalidatePath("/videos");
     return { status: "success", message: "Video created successfully", data: newVideo };
   } catch (error) {
+    console.error("Failed to create video:", error);
     return { status: "error", message: "Failed to create video" };
   }
 }

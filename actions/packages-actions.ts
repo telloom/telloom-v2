@@ -1,9 +1,9 @@
 "use server";
 
-import { createPackage, deletePackage, getAllPackages, getPackageById, updatePackage } from "@/db/queries/packages-queries";
-import { ActionState } from "@/types";
+import { createPackage, deletePackage, getAllPackages, getPackageById, updatePackage } from "../db/queries/packages-queries";
+import { ActionState } from "../types";
+import { InsertPackage } from "../db/schema/packages";
 import { revalidatePath } from "next/cache";
-import { InsertPackage } from "@/db/schema/packages";
 
 export async function createPackageAction(data: InsertPackage): Promise<ActionState> {
   try {

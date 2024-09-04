@@ -1,8 +1,8 @@
 "use server";
 
-import { createPurchase, deletePurchase, getAllPurchases, getPurchaseById, updatePurchase } from "@/db/queries/purchases-queries";
-import { ActionState } from "@/types";
-import { InsertPurchase } from "@/db/schema/purchases"; // Add this import
+import { createPurchase, deletePurchase, getAllPurchases, getPurchaseById, updatePurchase } from "../db/queries/purchases-queries";
+import { ActionState } from "../types";
+import { InsertPurchase } from "../db/schema/purchases";
 import { revalidatePath } from "next/cache";
 
 export async function createPurchaseAction(data: InsertPurchase): Promise<ActionState> {

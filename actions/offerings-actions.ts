@@ -1,9 +1,9 @@
 "use server";
 
-import { createOffering, deleteOffering, getAllOfferings, getOfferingById, updateOffering } from "@/db/queries/offerings-queries";
-import { ActionState } from "@/types";
+import { createOffering, deleteOffering, getAllOfferings, getOfferingById, updateOffering } from "../db/queries/offerings-queries";
+import { ActionState } from "../types";
+import { InsertOffering } from "../db/schema/offerings";
 import { revalidatePath } from "next/cache";
-import { InsertOffering } from "@/db/schema/offerings";
 
 export async function createOfferingAction(data: InsertOffering): Promise<ActionState> {
   try {

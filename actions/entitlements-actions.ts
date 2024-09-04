@@ -1,8 +1,8 @@
 "use server";
 
-import { createEntitlement, deleteEntitlement, getAllEntitlements, getEntitlementById, updateEntitlement } from "@/db/queries/entitlements-queries";
-import { ActionState } from "@/types";
-import { InsertEntitlement } from "@/db/schema/entitlements"; // Adjust this import path if necessary
+import { createEntitlement, deleteEntitlement, getAllEntitlements, getEntitlementById, updateEntitlement } from "../db/queries/entitlements-queries";
+import { ActionState } from "../types";
+import { InsertEntitlement } from "../db/schema/entitlements"; // Adjust this import path if necessary
 import { revalidatePath } from "next/cache";
 
 export async function createEntitlementAction(data: InsertEntitlement): Promise<ActionState> {

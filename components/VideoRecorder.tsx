@@ -3,12 +3,15 @@
 // components/VideoRecorder.tsx
 import React, { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { InsertVideo } from '../types/video'; // Add this import
 
 interface VideoRecorderProps {
   promptId: string;
+  onUploadComplete: (data: any) => Promise<any>;
+  createVideo: (data: any) => Promise<any>;
 }
 
-const VideoRecorder: React.FC<VideoRecorderProps> = ({ promptId }) => {
+const VideoRecorder: React.FC<VideoRecorderProps> = ({ promptId, onUploadComplete, createVideo }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [recording, setRecording] = useState(false);
@@ -64,21 +67,19 @@ const VideoRecorder: React.FC<VideoRecorderProps> = ({ promptId }) => {
         },
       });
 
-      // Notify your backend about the upload and create a prompt response
-      const createResponse = await fetch('/api/prompt-responses/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          uploadId: uploadUrl.split('/').pop(),
-          promptId: promptId
-        }),
+      // Create video in database
+      const { data: videoData } = await createVideo({ 
+        uploadId: uploadUrl.split('/').pop(),
+        status: 'processing'
+      } as InsertVideo);
+
+      // Create prompt response
+      const { data: promptResponseData } = await onUploadComplete({ 
+        promptId: promptId,
+        videoId: videoData.id
       });
 
-      const { promptResponseId } = await createResponse.json();
-
-      router.push(`/prompt-responses/${promptResponseId}`);
+      router.push(`/prompt-responses/${promptResponseData.id}`);
     } catch (error) {
       console.error('Upload failed:', error);
     }
