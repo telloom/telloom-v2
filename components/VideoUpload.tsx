@@ -1,8 +1,13 @@
-// components/VideoUpload.tsx
-import React, { useState } from 'react';
-import { useRouter } from 'next/router';
+'use client';
 
-const VideoUpload: React.FC = () => {
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+
+interface VideoUploadProps {
+  promptId: string;
+}
+
+const VideoUpload: React.FC<VideoUploadProps> = ({ promptId }) => {
   const [uploading, setUploading] = useState(false);
   const router = useRouter();
 
@@ -26,16 +31,21 @@ const VideoUpload: React.FC = () => {
         },
       });
 
-      // Notify your backend about the upload
-      await fetch('/api/videos/create', {
+      // Notify your backend about the upload and create a prompt response
+      const createResponse = await fetch('/api/prompt-responses/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ uploadId: uploadUrl.split('/').pop() }),
+        body: JSON.stringify({ 
+          uploadId: uploadUrl.split('/').pop(),
+          promptId: promptId
+        }),
       });
 
-      router.push('/videos'); // Redirect to video list page
+      const { promptResponseId } = await createResponse.json();
+
+      router.push(`/prompt-responses/${promptResponseId}`);
     } catch (error) {
       console.error('Upload failed:', error);
     } finally {
@@ -44,10 +54,19 @@ const VideoUpload: React.FC = () => {
   };
 
   return (
-    <div>
-      <label htmlFor="video-upload">Upload video:</label>
-      <input id="video-upload" type="file" accept="video/*" onChange={handleUpload} disabled={uploading} />
-      {uploading && <p>Uploading...</p>}
+    <div className="mt-2">
+      <label htmlFor="video-upload" className="cursor-pointer bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+        Upload Video
+      </label>
+      <input
+        id="video-upload"
+        type="file"
+        accept="video/*"
+        onChange={handleUpload}
+        disabled={uploading}
+        className="hidden"
+      />
+      {uploading && <p className="mt-2 text-sm text-gray-500">Uploading...</p>}
     </div>
   );
 };

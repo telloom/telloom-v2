@@ -1,8 +1,8 @@
 "use server";
 
-import { createVideo, deleteVideo, getAllVideos, getVideoById, updateVideo } from "@/db/queries/videos-queries";
-import { ActionState } from "@/types";
-import { InsertVideo } from "@/db/schema/videos"; // Add this import
+import { createVideo, deleteVideo, getAllVideos, getVideoById, updateVideo } from "../db/queries/videos-queries";
+import { ActionState } from "../types/action-types";
+import { InsertVideo } from "../db/schema/videos";
 import { revalidatePath } from "next/cache";
 
 export async function createVideoAction(data: InsertVideo): Promise<ActionState> {
