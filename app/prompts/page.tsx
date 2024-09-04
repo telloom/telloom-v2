@@ -1,49 +1,58 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { PromptPrimary } from '@/db/schema';
-import { InferSelectModel } from 'drizzle-orm';
-
-type SelectPromptPrimary = {
-  id: number;
-  prompt: string;
-  categoryId: number | null;
-  // Add any other fields that are part of your PromptPrimary type
-};
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
 
 export default function PromptsPage() {
-  const [prompts, setPrompts] = useState<SelectPromptPrimary[]>([]);
+  const { toast } = useToast();
+  const [prompts, setPrompts] = useState<PromptPrimary[]>([]);
   const [newPrompt, setNewPrompt] = useState('');
-  const [categoryId, setCategoryId] = useState<number | null>(null);
 
-  useEffect(() => {
-    fetchPrompts();
-  }, []);
-
-  const fetchPrompts = async () => {
+  const fetchPrompts = useCallback(async () => {
     const response = await fetch('/api/prompts');
     if (response.ok) {
       const data = await response.json();
       setPrompts(data);
     } else {
       console.error('Failed to fetch prompts');
+      toast({
+        title: "Error",
+        description: "Failed to fetch prompts",
+        variant: "destructive",
+      });
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchPrompts();
+  }, [fetchPrompts]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const response = await fetch('/api/prompts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: newPrompt, categoryId }),
+      body: JSON.stringify({ prompt: newPrompt }),
     });
 
     if (response.ok) {
       setNewPrompt('');
-      setCategoryId(null);
       fetchPrompts();
+      toast({
+        title: "Success",
+        description: "Prompt created successfully",
+      });
     } else {
       console.error('Failed to create prompt');
+      toast({
+        title: "Error",
+        description: "Failed to create prompt",
+        variant: "destructive",
+      });
     }
   };
 
@@ -51,35 +60,39 @@ export default function PromptsPage() {
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Prompts Management</h1>
       
-      <form onSubmit={handleSubmit} className="mb-8">
-        <input
-          type="text"
-          value={newPrompt}
-          onChange={(e) => setNewPrompt(e.target.value)}
-          placeholder="Enter new prompt"
-          className="border p-2 mr-2"
-          required
-        />
-        <input
-          type="number"
-          value={categoryId || ''}
-          onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : null)}
-          placeholder="Category ID (optional)"
-          className="border p-2 mr-2"
-        />
-        <button type="submit" className="bg-blue-500 text-white p-2 rounded">
-          Add Prompt
-        </button>
-      </form>
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Create New Prompt</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="flex space-x-2">
+            <Input
+              type="text"
+              value={newPrompt}
+              onChange={(e) => setNewPrompt(e.target.value)}
+              placeholder="Enter new prompt"
+              className="flex-grow"
+              required
+            />
+            <Button type="submit">Add Prompt</Button>
+          </form>
+        </CardContent>
+      </Card>
 
-      <h2 className="text-xl font-semibold mb-2">Existing Prompts</h2>
-      <ul>
-        {prompts.map((prompt) => (
-          <li key={prompt.id} className="mb-2">
-            {prompt.prompt} (Category ID: {prompt.categoryId || 'N/A'})
-          </li>
-        ))}
-      </ul>
+      <Card>
+        <CardHeader>
+          <CardTitle>Existing Prompts</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-2">
+            {prompts.map((prompt) => (
+              <li key={prompt.id} className="bg-gray-100 p-2 rounded">
+                {prompt.prompt}
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
     </div>
   );
 }
