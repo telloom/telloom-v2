@@ -4,7 +4,7 @@ import { sql } from '@vercel/postgres';
 import { drizzle } from 'drizzle-orm/vercel-postgres';
 import * as schema from "../schema";
 import { eq } from "drizzle-orm";
-import { InsertVideo, SelectVideo } from "../schema/videos";
+import { InsertVideo } from "../schema/videos";
 
 // Create a typed database instance
 const typedDb = drizzle(sql, { schema });

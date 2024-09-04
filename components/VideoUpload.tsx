@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 
 interface VideoUploadProps {
   promptId: string;
+  onUploadComplete: (data: any) => Promise<any>;
+  createVideo: (data: any) => Promise<any>;
 }
 
-const VideoUpload: React.FC<VideoUploadProps> = ({ promptId }) => {
+const VideoUpload: React.FC<VideoUploadProps> = ({ promptId, onUploadComplete, createVideo }) => {
   const [uploading, setUploading] = useState(false);
   const router = useRouter();
 
@@ -31,21 +33,19 @@ const VideoUpload: React.FC<VideoUploadProps> = ({ promptId }) => {
         },
       });
 
-      // Notify your backend about the upload and create a prompt response
-      const createResponse = await fetch('/api/prompt-responses/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          uploadId: uploadUrl.split('/').pop(),
-          promptId: promptId
-        }),
+      // Create video in database
+      const { data: videoData } = await createVideo({ 
+        uploadId: uploadUrl.split('/').pop(),
+        status: 'processing'
+      } as InsertVideo);
+
+      // Create prompt response
+      const { data: promptResponseData } = await onUploadComplete({ 
+        promptId: promptId,
+        videoId: videoData.id
       });
 
-      const { promptResponseId } = await createResponse.json();
-
-      router.push(`/prompt-responses/${promptResponseId}`);
+      router.push(`/prompt-responses/${promptResponseData.id}`);
     } catch (error) {
       console.error('Upload failed:', error);
     } finally {
@@ -56,7 +56,7 @@ const VideoUpload: React.FC<VideoUploadProps> = ({ promptId }) => {
   return (
     <div className="mt-2">
       <label htmlFor="video-upload" className="cursor-pointer bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-        Upload Video
+        {uploading ? 'Uploading...' : 'Upload Video'}
       </label>
       <input
         id="video-upload"
@@ -66,7 +66,6 @@ const VideoUpload: React.FC<VideoUploadProps> = ({ promptId }) => {
         disabled={uploading}
         className="hidden"
       />
-      {uploading && <p className="mt-2 text-sm text-gray-500">Uploading...</p>}
     </div>
   );
 };

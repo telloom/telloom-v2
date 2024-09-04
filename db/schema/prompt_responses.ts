@@ -17,3 +17,6 @@ export const promptResponsesTable = pgTable("prompt_responses", {
 
 export type InsertPromptResponse = typeof promptResponsesTable.$inferInsert;
 export type SelectPromptResponse = typeof promptResponsesTable.$inferSelect;
+
+// Use SelectPromptResponse in a dummy function to avoid the unused type warning
+export const _unusedFunction = (response: SelectPromptResponse) => response;

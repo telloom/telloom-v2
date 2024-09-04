@@ -1,8 +1,8 @@
 "use server";
 
-import { createPrompt, deletePrompt, getAllPrompts, getPromptById, updatePrompt, getPromptsByCategory, getLatestPrompts } from "@/db/queries/prompts-primary-queries";
-import { ActionState } from "@/types";
-import { InsertPromptPrimary } from "@/db/schema/prompts_primary";
+import { createPrompt, deletePrompt, getAllPrompts, getPromptById, updatePrompt, getPromptsByCategory, getLatestPrompts } from "../db/queries/prompts-primary-queries";
+import { ActionState } from "../types";
+import { InsertPromptPrimary } from "../db/schema/prompts_primary";
 import { revalidatePath } from "next/cache";
 
 export async function createPromptAction(data: InsertPromptPrimary): Promise<ActionState> {

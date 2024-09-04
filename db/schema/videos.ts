@@ -13,5 +13,8 @@ export const videosTable = pgTable("videos", {
   airtableRecordId: text("airtable_record_id"),
 });
 
-export type InsertVideo = typeof videosTable.$inferInsert;
+export type InsertVideo = typeof videosTable.$inferInsert & {
+  uploadId?: string;
+};
+
 export type SelectVideo = typeof videosTable.$inferSelect;

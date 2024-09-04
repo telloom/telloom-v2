@@ -1,8 +1,8 @@
 "use server";
 
-import { createSubscription, deleteSubscription, getAllSubscriptions, getSubscriptionById, updateSubscription } from "@/db/queries/subscriptions-queries";
-import { ActionState } from "@/types";
-import { InsertSubscription } from "@/db/schema/subscriptions"; // Add this import
+import { createSubscription, deleteSubscription, getAllSubscriptions, getSubscriptionById, updateSubscription } from "../db/queries/subscriptions-queries";
+import { ActionState } from "../types";
+import { InsertSubscription } from "../db/schema/subscriptions"; // Add this import
 import { revalidatePath } from "next/cache";
 
 export async function createSubscriptionAction(data: InsertSubscription): Promise<ActionState> {

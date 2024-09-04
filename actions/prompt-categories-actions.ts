@@ -1,12 +1,12 @@
 "use server";
 
 import { NextResponse } from 'next/server';
-import { db } from '@/db/db';
-import { promptsPrimaryTable, InsertPromptPrimary } from '@/db/schema/prompts_primary';
+import { db } from '../db/db';
+import { promptsPrimaryTable, InsertPromptPrimary } from '../db/schema/prompts_primary';
 import { desc } from 'drizzle-orm';
-import { createPromptCategory, deletePromptCategory, getAllPromptCategories, getPromptCategoryById, updatePromptCategory } from "@/db/queries/prompt_categories-queries";
-import { ActionState } from "@/types";
-import { InsertPromptCategory } from "@/db/schema/prompt_categories";
+import { createPromptCategory, deletePromptCategory, getAllPromptCategories, getPromptCategoryById, updatePromptCategory } from "../db/queries/prompt_categories-queries";
+import { ActionState } from "../types";
+import { InsertPromptCategory } from "../db/schema/prompt_categories";
 import { revalidatePath } from "next/cache";
 
 export async function POST(request: Request) {

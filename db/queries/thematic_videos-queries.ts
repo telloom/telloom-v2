@@ -1,6 +1,5 @@
 "use server";
 
-import { db } from "../db";
 import * as schema from "../schema";
 import { thematicVideosTable } from "../schema/thematic_videos";
 import { eq } from "drizzle-orm";

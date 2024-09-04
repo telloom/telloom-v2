@@ -5,7 +5,6 @@ import { drizzle } from 'drizzle-orm/vercel-postgres';
 import * as schema from "../schema";
 import { videosTable, type InsertVideo } from "../schema";
 import { eq } from "drizzle-orm";
-import { InsertVideoNote, SelectVideoNote } from "../schema/video_notes";
 
 // Create a typed database instance
 const typedDb = drizzle(sql, { schema });
