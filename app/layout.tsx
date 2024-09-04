@@ -2,7 +2,7 @@ import React from 'react'
 import type { Metadata } from 'next'
 import '../app/globals.css'
 import { Toaster } from "@/components/ui/sonner"
-import { ThemeProvider } from 'next-themes'
+import { ThemeProvider } from '@/components/theme-provider'
 
 export const metadata: Metadata = {
   title: {
@@ -12,8 +12,6 @@ export const metadata: Metadata = {
   description: 'Bridging Generations through Video Storytelling',
 }
 
-import ClientLayout from './ClientLayout'
-
 export default function RootLayout({
   children,
 }: {
@@ -22,7 +20,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
           {children}
           <Toaster />
         </ThemeProvider>
