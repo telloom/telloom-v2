@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState } from 'react'
-import { Session, createBrowserSupabaseClient } from '@supabase/auth-helpers-nextjs'
+import { createBrowserSupabaseClient } from '@supabase/auth-helpers-nextjs'
 import { SessionContextProvider } from '@supabase/auth-helpers-react'
 
 export default function ClientLayout({

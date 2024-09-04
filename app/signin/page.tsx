@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -68,6 +69,14 @@ export default function SignIn() {
             <Button type="submit" className="w-full mt-4">Sign In</Button>
           </form>
         </CardContent>
+        <CardFooter>
+          <p className="text-sm text-center w-full">
+            Don&apos;t have an account?{' '}
+            <Link href="/signup" className="text-blue-500 hover:underline">
+              Sign up
+            </Link>
+          </p>
+        </CardFooter>
       </Card>
     </div>
   );
