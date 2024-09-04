@@ -60,11 +60,13 @@ export async function getAllPromptsAction(): Promise<ActionState> {
 
 export async function getPromptsByCategoryAction(categoryId: number): Promise<ActionState> {
   try {
+    console.log(`Executing getPromptsByCategoryAction for category ${categoryId}...`);
     const prompts = await getPromptsByCategory(categoryId);
+    console.log(`Prompts for category ${categoryId}:`, prompts);
     return { status: "success", message: "Prompts retrieved successfully", data: prompts };
   } catch (error) {
-    console.error("Error retrieving prompts by category:", error);
-    return { status: "error", message: "Failed to retrieve prompts by category" };
+    console.error(`Error retrieving prompts for category ${categoryId}:`, error);
+    return { status: "error", message: "Failed to retrieve prompts by category", error: String(error) };
   }
 }
 
