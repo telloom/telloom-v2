@@ -13,18 +13,27 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 export default function SignUp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const supabase = useSupabaseClient();
   const router = useRouter();
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setMessage('');
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({ 
         email, 
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+          }
         },
       });
 
@@ -40,6 +49,8 @@ export default function SignUp() {
           body: JSON.stringify({
             user_id: authData.user.id,
             email: authData.user.email,
+            first_name: firstName,
+            last_name: lastName,
           }),
         });
 
@@ -48,7 +59,9 @@ export default function SignUp() {
           throw new Error(errorData.error || 'Failed to create profile');
         }
 
-        router.push('/dashboard');
+        setMessage('Sign up successful! Please check your email to confirm your account.');
+      } else {
+        setMessage('Please check your email to confirm your account before signing in.');
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
@@ -65,6 +78,26 @@ export default function SignUp() {
         <CardContent>
           <form onSubmit={handleSignUp}>
             <div className="grid w-full items-center gap-4">
+              <div className="flex flex-col space-y-1.5">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input
+                  id="firstName"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="Enter your first name"
+                  required
+                />
+              </div>
+              <div className="flex flex-col space-y-1.5">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input
+                  id="lastName"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Enter your last name"
+                  required
+                />
+              </div>
               <div className="flex flex-col space-y-1.5">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -91,6 +124,11 @@ export default function SignUp() {
             {error && (
               <Alert variant="destructive" className="mt-4">
                 <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            {message && (
+              <Alert variant="default" className="mt-4">
+                <AlertDescription>{message}</AlertDescription>
               </Alert>
             )}
             <Button type="submit" className="w-full mt-4">Sign Up</Button>
