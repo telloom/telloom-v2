@@ -1,28 +1,34 @@
 // app/api/videos/upload-url/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { createUploadUrl } from '@/utils/muxClient';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+import axios from 'axios';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // Check if the user is authenticated
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const MUX_TOKEN_ID = process.env.MUX_ACCESS_TOKEN_ID;
+    const MUX_TOKEN_SECRET = process.env.MUX_SECRET_KEY;
+
+    if (!MUX_TOKEN_ID || !MUX_TOKEN_SECRET) {
+      throw new Error('Mux credentials are not set');
     }
 
-    // Generate the upload URL
-    const uploadUrl = await createUploadUrl();
+    const muxClient = axios.create({
+      baseURL: 'https://api.mux.com',
+      auth: {
+        username: MUX_TOKEN_ID,
+        password: MUX_TOKEN_SECRET,
+      },
+    });
 
-    // Return the upload URL
-    return NextResponse.json({ uploadUrl });
+    const response = await muxClient.post('/video/v1/uploads', {
+      cors_origin: process.env.NEXT_PUBLIC_APP_URL || '*',
+      new_asset_settings: {
+        playback_policy: ['public'],
+      },
+    });
+
+    return NextResponse.json({ uploadUrl: response.data.data.url });
   } catch (error) {
-    console.error('Failed to create upload URL:', error);
+    console.error('Error creating upload URL:', error);
     return NextResponse.json({ error: 'Failed to create upload URL' }, { status: 500 });
   }
 }

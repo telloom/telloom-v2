@@ -1,48 +1,60 @@
 // utils/muxClient.ts
-import Mux from '@mux/mux-node';
+import axios from 'axios';
 
-// Define the shape of the Mux instance
-interface MuxInstance {
-  Video: {
-    Uploads: {
-      create: (options: any) => Promise<{ url: string }>;
-    };
-    Assets: {
-      create: (options: any) => Promise<any>;
-      get: (assetId: string) => Promise<any>;
-    };
-  };
-}
+const MUX_TOKEN_ID = process.env.MUX_ACCESS_TOKEN_ID;
+const MUX_TOKEN_SECRET = process.env.MUX_SECRET_KEY;
 
-const muxTokenId = process.env.MUX_ACCESS_TOKEN_ID;
-const muxSecretKey = process.env.MUX_SECRET_KEY;
-
-if (!muxTokenId || !muxSecretKey) {
-  throw new Error('Mux credentials are not properly configured. Please check your environment variables.');
-}
-
-const muxClient = new Mux({
-  tokenId: muxTokenId,
-  tokenSecret: muxSecretKey
-}) as unknown as MuxInstance;
+const muxClient = axios.create({
+  baseURL: 'https://api.mux.com',
+  auth: {
+    username: MUX_TOKEN_ID!,
+    password: MUX_TOKEN_SECRET!,
+  },
+});
 
 export const createUploadUrl = async () => {
-  const upload = await muxClient.Video.Uploads.create({
-    new_asset_settings: { playback_policy: 'public' },
-    cors_origin: process.env.NEXT_PUBLIC_APP_URL,
-  });
-  return upload.url;
+  try {
+    console.log('Creating Mux upload URL...');
+    console.log('MUX_TOKEN_ID:', MUX_TOKEN_ID); // Add this line for debugging
+    console.log('MUX_TOKEN_SECRET:', MUX_TOKEN_SECRET ? '[REDACTED]' : 'undefined'); // Add this line for debugging
+    const response = await muxClient.post('/video/v1/uploads', {
+      cors_origin: process.env.NEXT_PUBLIC_APP_URL || '*',
+      new_asset_settings: {
+        playback_policy: ['public'],
+        mp4_support: 'capped-1080p',
+      },
+    });
+    console.log('Mux upload URL created:', response.data.data.url);
+    return response.data.data.url;
+  } catch (error) {
+    console.error('Error creating Mux upload URL:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('Response data:', error.response?.data);
+    }
+    throw error;
+  }
 };
 
-export const createAsset = async (uploadId: string) => {
-  const asset = await muxClient.Video.Assets.create({
-    input: [{ url: uploadId }],
-    playback_policy: 'public',
-  });
-  return asset;
+export const getUploadStatus = async (uploadId: string) => {
+  try {
+    const response = await muxClient.get(`/video/v1/uploads/${uploadId}`);
+    return response.data.data;
+  } catch (error) {
+    console.error('Error getting upload status:', error);
+    throw error;
+  }
 };
 
 export const getAsset = async (assetId: string) => {
-  const asset = await muxClient.Video.Assets.get(assetId);
-  return asset;
+  try {
+    const response = await muxClient.get(`/video/v1/assets/${assetId}`);
+    return response.data.data;
+  } catch (error) {
+    console.error('Error getting asset:', error);
+    throw error;
+  }
+};
+
+export const createAsset = async (uploadId: string) => {
+  // Implementation of createAsset
 };

@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import MuxUploader from "@mux/mux-uploader-react";
+import { createUploadUrl, getUploadStatus } from '../utils/muxClient';
 
 interface VideoUploadProps {
   promptId: string;
@@ -10,61 +12,56 @@ interface VideoUploadProps {
 }
 
 const VideoUpload: React.FC<VideoUploadProps> = ({ promptId, onUploadComplete, createVideo }) => {
-  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-
+  const handleUploadSuccess = useCallback(async (event: CustomEvent) => {
+    const { id } = event.detail as { id: string };
     try {
-      // Get upload URL from your API
-      const response = await fetch('/api/videos/upload-url');
-      const { uploadUrl } = await response.json();
+      // Poll for upload status
+      let uploadStatus;
+      do {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        uploadStatus = await getUploadStatus(id);
+      } while (uploadStatus.status === 'waiting');
 
-      // Upload file to Mux
-      await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type,
-        },
+      if (uploadStatus.status !== 'asset_created') {
+        throw new Error(`Upload failed with status: ${uploadStatus.status}`);
+      }
+
+      const { data: videoData } = await createVideo({ 
+        uploadId: id,
+        assetId: uploadStatus.asset_id,
+        status: 'ready'
       });
 
-      // Create video in database
-      const { data: videoData } = await createVideo({ 
-        uploadId: uploadUrl.split('/').pop(),
-        status: 'processing'
-      } as InsertVideo);
-
-      // Create prompt response
-      const { data: promptResponseData } = await onUploadComplete({ 
+      const promptResponseData = await onUploadComplete({ 
         promptId: promptId,
         videoId: videoData.id
       });
 
       router.push(`/prompt-responses/${promptResponseData.id}`);
-    } catch (error) {
-      console.error('Upload failed:', error);
-    } finally {
-      setUploading(false);
+    } catch (err) {
+      console.error('Upload failed:', err);
+      setError('Failed to process upload. Please try again.');
     }
-  };
+  }, [createVideo, onUploadComplete, promptId, router]);
 
   return (
     <div className="mt-2">
-      <label htmlFor="video-upload" className="cursor-pointer bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-        {uploading ? 'Uploading...' : 'Upload Video'}
-      </label>
-      <input
-        id="video-upload"
-        type="file"
-        accept="video/*"
-        onChange={handleUpload}
-        disabled={uploading}
-        className="hidden"
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <strong className="font-bold">Error: </strong>
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
+      <MuxUploader
+        endpoint={createUploadUrl}
+        onSuccess={handleUploadSuccess}
+        onError={(event: React.SyntheticEvent<HTMLElement>) => {
+          console.error('Upload error:', (event as any).detail);
+          setError(`Upload failed: ${(event as any).detail?.message || 'Unknown error'}`);
+        }}
       />
     </div>
   );
