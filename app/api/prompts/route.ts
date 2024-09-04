@@ -1,24 +1,31 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db/db';
 import { promptsPrimaryTable, InsertPromptPrimary } from '@/db/schema/prompts_primary';
-import { desc } from 'drizzle-orm';
+import { desc, sql } from 'drizzle-orm';
+
+const VALID_PROMPT_TYPES = [
+  'Advice/Reflections/Perspectives',
+  'Stories',
+  'Personal or Family History',
+  'Expertise in a Topic'
+];
 
 export async function POST(request: Request) {
   try {
     const { prompt, categoryId, promptType, contextEstablishingQuestion } = await request.json();
-    console.log("Received POST request with data:", { prompt, categoryId, promptType, contextEstablishingQuestion });
     
-    const newPrompt: InsertPromptPrimary = {
+    // Ensure promptType is a valid value
+    const sanitizedPromptType = VALID_PROMPT_TYPES.includes(promptType) ? promptType : VALID_PROMPT_TYPES[0];
+
+    const result = await db.insert(promptsPrimaryTable).values({
       prompt,
-      promptCategoryId: categoryId !== undefined ? Number(categoryId) : null,
-      promptType: promptType || 'default',
-      contextEstablishingQuestion: contextEstablishingQuestion || false,
-    };
-    
-    console.log("Attempting to insert new prompt:", newPrompt);
-    const result = await db.insert(promptsPrimaryTable).values(newPrompt).returning();
+      promptCategoryId: categoryId || null,
+      promptType: sanitizedPromptType,
+      contextEstablishingQuestion: contextEstablishingQuestion || false
+    }).returning();
+
     console.log("Insert result:", result);
-    
+
     return NextResponse.json(result[0]);
   } catch (error: unknown) {
     console.error('Error creating prompt:', error);
