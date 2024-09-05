@@ -1,44 +1,33 @@
-// app/api/videos/create/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { createAsset } from '@/utils/muxClient';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { getAsset } from '@/utils/muxClient';
+import { db } from '@/db/db';
+import { videosTable } from '@/db/schema/videos';
+import { promptResponsesTable } from '@/db/schema/prompt_responses';
 
 export async function POST(request: NextRequest) {
-  const { uploadId } = await request.json();
+  const { assetId, promptId, userId } = await request.json();
 
   try {
-    const asset = await createAsset(uploadId);
-    
-    // Get the user ID from the session
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user.id;
+    const asset = await getAsset(assetId);
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Insert video information
+    const [video] = await db.insert(videosTable).values({
+      userId,
+      muxAssetId: assetId,
+      muxPlaybackId: asset.playbackId,
+      status: 'ready',
+    }).returning();
 
-    // Insert video information into the database
-    const { data, error } = await supabase
-      .from('videos')
-      .insert({
-        user_id: userId,
-        mux_asset_id: asset.id,
-        mux_playback_id: asset.playback_ids[0].id,
-        status: 'processing',
-      })
-      .select()
-      .single();
+    // Create prompt response
+    const [promptResponse] = await db.insert(promptResponsesTable).values({
+      userId,
+      promptId,
+      videoId: video.id,
+    }).returning();
 
-    if (error) throw error;
-
-    return NextResponse.json({ success: true, videoId: data.id });
+    return NextResponse.json({ success: true, promptResponseId: promptResponse.id });
   } catch (error) {
-    console.error('Failed to create video:', error);
-    return NextResponse.json({ error: 'Failed to create video' }, { status: 500 });
+    console.error('Failed to create video and prompt response:', error);
+    return NextResponse.json({ error: 'Failed to process upload' }, { status: 500 });
   }
 }

@@ -28,7 +28,10 @@ export const createUploadUrl = async () => {
       },
     });
     console.log('Mux upload URL created:', response.data.data.url);
-    return response.data.data.url;
+    return {
+      uploadUrl: response.data.data.url,
+      uploadId: response.data.data.id  // Add this line to return the upload ID
+    };
   } catch (error) {
     console.error('Error creating Mux upload URL:', error);
     if (axios.isAxiosError(error) && error.response) {
@@ -42,7 +45,10 @@ export const createUploadUrl = async () => {
 export const getUploadStatus = async (uploadId: string) => {
   try {
     const response = await muxClient.get(`/video/v1/uploads/${uploadId}`);
-    return response.data.data;
+    return {
+      status: response.data.data.status,
+      assetId: response.data.data.asset_id  // Add this line to explicitly return the asset ID
+    };
   } catch (error) {
     console.error('Error getting upload status:', error);
     throw error;
@@ -52,7 +58,10 @@ export const getUploadStatus = async (uploadId: string) => {
 export const getAsset = async (assetId: string) => {
   try {
     const response = await muxClient.get(`/video/v1/assets/${assetId}`);
-    return response.data.data;
+    return {
+      status: response.data.data.status,
+      playbackId: response.data.data.playback_ids[0]?.id
+    };
   } catch (error) {
     console.error('Error getting asset:', error);
     throw error;
@@ -68,6 +77,17 @@ export const createAsset = async (uploadId: string) => {
     return response.data.data;
   } catch (error) {
     console.error('Error creating asset:', error);
+    throw error;
+  }
+};
+
+// Add a new function to delete an asset
+export const deleteAsset = async (assetId: string) => {
+  try {
+    await muxClient.delete(`/video/v1/assets/${assetId}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting asset:', error);
     throw error;
   }
 };

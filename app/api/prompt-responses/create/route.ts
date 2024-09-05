@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const asset = await createAsset(uploadId);
-    
+
     // Get the user ID from the session
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user.id;
@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
       muxAssetId: asset.id,
       muxPlaybackId: asset.playback_ids[0].id,
       status: 'processing',
+      // id is not provided here as it is likely auto-generated
     }).returning();
 
     // Create prompt response
@@ -37,6 +38,7 @@ export async function POST(request: NextRequest) {
       userId,
       promptId,
       videoId: video.id,
+      // id is not provided here as it is likely auto-generated
     }).returning();
 
     return NextResponse.json({ success: true, promptResponseId: promptResponse.id });
