@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
-import MuxUploader from "@mux/mux-uploader-react";
+import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import MuxUploader from "@mux/mux-uploader-react";
+import { createUploadUrl, getUploadStatus, getAsset } from '../utils/muxClient';
 import { createVideoAction } from '@/actions/videos-actions';
 import { createPromptResponse } from '@/actions/prompt-responses-actions';
 
@@ -11,39 +12,47 @@ interface VideoUploaderProps {
   userId: string;
 }
 
-export default function VideoUploader({ promptId, userId }: VideoUploaderProps) {
+const VideoUploader: React.FC<VideoUploaderProps> = ({ promptId, userId }) => {
   const [error, setError] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [uploadUrl, setUploadUrl] = useState<string | null>(null);
   const router = useRouter();
 
-  const getUploadUrl = async () => {
-    try {
-      console.log('Fetching Mux upload URL...');
-      const response = await fetch('/api/videos/upload-url');
-      const { uploadUrl } = await response.json();
-      console.log('Mux upload URL received:', uploadUrl);
-      return uploadUrl;
-    } catch (err) {
-      console.error('Error fetching Mux upload URL:', err);
-      throw new Error('Failed to get upload URL');
+  const handleUploadSuccess = useCallback(async (event: CustomEvent) => {
+    console.log('Upload success event:', event);
+    const uploadId = event?.detail?.id;
+    console.log('Upload ID:', uploadId);
+
+    if (!uploadId) {
+      console.error('Upload ID is missing from the event detail');
+      setError('Failed to process upload. Upload ID is missing.');
+      return;
     }
-  };
-
-  const handleUploadSuccess = async (event: CustomEvent) => {
-    console.log('Upload success event triggered:', event);
 
     try {
-      const assetId = event?.detail?.asset_id;
-      console.log('Asset ID from Mux:', assetId);
+      // Poll for upload status
+      let uploadStatus;
+      do {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        uploadStatus = await getUploadStatus(uploadId);
+        console.log('Upload status:', uploadStatus);
+      } while (uploadStatus.status === 'waiting' || uploadStatus.status === 'preparing');
 
-      if (!assetId) {
-        throw new Error('Asset ID is missing');
+      if (uploadStatus.status !== 'ready') {
+        throw new Error(`Upload failed with status: ${uploadStatus.status}`);
       }
 
-      const videoResult = await createVideoAction({
+      const assetId = uploadStatus.assetId;
+      if (!assetId) {
+        throw new Error('Asset ID is missing from upload status');
+      }
+
+      // Get asset details
+      const asset = await getAsset(assetId);
+
+      const videoResult = await createVideoAction({ 
         userId,
         muxAssetId: assetId,
-        muxPlaybackId: event.detail.playback_ids[0].id, // Assuming first playback ID is used
+        muxPlaybackId: asset.playbackId || '',
         status: 'ready',
       });
 
@@ -62,27 +71,47 @@ export default function VideoUploader({ promptId, userId }: VideoUploaderProps) 
       }
 
       router.push(`/prompt-responses/${promptResponseResult.data.id}`);
-
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Upload process failed:', err);
-      setError(`Upload failed: ${err.message}`);
-    } finally {
-      setIsUploading(false);
+      setError(`Failed to process upload: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
-  };
+  }, [promptId, userId, router]);
+
+  useEffect(() => {
+    const fetchUploadUrl = async () => {
+      try {
+        const { uploadUrl } = await createUploadUrl();
+        setUploadUrl(uploadUrl);
+      } catch (error) {
+        console.error('Failed to fetch upload URL:', error);
+        setError('Failed to initialize uploader. Please try again.');
+      }
+    };
+    fetchUploadUrl();
+  }, []);
 
   return (
-    <>
-      <MuxUploader
-        endpoint={getUploadUrl} // Fetch upload URL dynamically
-        onSuccess={handleUploadSuccess}
-        onError={(error) => {
-          console.error('Upload error:', error);
-          setError('Failed to upload video. Please try again.');
-        }}
-      />
-      {isUploading && <p>Processing video...</p>}
-      {error && <p className="text-red-500">{error}</p>}
-    </>
+    <div className="mt-2">
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <strong className="font-bold">Error: </strong>
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
+      {uploadUrl ? (
+        <MuxUploader
+          endpoint={uploadUrl}
+          onSuccess={handleUploadSuccess}
+          onError={(error: unknown) => {
+            console.error('Upload error:', error);
+            setError(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }}
+        />
+      ) : (
+        <p>Initializing uploader...</p>
+      )}
+    </div>
   );
-}
+};
+
+export default VideoUploader;

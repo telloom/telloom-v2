@@ -2,7 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import * as schema from "../schema";
-import { InsertPromptPrimary, PromptPrimary } from "../schema/prompts_primary";
+import { InsertPromptPrimary } from "../schema/prompts_primary";
 import { db } from '../db';
 
 export const createPrompt = async (data: InsertPromptPrimary) => {
