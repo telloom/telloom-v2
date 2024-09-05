@@ -5,17 +5,32 @@ import { drizzle } from 'drizzle-orm/vercel-postgres';
 import * as schema from "../schema";
 import { eq } from "drizzle-orm";
 import { InsertPromptResponse } from "../schema/prompt_responses";
+import { SelectPromptResponse } from "../schema/prompt_responses";
+import { Prompt } from "../schema/prompts";
+import { Video } from "../schema/videos";
 
 // Create a typed database instance
 const typedDb = drizzle(sql, { schema });
 
 export const createPromptResponse = async (data: InsertPromptResponse) => {
-  return typedDb.insert(schema.promptResponsesTable).values(data).returning();
+  console.log('Inserting prompt response:', data);
+  if (!data.userId || !data.promptId) {
+    throw new Error('userId and promptId are required');
+  }
+  const result = await typedDb.insert(schema.promptResponsesTable).values(data).returning();
+  console.log('Inserted prompt response:', result);
+  return result[0];
 };
 
-export const getPromptResponseById = async (id: bigint) => {
+// ... other existing queries ...
+
+export const getPromptResponseById = async (id: bigint): Promise<(SelectPromptResponse & { prompt: Prompt | null, video: Video | null }) | null> => {
   return typedDb.query.promptResponsesTable.findFirst({
     where: eq(schema.promptResponsesTable.id, Number(id)),
+    with: {
+      prompt: true,
+      video: true,
+    },
   });
 };
 

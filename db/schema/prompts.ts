@@ -1,0 +1,1 @@
+export type Prompt = typeof promptsTable.$inferSelect;
