@@ -2,7 +2,7 @@ import { bigint, pgTable, text, timestamp, uuid, doublePrecision } from "drizzle
 
 export const videosTable = pgTable("videos", {
   id: bigint("id", { mode: "number" }).primaryKey().notNull(),
-  userId: uuid("user_id"),
+  userId: uuid("user_id").notNull(),
   muxAssetId: text("mux_asset_id").notNull(),
   muxPlaybackId: text("mux_playback_id").notNull(),
   status: text("status"),
@@ -13,8 +13,5 @@ export const videosTable = pgTable("videos", {
   airtableRecordId: text("airtable_record_id"),
 });
 
-export type InsertVideo = typeof videosTable.$inferInsert & {
-  uploadId?: string;
-};
-
+export type InsertVideo = typeof videosTable.$inferInsert;
 export type SelectVideo = typeof videosTable.$inferSelect;

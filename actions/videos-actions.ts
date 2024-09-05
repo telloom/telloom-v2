@@ -1,28 +1,17 @@
 "use server";
 
+import { db } from "../db/db"; // Change this import
 import { createVideo, deleteVideo, getAllVideos, getVideoById, updateVideo } from "../db/queries/videos-queries";
 import { ActionState } from "../types/action-types";
 import { InsertVideo } from "../db/schema/videos";
 import { revalidatePath } from "next/cache";
 import { createAsset } from "../utils/muxClient";
+import { videosTable } from "../db/schema/videos";
 
 export async function createVideoAction(data: InsertVideo): Promise<ActionState> {
   try {
-    const { uploadId, ...videoData } = data;
-    if (!uploadId) {
-      throw new Error("Upload ID is required");
-    }
-    const asset = await createAsset(uploadId);
-    if (!asset || !asset.id || !asset.playback_ids?.[0]?.id) {
-      throw new Error("Invalid asset data returned from createAsset");
-    }
-    const newVideo = await createVideo({
-      ...videoData,
-      muxAssetId: asset.id,
-      muxPlaybackId: asset.playback_ids[0].id,
-    });
-    revalidatePath("/videos");
-    return { status: "success", message: "Video created successfully", data: newVideo };
+    const newVideo = await createVideo(data);
+    return { status: "success", message: "Video created successfully", data: newVideo[0] };
   } catch (error) {
     console.error("Failed to create video:", error);
     return { status: "error", message: "Failed to create video" };
