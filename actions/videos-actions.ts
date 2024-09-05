@@ -7,10 +7,17 @@ import { InsertVideo } from "../db/schema/videos";
 import { revalidatePath } from "next/cache";
 import { createAsset } from "../utils/muxClient";
 import { videosTable } from "../db/schema/videos";
+import { v4 as uuidv4 } from 'uuid';
 
-export async function createVideoAction(data: InsertVideo): Promise<ActionState> {
+export async function createVideoAction(data: Omit<InsertVideo, 'id'>): Promise<ActionState> {
   try {
-    const newVideo = await createVideo(data);
+    // Generate a unique numeric ID
+    const numericId = parseInt(uuidv4().replace(/-/g, '').slice(0, 15), 16);
+    
+    const newVideo = await createVideo({
+      ...data,
+      id: numericId,
+    });
     return { status: "success", message: "Video created successfully", data: newVideo[0] };
   } catch (error) {
     console.error("Failed to create video:", error);

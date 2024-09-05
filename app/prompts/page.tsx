@@ -3,7 +3,7 @@ import { getAllPromptCategories } from '../../db/queries/prompt_categories-queri
 import { getPromptsByCategoryAction } from '../../actions/prompts-primary-actions';
 
 export type Category = {
-  id: number;
+  id: string; // Change this from number to string
   category: string;
   prompts: Array<{ id: string; prompt: string; contextEstablishingQuestion: boolean | null }>;
 };
@@ -23,7 +23,7 @@ async function getPromptsGroupedByCategory(): Promise<Category[]> {
 
       if (promptsResult.status === 'success' && Array.isArray(promptsResult.data)) {
         groupedPrompts.push({
-          id: category.id,
+          id: category.id.toString(), // Convert id to string
           category: category.category ?? '',
           prompts: promptsResult.data.map(prompt => ({
             id: prompt.id,

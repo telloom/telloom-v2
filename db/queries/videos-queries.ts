@@ -4,13 +4,14 @@ import { sql } from '@vercel/postgres';
 import { drizzle } from 'drizzle-orm/vercel-postgres';
 import * as schema from "../schema";
 import { eq } from "drizzle-orm";
-import { InsertVideo } from "../schema/videos";
+import { InsertVideo, videosTable } from "../schema";
 
 // Create a typed database instance
 const typedDb = drizzle(sql, { schema });
 
 export const createVideo = async (data: InsertVideo) => {
-  return typedDb.insert(schema.videosTable).values(data).returning();
+  const result = await typedDb.insert(videosTable).values(data).returning();
+  return result[0];
 };
 
 export const getVideoById = async (id: bigint) => {

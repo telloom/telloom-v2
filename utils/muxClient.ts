@@ -47,7 +47,7 @@ export const getUploadStatus = async (uploadId: string) => {
     const response = await muxClient.get(`/video/v1/uploads/${uploadId}`);
     return {
       status: response.data.data.status,
-      assetId: response.data.data.asset_id  // Add this line to explicitly return the asset ID
+      assetId: response.data.data.asset_id
     };
   } catch (error) {
     console.error('Error getting upload status:', error);

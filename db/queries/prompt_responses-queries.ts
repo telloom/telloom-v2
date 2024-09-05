@@ -6,7 +6,7 @@ import * as schema from "../schema";
 import { eq } from "drizzle-orm";
 import { InsertPromptResponse } from "../schema/prompt_responses";
 import { SelectPromptResponse } from "../schema/prompt_responses";
-import { Prompt } from "../schema/prompts";
+import { PromptPrimary } from "../schema/prompts_primary";
 import { Video } from "../schema/videos";
 
 // Create a typed database instance
@@ -24,14 +24,16 @@ export const createPromptResponse = async (data: InsertPromptResponse) => {
 
 // ... other existing queries ...
 
-export const getPromptResponseById = async (id: bigint): Promise<(SelectPromptResponse & { prompt: Prompt | null, video: Video | null }) | null> => {
-  return typedDb.query.promptResponsesTable.findFirst({
+export const getPromptResponseById = async (id: bigint): Promise<(SelectPromptResponse & { prompt: PromptPrimary | null, video: Video | null }) | null> => {
+  const result = await typedDb.query.promptResponsesTable.findFirst({
     where: eq(schema.promptResponsesTable.id, Number(id)),
     with: {
       prompt: true,
       video: true,
     },
   });
+
+  return result ?? null;
 };
 
 export const getAllPromptResponses = async () => {
