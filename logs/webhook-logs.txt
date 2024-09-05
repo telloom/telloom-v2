@@ -1,0 +1,64 @@
+
+Timestamp: 2024-09-05T21:21:01.391Z
+Headers: {
+  "accept-encoding": "gzip",
+  "content-length": "1228",
+  "content-type": "application/json",
+  "host": "ebcc-24-90-237-117.ngrok-free.app",
+  "mux-signature": "t=1725571260,v1=49edc3c2ecd6033bdafe43c5dae55549777332ed838c7d7c7bec3f48d7635c0a",
+  "user-agent": "mint/1.3.0",
+  "x-forwarded-for": "35.172.58.74",
+  "x-forwarded-host": "ebcc-24-90-237-117.ngrok-free.app",
+  "x-forwarded-port": "3000",
+  "x-forwarded-proto": "https"
+}
+Body: {"type":"video.upload.created","request_id":null,"object":{"type":"upload","id":"ysopYb02Vk3suWu01SA1f45fek1EKl01f200CQ3Gh00G5MJY"},"id":"9ceba06c-1d3f-8147-efe3-57464556eb24","environment":{"name":"Production","id":"94miea"},"data":{"url":"https://storage.googleapis.com/video-storage-gcp-us-east4-vop1-uploads/K4JOPrDcPItXDwXwhnUHMD?Expires=1725574860&GoogleAccessId=uploads-gcp-us-east1-vop1%40mux-video-production.iam.gserviceaccount.com&Signature=fnO8txALmqj2hCzYdhmwLhMDz1a%2BsTCcRMHmrJdozXqryQ62NYhMtiPRZTdUHYxCOd6RSOx8p41pzBc6DoDzBV5Uwt%2Bx85d%2B7h5cI1MKZVjself%2FEx2g0hb4a%2BvwSpPRlMoaGjSXt8Q9s%2FNmtenZzqN9RhZwquxaXOk0gfFU%2BiYdW5sgqOhHsdppTEWZ7CFM43yT7xBZc8uCPjAgcwZR1g4aSLM8m60NXCynk16CNiUBrIw9tVF3F9CbOwF%2F9seuIv%2F9qS3QBgWWizunhinfLzc%2BQsPJSjs19eauQq24i4r4lMHoxBS%2BusfwzLAxtGLqepZgV1DAl%2FeSFIJdT8oSdw%3D%3D&upload_id=AD-8ljtD3RQBn8OjV7CwjuqAYYB0Fnafr5PmfWSPgMLcPuFBxxIy3s1BvV7ujWpHIM7UefrFh11ML9mCZjSv8-dTuekKhITkYFkDWZfkl1o70Jei","timeout":3600,"status":"waiting","new_asset_settings":{"playback_policies":["public"]},"id":"ysopYb02Vk3suWu01SA1f45fek1EKl01f200CQ3Gh00G5MJY","cors_origin":"http://localhost:3000"},"created_at":"2024-09-05T21:21:00.397000Z","attempts":[],"accessor_source":null,"accessor":null}
+---------------------
+
+Timestamp: 2024-09-05T21:21:02.503Z
+Headers: {
+  "accept-encoding": "gzip",
+  "content-length": "582",
+  "content-type": "application/json",
+  "host": "ebcc-24-90-237-117.ngrok-free.app",
+  "mux-signature": "t=1725571262,v1=8fd2ba4758edd420567870b87e362a3e79c59ecda55a6aebc41d8f31d1865db9",
+  "user-agent": "mint/1.3.0",
+  "x-forwarded-for": "35.172.148.120",
+  "x-forwarded-host": "ebcc-24-90-237-117.ngrok-free.app",
+  "x-forwarded-port": "3000",
+  "x-forwarded-proto": "https"
+}
+Body: {"type":"video.upload.asset_created","request_id":null,"object":{"type":"upload","id":"ysopYb02Vk3suWu01SA1f45fek1EKl01f200CQ3Gh00G5MJY"},"id":"78d5ab79-cd20-9323-77f1-7bbfcd8f427f","environment":{"name":"Production","id":"94miea"},"data":{"timeout":3600,"status":"asset_created","new_asset_settings":{"playback_policies":["public"]},"id":"ysopYb02Vk3suWu01SA1f45fek1EKl01f200CQ3Gh00G5MJY","cors_origin":"http://localhost:3000","asset_id":"foMcNkld4MJf7jPBzzqAvWKD7KMK8uLfJGMwCIugiuQ"},"created_at":"2024-09-05T21:21:01.749000Z","attempts":[],"accessor_source":null,"accessor":null}
+---------------------
+
+Timestamp: 2024-09-05T21:21:02.607Z
+Headers: {
+  "accept-encoding": "gzip",
+  "content-length": "740",
+  "content-type": "application/json",
+  "host": "ebcc-24-90-237-117.ngrok-free.app",
+  "mux-signature": "t=1725571262,v1=7201dcc0c950fc882326e0bf0fa0be0e8e50a88809600c8b46020881d7868dd5",
+  "user-agent": "mint/1.3.0",
+  "x-forwarded-for": "35.173.69.250",
+  "x-forwarded-host": "ebcc-24-90-237-117.ngrok-free.app",
+  "x-forwarded-port": "3000",
+  "x-forwarded-proto": "https"
+}
+Body: {"type":"video.asset.created","request_id":null,"object":{"type":"asset","id":"foMcNkld4MJf7jPBzzqAvWKD7KMK8uLfJGMwCIugiuQ"},"id":"5fe61799-c796-5f31-1199-669aabb24def","environment":{"name":"Production","id":"94miea"},"data":{"video_quality":"basic","upload_id":"ysopYb02Vk3suWu01SA1f45fek1EKl01f200CQ3Gh00G5MJY","status":"preparing","playback_ids":[{"policy":"public","id":"jRDYVIh3IFuvQhDVcUBgDIGpgK00MRtxmf02uhboZ00006o"}],"mp4_support":"none","max_resolution_tier":"1080p","master_access":"none","ingest_type":"on_demand_direct_upload","id":"foMcNkld4MJf7jPBzzqAvWKD7KMK8uLfJGMwCIugiuQ","encoding_tier":"baseline","created_at":1725571261},"created_at":"2024-09-05T21:21:01.746000Z","attempts":[],"accessor_source":null,"accessor":null}
+---------------------
+
+Timestamp: 2024-09-05T21:21:03.776Z
+Headers: {
+  "accept-encoding": "gzip",
+  "content-length": "1172",
+  "content-type": "application/json",
+  "host": "ebcc-24-90-237-117.ngrok-free.app",
+  "mux-signature": "t=1725571263,v1=50d63bb769eddaa2d3bde93be18bc8c7378e5b35a9d3a7c18e0af6a9e015dc81",
+  "user-agent": "mint/1.3.0",
+  "x-forwarded-for": "35.173.69.250",
+  "x-forwarded-host": "ebcc-24-90-237-117.ngrok-free.app",
+  "x-forwarded-port": "3000",
+  "x-forwarded-proto": "https"
+}
+Body: {"type":"video.asset.ready","request_id":null,"object":{"type":"asset","id":"foMcNkld4MJf7jPBzzqAvWKD7KMK8uLfJGMwCIugiuQ"},"id":"e563c066-23ee-2ac3-cdea-471bec942409","environment":{"name":"Production","id":"94miea"},"data":{"video_quality":"basic","upload_id":"ysopYb02Vk3suWu01SA1f45fek1EKl01f200CQ3Gh00G5MJY","tracks":[{"type":"video","max_width":720,"max_height":1280,"max_frame_rate":25,"id":"fXh49AmD9hh6KVXbeWexdsD00vNyQ02D02IGldfkggvW9Q","duration":7.32},{"type":"audio","status":"ready","primary":true,"name":"Default","max_channels":2,"language_code":"und","id":"SVvO6py6Qzu3b6SqU1XBP14mzpOldgBdMSCCAoJhpYz7binfW3J00TA"}],"status":"ready","resolution_tier":"720p","playback_ids":[{"policy":"public","id":"jRDYVIh3IFuvQhDVcUBgDIGpgK00MRtxmf02uhboZ00006o"}],"mp4_support":"none","max_stored_resolution":"HD","max_stored_frame_rate":25,"max_resolution_tier":"1080p","master_access":"none","ingest_type":"on_demand_direct_upload","id":"foMcNkld4MJf7jPBzzqAvWKD7KMK8uLfJGMwCIugiuQ","encoding_tier":"baseline","duration":7.4,"created_at":1725571261,"aspect_ratio":"9:16"},"created_at":"2024-09-05T21:21:03.397000Z","attempts":[],"accessor_source":null,"accessor":null}
+---------------------

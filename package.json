@@ -12,7 +12,8 @@
     "db:push": "drizzle-kit push --config=drizzle.config.mjs",
     "vercel": "vercel",
     "sync": "ts-node airtable-supabase-sync/sync.ts",
-    "sync:dev": "ts-node-dev --respawn airtable-supabase-sync/sync.ts"
+    "sync:dev": "ts-node-dev --respawn airtable-supabase-sync/sync.ts",
+    "test:db": "ts-node --require dotenv/config db-test.ts"
   },
   "dependencies": {
     "@mux/mux-node": "^8.8.0",
@@ -58,7 +59,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
-    "dotenv": "^16.4.4",
+    "dotenv": "^16.4.5",
     "drizzle-orm": "^0.33.0",
     "embla-carousel-react": "^8.2.0",
     "framer-motion": "^11.5.4",
