@@ -29,6 +29,18 @@ const VideoUploader: React.FC<VideoUploaderProps> = ({ promptId, userId }) => {
     }
 
     try {
+      // Create initial video record
+      const initialVideoResult = await createVideoAction({ 
+        userId,
+        muxUploadId: uploadId,
+        promptId, // Add this line
+        status: 'processing',
+      });
+
+      if (initialVideoResult.status !== 'success') {
+        throw new Error('Failed to create initial video entry');
+      }
+
       // Poll for upload status
       let uploadStatus;
       do {
@@ -49,21 +61,23 @@ const VideoUploader: React.FC<VideoUploaderProps> = ({ promptId, userId }) => {
       // Get asset details
       const asset = await getAsset(assetId);
 
-      const videoResult = await createVideoAction({ 
+      const updatedVideoResult = await createVideoAction({ 
         userId,
+        muxUploadId: uploadId,
         muxAssetId: assetId,
         muxPlaybackId: asset.playbackId || '',
+        promptId,
         status: 'ready',
       });
 
-      if (videoResult.status !== 'success') {
-        throw new Error('Failed to create video entry');
+      if (updatedVideoResult.status !== 'success') {
+        throw new Error('Failed to update video entry');
       }
 
       const promptResponseResult = await createPromptResponse({
         userId,
         promptId,
-        videoId: videoResult.data.id.toString(),
+        videoId: BigInt(updatedVideoResult.data.id), // Convert to BigInt here
       });
 
       if (promptResponseResult.status !== 'success') {

@@ -4,20 +4,18 @@ import { sql } from '@vercel/postgres';
 import { drizzle } from 'drizzle-orm/vercel-postgres';
 import * as schema from "../schema";
 import { eq } from "drizzle-orm";
-import { InsertPromptResponse } from "../schema/prompt_responses";
-import { SelectPromptResponse } from "../schema/prompt_responses";
+import { InsertPromptResponse, SelectPromptResponse, promptResponsesTable } from "../schema/prompt_responses";
 import { PromptPrimary } from "../schema/prompts_primary";
 import { Video } from "../schema/videos";
 
-// Create a typed database instance
 const typedDb = drizzle(sql, { schema });
 
 export const createPromptResponse = async (data: InsertPromptResponse) => {
   console.log('Inserting prompt response:', data);
-  if (!data.userId || !data.promptId) {
-    throw new Error('userId and promptId are required');
+  if (!data.userId || !data.promptId || !data.videoId) {
+    throw new Error('userId, promptId, and videoId are required');
   }
-  const result = await typedDb.insert(schema.promptResponsesTable).values(data).returning();
+  const result = await typedDb.insert(promptResponsesTable).values(data).returning();
   console.log('Inserted prompt response:', result);
   return result[0];
 };

@@ -1,7 +1,7 @@
 "use server";
 
 import { createPrompt, deletePrompt, getAllPrompts, getPromptById, updatePrompt, getPromptsByCategory, getLatestPrompts } from "../db/queries/prompts-primary-queries";
-import { ActionState } from "../types";
+import { ActionState } from "../types/action-types";
 import { InsertPromptPrimary } from "../db/schema/prompts_primary";
 import { revalidatePath } from "next/cache";
 
@@ -66,7 +66,7 @@ export async function getPromptsByCategoryAction(categoryId: number): Promise<Ac
     return { status: "success", message: "Prompts retrieved successfully", data: prompts };
   } catch (error) {
     console.error(`Error retrieving prompts for category ${categoryId}:`, error);
-    return { status: "error", message: "Failed to retrieve prompts by category", error: String(error) };
+    return { status: "error", message: "Failed to retrieve prompts by category", error: error instanceof Error ? error.message : String(error) };
   }
 }
 

@@ -9,7 +9,7 @@ import { InsertVideo, videosTable } from "../schema";
 // Create a typed database instance
 const typedDb = drizzle(sql, { schema });
 
-export const createVideo = async (data: InsertVideo) => {
+export const createVideo = async (data: Omit<InsertVideo, 'id'>) => {
   const result = await typedDb.insert(videosTable).values(data).returning();
   return result[0];
 };
@@ -24,8 +24,13 @@ export const getAllVideos = async () => {
   return typedDb.query.videosTable.findMany();
 };
 
-export const updateVideo = async (id: bigint, data: Partial<InsertVideo>) => {
-  return typedDb.update(schema.videosTable).set(data).where(eq(schema.videosTable.id, Number(id))).returning();
+export const updateVideo = async (id: bigint, data: Partial<Omit<InsertVideo, 'id'>>) => {
+  const updateData = { ...data };
+  delete (updateData as any).id; // Remove 'id' from the update data
+  return typedDb.update(schema.videosTable)
+    .set(updateData)
+    .where(eq(schema.videosTable.id, Number(id)))
+    .returning();
 };
 
 export const deleteVideo = async (id: bigint) => {

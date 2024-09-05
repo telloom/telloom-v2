@@ -27,10 +27,11 @@ export async function POST(request: NextRequest) {
     // Insert video information into the database
     const [video] = await db.insert(videosTable).values({
       userId,
+      muxUploadId: uploadId,
       muxAssetId: asset.id,
       muxPlaybackId: asset.playback_ids[0].id,
       status: 'processing',
-      // id is not provided here as it is likely auto-generated
+      promptId, // Add this line
     }).returning();
 
     // Create prompt response
@@ -38,7 +39,6 @@ export async function POST(request: NextRequest) {
       userId,
       promptId,
       videoId: video.id,
-      // id is not provided here as it is likely auto-generated
     }).returning();
 
     return NextResponse.json({ success: true, promptResponseId: promptResponse.id });

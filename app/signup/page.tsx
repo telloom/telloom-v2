@@ -2,13 +2,12 @@
 
 import { useState } from 'react';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import Link from 'next/link';
 
 export default function SignUp() {
   const [email, setEmail] = useState('');
@@ -18,7 +17,6 @@ export default function SignUp() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const supabase = useSupabaseClient();
-  const router = useRouter();
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
