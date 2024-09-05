@@ -1,27 +1,26 @@
 "use server";
 
-import { createPromptResponse as dbCreatePromptResponse } from "../db/queries/prompt-responses-queries";
+import { createPromptResponse as dbCreatePromptResponse } from "../db/queries/prompt_responses-queries";
 import { ActionState } from "../types";
 import { revalidatePath } from "next/cache";
+import { InsertPromptResponse } from "../db/schema/prompt_responses";
 
 interface CreatePromptResponseData {
   userId: string;
   promptId: string;
-  videoId: string;
-  muxPlaybackId: string;
+  videoId: string; // Changed from number to string
 }
 
 export async function createPromptResponse(data: CreatePromptResponseData): Promise<ActionState> {
   try {
     console.log('Creating prompt response with data:', data);
-    if (!data.userId || !data.promptId || !data.videoId || !data.muxPlaybackId) {
+    if (!data.userId || !data.promptId || !data.videoId) {
       throw new Error('Missing required fields for creating prompt response');
     }
     const newPromptResponse = await dbCreatePromptResponse({
       userId: data.userId,
       promptId: data.promptId,
-      videoId: BigInt(data.videoId), // Convert string to BigInt
-      muxPlaybackId: data.muxPlaybackId,
+      videoId: BigInt(data.videoId),
     });
     console.log('Prompt response created:', newPromptResponse);
     revalidatePath("/prompt-responses");
@@ -67,5 +66,15 @@ export async function getAllPromptResponsesAction(): Promise<ActionState> {
     return { status: "success", message: "Prompt responses retrieved successfully", data: promptResponses };
   } catch (error) {
     return { status: "error", message: "Failed to retrieve prompt responses" };
+  }
+}
+
+export async function createPromptResponseAction(data: InsertPromptResponse): Promise<ActionState> {
+  try {
+    const newPromptResponse = await db.insert(promptResponsesTable).values(data).returning();
+    return { status: "success", message: "Prompt response created successfully", data: newPromptResponse[0] };
+  } catch (error) {
+    console.error("Failed to create prompt response:", error);
+    return { status: "error", message: `Failed to create prompt response: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

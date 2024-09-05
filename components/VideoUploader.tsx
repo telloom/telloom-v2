@@ -3,7 +3,9 @@
 import React, { useState } from 'react';
 import MuxUploader from "@mux/mux-uploader-react";
 import { createAsset } from '@/utils/muxClient';
+import { createVideoAction } from '@/actions/videos-actions';
 import { createPromptResponse } from '@/actions/prompt-responses-actions';
+import { useRouter } from 'next/navigation';
 
 interface VideoUploaderProps {
   promptId: string;
@@ -11,29 +13,21 @@ interface VideoUploaderProps {
 }
 
 export default function VideoUploader({ promptId, userId }: VideoUploaderProps) {
-  const [uploadUrl, setUploadUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const router = useRouter();
 
   const getUploadUrl = async () => {
     const response = await fetch('/api/videos/upload-url');
     const { uploadUrl } = await response.json();
-    setUploadUrl(uploadUrl);
     return uploadUrl;
   };
 
-  const handleUploadSuccess = async () => {
+  const handleUploadSuccess = async (event: CustomEvent) => {
     setIsUploading(true);
     setError(null);
     try {
-      if (!uploadUrl) {
-        throw new Error('No upload URL available');
-      }
-
-      const uploadId = uploadUrl.split('/').pop();
-      if (!uploadId) {
-        throw new Error('Invalid upload URL');
-      }
+      const { id: uploadId } = event.detail;
 
       console.log('Creating asset for upload ID:', uploadId);
       const asset = await createAsset(uploadId);
@@ -43,19 +37,38 @@ export default function VideoUploader({ promptId, userId }: VideoUploaderProps) 
         throw new Error('Invalid asset data returned from Mux');
       }
 
+      console.log('Creating video entry...');
+      const videoResult = await createVideoAction({
+        userId,
+        muxAssetId: asset.id,
+        muxPlaybackId: asset.playback_ids[0].id,
+        status: 'ready',
+      });
+
+      if (videoResult.status !== 'success' || !videoResult.data) {
+        throw new Error('Failed to create video entry');
+      }
+
+      console.log('Video entry created:', videoResult.data);
+
       console.log('Creating prompt response...');
-      const result = await createPromptResponse({
+      const promptResponseResult = await createPromptResponse({
         userId,
         promptId,
-        videoId: asset.id,
-        muxPlaybackId: asset.playback_ids[0].id,
+        videoId: videoResult.data.id.toString(),
       });
-      console.log('Prompt response created successfully:', result);
 
-      // Optionally, redirect to the prompt response page or show a success message
+      if (promptResponseResult.status !== 'success' || !promptResponseResult.data) {
+        throw new Error('Failed to create prompt response');
+      }
+
+      console.log('Prompt response created successfully:', promptResponseResult.data);
+
+      // Redirect to the prompt response page
+      router.push(`/prompt-responses/${promptResponseResult.data.id}`);
     } catch (error) {
-      console.error('Error creating prompt response:', error);
-      setError(`Failed to create prompt response: ${error instanceof Error ? error.message : String(error)}`);
+      console.error('Error in upload process:', error);
+      setError(`Upload failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsUploading(false);
     }
@@ -71,7 +84,7 @@ export default function VideoUploader({ promptId, userId }: VideoUploaderProps) 
           setError('Failed to upload video. Please try again.');
         }}
       />
-      {isUploading && <p>Uploading video...</p>}
+      {isUploading && <p>Processing video...</p>}
       {error && <p className="text-red-500">{error}</p>}
     </>
   );
