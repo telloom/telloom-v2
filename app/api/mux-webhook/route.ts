@@ -3,7 +3,6 @@ import { db } from '@/db/db';
 import { videosTable } from '@/db/schema/videos';
 import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 
@@ -32,57 +31,54 @@ function verifyMuxSignature(rawBody: string, signature: string): boolean {
 
 export async function POST(request: NextRequest) {
   console.log('Received webhook request in mux-webhook route');
-  const rawBody = await request.text();
-  const headers = Object.fromEntries(request.headers.entries());
+  try {
+    const rawBody = await request.text();
+    const headers = Object.fromEntries(request.headers.entries());
   
-  // Log the raw request
-  const logEntry = `
+    // Log the raw request
+    const logEntry = `
 Timestamp: ${new Date().toISOString()}
 Headers: ${JSON.stringify(headers, null, 2)}
 Body: ${rawBody}
 ---------------------
 `;
-  console.log(logEntry);
+    console.log(logEntry);
   
-  // Log to file
-  const logDir = path.join(process.cwd(), 'logs');
-  if (!fs.existsSync(logDir)) {
-    fs.mkdirSync(logDir);
-  }
-  fs.appendFileSync(path.join(logDir, 'mux-webhook-logs.txt'), logEntry);
+    // Log to file
+    const logDir = path.join(process.cwd(), 'logs');
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir);
+    }
+    fs.appendFileSync(path.join(logDir, 'mux-webhook-logs.txt'), logEntry);
 
-  const signature = request.headers.get('mux-signature') || '';
-  
-  if (!verifyMuxSignature(rawBody, signature)) {
-    console.error('Invalid signature');
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-  }
+    const signature = request.headers.get('mux-signature') || '';
+    
+    if (!verifyMuxSignature(rawBody, signature)) {
+      console.error('Invalid signature');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
 
-  const webhookData = JSON.parse(rawBody);
-  console.log('Received webhook event:', webhookData.type);
-  console.log('Webhook data:', JSON.stringify(webhookData, null, 2));
+    const webhookData = JSON.parse(rawBody);
+    console.log('Received webhook event:', webhookData.type);
+    console.log('Webhook data:', JSON.stringify(webhookData, null, 2));
 
-  // Test database connection
-  try {
-    const result = await db.execute(sql`SELECT 1`);
-    console.log('Database connection test:', result);
+    // Process the webhook data
+    switch (webhookData.type) {
+      case 'video.upload.created':
+        return handleUploadCreated(webhookData.data);
+      case 'video.upload.asset_created':
+        return handleUploadAssetCreated(webhookData.data);
+      case 'video.asset.created':
+        return handleAssetCreated(webhookData.data);
+      case 'video.asset.ready':
+        return handleAssetReady(webhookData.data);
+      default:
+        console.log('Unhandled event type:', webhookData.type);
+        return NextResponse.json({ success: true, message: 'Event received but not processed' });
+    }
   } catch (error) {
-    console.error('Database connection error:', error);
-    return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
-  }
-
-  switch (webhookData.type) {
-    case 'video.upload.created':
-      return handleUploadCreated(webhookData.data);
-    case 'video.upload.asset_created':
-      return handleUploadAssetCreated(webhookData.data);
-    case 'video.asset.created':
-      return handleAssetCreated(webhookData.data);
-    case 'video.asset.ready':
-      return handleAssetReady(webhookData.data);
-    default:
-      console.log('Unhandled event type:', webhookData.type);
-      return NextResponse.json({ success: true, message: 'Event received but not processed' });
+    console.error('Unexpected error in Mux webhook handler:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 

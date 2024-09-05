@@ -1,14 +1,21 @@
 "use server";
 
-import { createPromptResponse as dbCreatePromptResponse } from "../db/queries/prompt_responses-queries";
+import { 
+  createPromptResponse as dbCreatePromptResponse,
+  updatePromptResponse,
+  deletePromptResponse,
+  getPromptResponseById,
+  getAllPromptResponses
+} from "../db/queries/prompt_responses-queries";
 import { ActionState } from "../types";
 import { revalidatePath } from "next/cache";
-import { InsertPromptResponse } from "../db/schema/prompt_responses";
+import { InsertPromptResponse, promptResponsesTable } from "../db/schema/prompt_responses";
+import { db } from "../db/db";
 
 interface CreatePromptResponseData {
   userId: string;
   promptId: string;
-  videoId: string; // Changed from number to string
+  videoId: bigint | number; // Allow both bigint and number
 }
 
 export async function createPromptResponse(data: CreatePromptResponseData): Promise<ActionState> {
@@ -20,7 +27,7 @@ export async function createPromptResponse(data: CreatePromptResponseData): Prom
     const newPromptResponse = await dbCreatePromptResponse({
       userId: data.userId,
       promptId: data.promptId,
-      videoId: BigInt(data.videoId),
+      videoId: Number(data.videoId), // Convert to Number here
     });
     console.log('Prompt response created:', newPromptResponse);
     revalidatePath("/prompt-responses");

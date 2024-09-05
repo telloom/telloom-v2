@@ -13,9 +13,11 @@ export const videosTable = pgTable("videos", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   airtableRecordId: text("airtable_record_id"),
+  promptId: uuid("prompt_id").notNull(), // Add this line
 });
 
 export type InsertVideo = {
+  id?: bigint;  // Make id optional
   userId: string;
   muxUploadId: string;
   muxAssetId?: string;
@@ -24,6 +26,7 @@ export type InsertVideo = {
   duration?: number;
   aspectRatio?: string;
   airtableRecordId?: string;
+  promptId: string; // Add this line
 };
 
 export type SelectVideo = typeof videosTable.$inferSelect;
