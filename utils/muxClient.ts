@@ -1,26 +1,31 @@
-// utils/muxClient.ts
 import axios from 'axios';
 
-const MUX_TOKEN_ID = process.env.MUX_ACCESS_TOKEN_ID;
-const MUX_TOKEN_SECRET = process.env.MUX_SECRET_KEY;
+const getMuxClient = () => {
+  const MUX_TOKEN_ID = process.env.MUX_ACCESS_TOKEN_ID;
+  const MUX_TOKEN_SECRET = process.env.MUX_SECRET_KEY;
 
-if (!MUX_TOKEN_ID || !MUX_TOKEN_SECRET) {
-  console.error('Mux credentials are not set properly');
-}
+  console.log('MUX_TOKEN_ID:', MUX_TOKEN_ID ? 'Set' : 'Not set');
+  console.log('MUX_TOKEN_SECRET:', MUX_TOKEN_SECRET ? 'Set' : 'Not set');
+  console.log('NODE_ENV:', process.env.NODE_ENV);
 
-const muxClient = axios.create({
-  baseURL: 'https://api.mux.com',
-  auth: {
-    username: MUX_TOKEN_ID!,
-    password: MUX_TOKEN_SECRET!,
-  },
-});
+  if (!MUX_TOKEN_ID || !MUX_TOKEN_SECRET) {
+    console.error('Mux credentials are not set properly');
+    throw new Error('Mux credentials are not set properly');
+  }
+
+  return axios.create({
+    baseURL: 'https://api.mux.com',
+    auth: {
+      username: MUX_TOKEN_ID,
+      password: MUX_TOKEN_SECRET,
+    },
+  });
+};
 
 export const createUploadUrl = async () => {
   try {
     console.log('Creating Mux upload URL...');
-    console.log('MUX_TOKEN_ID:', MUX_TOKEN_ID);
-    console.log('MUX_TOKEN_SECRET:', MUX_TOKEN_SECRET ? '[REDACTED]' : 'undefined');
+    const muxClient = getMuxClient();
     const response = await muxClient.post('/video/v1/uploads', {
       cors_origin: process.env.NEXT_PUBLIC_APP_URL || '*',
       new_asset_settings: {
@@ -30,7 +35,7 @@ export const createUploadUrl = async () => {
     console.log('Mux upload URL created:', response.data.data.url);
     return {
       uploadUrl: response.data.data.url,
-      uploadId: response.data.data.id  // Add this line to return the upload ID
+      uploadId: response.data.data.id
     };
   } catch (error) {
     console.error('Error creating Mux upload URL:', error);
@@ -44,6 +49,7 @@ export const createUploadUrl = async () => {
 
 export const getUploadStatus = async (uploadId: string) => {
   try {
+    const muxClient = getMuxClient();
     const response = await muxClient.get(`/video/v1/uploads/${uploadId}`);
     return {
       status: response.data.data.status,
@@ -57,6 +63,7 @@ export const getUploadStatus = async (uploadId: string) => {
 
 export const getAsset = async (assetId: string) => {
   try {
+    const muxClient = getMuxClient();
     const response = await muxClient.get(`/video/v1/assets/${assetId}`);
     return {
       status: response.data.data.status,
@@ -70,6 +77,7 @@ export const getAsset = async (assetId: string) => {
 
 export const createAsset = async (uploadId: string) => {
   try {
+    const muxClient = getMuxClient();
     const response = await muxClient.post('/video/v1/assets', {
       input: [{ url: `https://storage.muxcdn.com/${uploadId}` }],
       playback_policy: ['public'],
@@ -84,6 +92,7 @@ export const createAsset = async (uploadId: string) => {
 // Add a new function to delete an asset
 export const deleteAsset = async (assetId: string) => {
   try {
+    const muxClient = getMuxClient();
     await muxClient.delete(`/video/v1/assets/${assetId}`);
     return { success: true };
   } catch (error) {

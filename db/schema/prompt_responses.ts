@@ -1,4 +1,4 @@
-import { bigint, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+
 import { videosTable } from "./videos";
 import { relations } from "drizzle-orm";
 import { profilesTable } from "./profiles";
@@ -6,9 +6,11 @@ import { promptsPrimaryTable } from "./prompts_primary";
 import { promptResponseAdditionalFilesTable } from "./prompt_response_additional_files";
 import { PromptPrimary } from "./prompts_primary";
 import { Video } from "./videos";
+import { pgTable, bigint, uuid, text, timestamp } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const promptResponsesTable = pgTable("prompt_responses", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull(),
+  id: bigint("id", { mode: "number" }).primaryKey().notNull().default(sql`nextval('prompt_responses_id_seq')`),
   userId: uuid("user_id").references(() => profilesTable.id, { onUpdate: "cascade", onDelete: "restrict" }),
   videoId: bigint("video_id", { mode: "number" }).references(() => videosTable.id),
   responseText: text("response_text"),
@@ -45,5 +47,7 @@ export type SelectPromptResponse = typeof promptResponsesTable.$inferSelect & {
   video?: Video | null;
 };
 
-// Use SelectPromptResponse in a dummy function to avoid the unused type warning
-export const _unusedFunction = (response: SelectPromptResponse) => response;
+// Remove or rename conflicting export
+// export const _unusedFunction2 = () => {
+//   // function implementation
+// };

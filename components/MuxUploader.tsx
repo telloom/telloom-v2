@@ -14,17 +14,30 @@ export default function MuxUploaderComponent({ promptId, userId }: MuxUploaderPr
   const router = useRouter();
 
   const handleUploadSuccess = async (event: CustomEvent) => {
-    const { id: assetId } = event.detail;
+    console.log('Upload success event:', event);
+    if (!event.detail) {
+      console.error('Event detail is null');
+      return;
+    }
+    const uploadId = event.detail.id;
+    if (!uploadId) {
+      console.error('Upload ID is missing from the event detail');
+      return;
+    }
     try {
+      console.log('Sending request to /api/videos/create...');
       const response = await fetch('/api/videos/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assetId, promptId, userId }),
+        body: JSON.stringify({ uploadId, promptId, userId }),
       });
 
-      if (!response.ok) throw new Error('Failed to create video entry');
+      const responseData = await response.json();
+      console.log('Response from /api/videos/create:', responseData);
 
-      const { promptResponseId } = await response.json();
+      if (!response.ok) throw new Error(`Failed to create video entry: ${responseData.error}`);
+
+      const { promptResponseId } = responseData;
       router.push(`/prompt-responses/${promptResponseId}`);
     } catch (error) {
       console.error('Upload process failed:', error);

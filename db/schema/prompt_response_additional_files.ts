@@ -22,5 +22,7 @@ export const promptResponseAdditionalFilesRelations = relations(promptResponseAd
 export type InsertPromptResponseAdditionalFile = typeof promptResponseAdditionalFilesTable.$inferInsert;
 export type SelectPromptResponseAdditionalFile = typeof promptResponseAdditionalFilesTable.$inferSelect;
 
-// Use SelectPromptResponseAdditionalFile in a dummy function to avoid the unused type warning
-export const _unusedFunction = (file: SelectPromptResponseAdditionalFile) => file;
+// Remove or rename conflicting export
+// export const _unusedFunction1 = () => {
+//   // function implementation
+// };
