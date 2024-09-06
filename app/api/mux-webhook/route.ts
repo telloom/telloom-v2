@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db/db';
 import { videosTable } from '@/db/schema/videos';
+import { uploadInfoTable } from '@/db/schema/uploadInfo';
 import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
 import fs from 'fs';
@@ -93,10 +94,22 @@ async function handleUploadCreated(data: any) {
 }
 
 async function handleUploadAssetCreated(data: any) {
-  console.log('Handling upload asset created event:', data);
+  console.log('Handling upload asset created event:', JSON.stringify(data, null, 2));
   const { id: uploadId, asset_id: assetId } = data;
   try {
-    const [updatedVideo] = await db
+    // Retrieve the stored user ID
+    const [uploadInfo] = await db
+      .select()
+      .from(uploadInfoTable)
+      .where(eq(uploadInfoTable.muxUploadId, uploadId));
+
+    if (!uploadInfo) {
+      console.error('No upload info found for uploadId:', uploadId);
+      return NextResponse.json({ error: 'Upload info not found' }, { status: 404 });
+    }
+
+    console.log('Updating video with uploadId:', uploadId);
+    const updateResult = await db
       .update(videosTable)
       .set({
         muxAssetId: assetId,
@@ -104,11 +117,32 @@ async function handleUploadAssetCreated(data: any) {
       })
       .where(eq(videosTable.muxUploadId, uploadId))
       .returning();
-    console.log('Updated video with asset ID:', updatedVideo);
-    return NextResponse.json({ success: true, message: 'Video updated with asset ID' });
+    console.log('Update result:', updateResult);
+
+    if (updateResult.length === 0) {
+      console.log('No video found with uploadId:', uploadId);
+      console.log('Attempting to insert new video record');
+      const insertResult = await db
+        .insert(videosTable)
+        .values({
+          muxUploadId: uploadId,
+          muxAssetId: assetId,
+          status: 'processing',
+          userId: uploadInfo.userId,
+        })
+        .returning();
+      console.log('Insert result:', insertResult);
+    }
+
+    // Delete the upload info as it's no longer needed
+    await db
+      .delete(uploadInfoTable)
+      .where(eq(uploadInfoTable.muxUploadId, uploadId));
+
+    return NextResponse.json({ success: true, message: 'Video updated or created' });
   } catch (error) {
-    console.error('Failed to update video with asset ID:', error);
-    return NextResponse.json({ error: 'Failed to update video' }, { status: 500 });
+    console.error('Error in handleUploadAssetCreated:', error);
+    return NextResponse.json({ error: 'Failed to update or create video' }, { status: 500 });
   }
 }
 
@@ -137,7 +171,7 @@ async function handleAssetReady(data: any) {
   const { id: assetId, duration, aspect_ratio, upload_id } = data;
   try {
     console.log('Updating video with assetId:', assetId);
-    const [updatedVideo] = await db
+    const updateResult = await db
       .update(videosTable)
       .set({
         status: 'ready',
@@ -146,19 +180,38 @@ async function handleAssetReady(data: any) {
       })
       .where(eq(videosTable.muxAssetId, assetId))
       .returning();
-    console.log('Updated video as ready:', updatedVideo);
-    if (!updatedVideo) {
-      console.error('No video found with assetId:', assetId);
-      // Try to find by upload_id if assetId fails
-      const [videoByUploadId] = await db
+    console.log('Update result:', updateResult);
+
+    if (updateResult.length === 0) {
+      console.log('No video found with assetId:', assetId);
+      console.log('Attempting to find video by upload_id:', upload_id);
+      const selectResult = await db
         .select()
         .from(videosTable)
         .where(eq(videosTable.muxUploadId, upload_id));
-      console.log('Video found by upload_id:', videoByUploadId);
+      console.log('Select result:', selectResult);
+
+      if (selectResult.length > 0) {
+        console.log('Video found by upload_id. Updating...');
+        const updateByUploadIdResult = await db
+          .update(videosTable)
+          .set({
+            status: 'ready',
+            duration,
+            aspectRatio: aspect_ratio,
+            muxAssetId: assetId,
+          })
+          .where(eq(videosTable.muxUploadId, upload_id))
+          .returning();
+        console.log('Update by upload_id result:', updateByUploadIdResult);
+      } else {
+        console.log('No video found with upload_id:', upload_id);
+      }
     }
-    return NextResponse.json({ success: true, message: 'Video marked as ready' });
+
+    return NextResponse.json({ success: true, message: 'Video processed' });
   } catch (error) {
-    console.error('Failed to mark video as ready:', error);
+    console.error('Error in handleAssetReady:', error);
     return NextResponse.json({ error: 'Failed to update video' }, { status: 500 });
   }
 }
