@@ -1,9 +1,11 @@
 import { pgTable, bigint, uuid, text, doublePrecision, timestamp } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import { profilesTable } from './profiles';
+import { promptsPrimaryTable } from './prompts_primary';
 
 export const videosTable = pgTable("videos", {
   id: bigint("id", { mode: "number" }).primaryKey().notNull().default(sql`nextval('videos_id_seq')`),
-  userId: uuid("user_id").notNull(),
+  userId: uuid("user_id").notNull().references(() => profilesTable.id, { onUpdate: 'cascade', onDelete: 'restrict' }),
   muxUploadId: text("mux_upload_id").notNull(),
   muxAssetId: text("mux_asset_id"),
   muxPlaybackId: text("mux_playback_id"),
@@ -13,7 +15,7 @@ export const videosTable = pgTable("videos", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   airtableRecordId: text("airtable_record_id"),
-  promptId: uuid("prompt_id").notNull(), // Add this line
+  promptId: uuid("prompt_id").references(() => promptsPrimaryTable.id, { onUpdate: 'cascade' }),
 });
 
 export type InsertVideo = {
