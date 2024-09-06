@@ -34,16 +34,18 @@ export async function POST(request: NextRequest) {
   try {
     const rawBody = await request.text();
     const headers = Object.fromEntries(request.headers.entries());
-  
+    const signature = request.headers.get('mux-signature') || '';
+
     // Log the raw request
     const logEntry = `
 Timestamp: ${new Date().toISOString()}
 Headers: ${JSON.stringify(headers, null, 2)}
 Body: ${rawBody}
+Mux signature: ${signature}
 ---------------------
 `;
     console.log(logEntry);
-  
+
     // Log to file
     const logDir = path.join(process.cwd(), 'logs');
     if (!fs.existsSync(logDir)) {
@@ -51,16 +53,17 @@ Body: ${rawBody}
     }
     fs.appendFileSync(path.join(logDir, 'mux-webhook-logs.txt'), logEntry);
 
-    const signature = request.headers.get('mux-signature') || '';
-    
+    console.log('Received webhook data:', rawBody);
+    console.log('Webhook headers:', JSON.stringify(headers, null, 2));
+    console.log('Mux signature:', signature);
+
     if (!verifyMuxSignature(rawBody, signature)) {
       console.error('Invalid signature');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     const webhookData = JSON.parse(rawBody);
-    console.log('Received webhook event:', webhookData.type);
-    console.log('Webhook data:', JSON.stringify(webhookData, null, 2));
+    console.log('Parsed webhook data:', JSON.stringify(webhookData, null, 2));
 
     // Process the webhook data
     switch (webhookData.type) {
@@ -130,9 +133,10 @@ async function handleAssetCreated(data: any) {
 }
 
 async function handleAssetReady(data: any) {
-  console.log('Handling asset ready event:', data);
-  const { id: assetId, duration, aspect_ratio } = data;
+  console.log('Handling asset ready event:', JSON.stringify(data, null, 2));
+  const { id: assetId, duration, aspect_ratio, upload_id } = data;
   try {
+    console.log('Updating video with assetId:', assetId);
     const [updatedVideo] = await db
       .update(videosTable)
       .set({
@@ -143,6 +147,15 @@ async function handleAssetReady(data: any) {
       .where(eq(videosTable.muxAssetId, assetId))
       .returning();
     console.log('Updated video as ready:', updatedVideo);
+    if (!updatedVideo) {
+      console.error('No video found with assetId:', assetId);
+      // Try to find by upload_id if assetId fails
+      const [videoByUploadId] = await db
+        .select()
+        .from(videosTable)
+        .where(eq(videosTable.muxUploadId, upload_id));
+      console.log('Video found by upload_id:', videoByUploadId);
+    }
     return NextResponse.json({ success: true, message: 'Video marked as ready' });
   } catch (error) {
     console.error('Failed to mark video as ready:', error);
