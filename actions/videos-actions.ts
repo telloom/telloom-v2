@@ -2,16 +2,19 @@
 
 import { db } from "../db/db";
 import { videosTable } from "../db/schema/videos";
-import { eq } from "drizzle-orm";
+import { eq, isNull, desc } from "drizzle-orm";
 import { createVideo, updateVideo, deleteVideo, getAllVideos, getVideoById } from "../db/queries/videos-queries";
 import { ActionState } from "../types/action-types";
 import { InsertVideo } from "../db/schema/videos";
 import { revalidatePath } from "next/cache";
 
-
 export async function createVideoAction(data: Omit<InsertVideo, 'id'>): Promise<ActionState> {
   try {
     console.log('Creating/updating video with data:', data);
+
+    if (!data.muxUploadId) {
+      throw new Error('muxUploadId is required');
+    }
 
     // Check if a video with this muxUploadId already exists
     const existingVideo = await db.select().from(videosTable).where(eq(videosTable.muxUploadId, data.muxUploadId)).execute();
@@ -71,5 +74,126 @@ export async function getAllVideosAction(): Promise<ActionState> {
     return { status: "success", message: "Videos retrieved successfully", data: videos };
   } catch (error) {
     return { status: "error", message: "Failed to retrieve videos" };
+  }
+}
+
+export async function createPreliminaryVideoRecord(data: {
+  promptId: string;
+  userId: string;
+  status: 'waiting';
+}): Promise<ActionState> {
+  try {
+    console.log('Creating preliminary video record with data:', JSON.stringify(data, null, 2));
+    
+    const result = await db.insert(videosTable).values({
+      promptId: data.promptId,
+      userId: data.userId,
+      status: data.status,
+    }).returning();
+    
+    console.log('Preliminary video record created:', JSON.stringify(result, null, 2));
+    
+    if (result.length === 0) {
+      throw new Error('No record was created');
+    }
+    
+    return { status: "success", message: "Preliminary video record created", data: result[0] };
+  } catch (error) {
+    console.error("Failed to create preliminary video record:", error);
+    return { status: "error", message: `Failed to create preliminary video record: ${error instanceof Error ? error.message : 'Unknown error'}` };
+  }
+}
+
+export async function updateVideoWithMuxInfo(muxUploadId: string, data: Partial<InsertVideo>): Promise<ActionState> {
+  try {
+    console.log('Updating video with Mux info:', muxUploadId, data);
+    
+    // First, try to find the video by muxUploadId
+    const existingVideo = await db
+      .select()
+      .from(videosTable)
+      .where(eq(videosTable.muxUploadId, muxUploadId))
+      .limit(1);
+
+    let result;
+    if (existingVideo.length > 0) {
+      // Update existing video
+      result = await db
+        .update(videosTable)
+        .set({
+          ...data,
+          userId: data.userId || existingVideo[0].userId,
+          promptId: data.promptId || existingVideo[0].promptId
+        })
+        .where(eq(videosTable.muxUploadId, muxUploadId))
+        .returning();
+    } else {
+      // If not found by muxUploadId, try to find the most recent video without a muxUploadId
+      const recentVideo = await db
+        .select()
+        .from(videosTable)
+        .where(isNull(videosTable.muxUploadId))
+        .orderBy(desc(videosTable.createdAt))
+        .limit(1);
+
+      if (recentVideo.length > 0) {
+        // Update the recent video with the new data
+        result = await db
+          .update(videosTable)
+          .set({ 
+            ...data, 
+            muxUploadId, 
+            userId: data.userId || recentVideo[0].userId,
+            promptId: data.promptId || recentVideo[0].promptId
+          })
+          .where(eq(videosTable.id, recentVideo[0].id))
+          .returning();
+      } else {
+        // If no video found, create a new one (this should not happen in normal flow)
+        console.warn('No existing video found to update. This is unexpected.');
+        result = await db
+          .insert(videosTable)
+          .values({ ...data, muxUploadId })
+          .returning();
+      }
+    }
+
+    console.log('Update result:', result);
+
+    if (result.length === 0) {
+      throw new Error('No matching video found to update');
+    }
+
+    return { status: "success", message: "Video updated with Mux info", data: result[0] };
+  } catch (error) {
+    console.error("Failed to update video with Mux info:", error);
+    return { status: "error", message: "Failed to update video with Mux info" };
+  }
+}
+
+export async function createSimpleVideoRecord(data: {
+  promptId: string;
+  userId: string;
+  status: 'waiting';
+}): Promise<ActionState> {
+  try {
+    console.log('Creating simple video record with data:', JSON.stringify(data, null, 2));
+    
+    const result = await db.insert(videosTable).values({
+      promptId: data.promptId,
+      userId: data.userId,
+      status: data.status,
+    }).returning();
+    
+    console.log('Simple video record created:', JSON.stringify(result, null, 2));
+    
+    if (result.length === 0) {
+      throw new Error('No record was created');
+    }
+    
+    return { status: "success", message: "Simple video record created", data: result[0] };
+  } catch (error) {
+    console.error("Failed to create simple video record:", error);
+    return { status: "error", message: `Failed to create simple video record: ${error instanceof Error ? error.message : 'Unknown error'}` };
   }
 }

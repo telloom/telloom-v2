@@ -5,6 +5,8 @@ import { drizzle } from 'drizzle-orm/vercel-postgres';
 import * as schema from "../schema";
 import { eq } from "drizzle-orm";
 import { InsertVideo, videosTable } from "../schema";
+import { db } from "@/db/db";
+import { videosTable as dbVideosTable } from "@/db/schema/videos";
 
 // Create a typed database instance
 const typedDb = drizzle(sql, { schema });
@@ -35,4 +37,14 @@ export const updateVideo = async (id: bigint, data: Partial<Omit<InsertVideo, 'i
 
 export const deleteVideo = async (id: bigint) => {
   return typedDb.delete(schema.videosTable).where(eq(schema.videosTable.id, Number(id)));
+};
+
+export const getVideoByMuxUploadId = async (muxUploadId: string) => {
+  const result = await db
+    .select()
+    .from(dbVideosTable)
+    .where(eq(dbVideosTable.muxUploadId, muxUploadId))
+    .limit(1);
+
+  return result[0] || null;
 };

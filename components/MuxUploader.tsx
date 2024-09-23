@@ -2,15 +2,14 @@
 
 import React from 'react';
 import MuxUploader from '@mux/mux-uploader-react';
-import { createUploadUrl } from '@/utils/muxClient';
 import { useRouter } from 'next/navigation';
+import { createUploadUrl } from '@/utils/muxClient';
 
 interface MuxUploaderProps {
   promptId: string;
-  userId: string;
 }
 
-export default function MuxUploaderComponent({ promptId, userId }: MuxUploaderProps) {
+export default function MuxUploaderComponent({ promptId }: MuxUploaderProps) {
   const router = useRouter();
 
   const handleUploadSuccess = async (event: CustomEvent) => {
@@ -25,17 +24,18 @@ export default function MuxUploaderComponent({ promptId, userId }: MuxUploaderPr
       return;
     }
     try {
-      console.log('Sending request to /api/videos/create...');
-      const response = await fetch('/api/videos/create', {
+      console.log('Sending request to /api/prompt-responses/create...');
+      const response = await fetch('/api/prompt-responses/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uploadId, promptId, userId }),
+        body: JSON.stringify({ uploadId, promptId }),
       });
 
       const responseData = await response.json();
-      console.log('Response from /api/videos/create:', responseData);
+      console.log('Response from /api/prompt-responses/create:', responseData);
 
-      if (!response.ok) throw new Error(`Failed to create video entry: ${responseData.error}`);
+      if (!response.ok)
+        throw new Error(`Failed to create prompt response: ${responseData.error}`);
 
       const { promptResponseId } = responseData;
       router.push(`/prompt-responses/${promptResponseId}`);

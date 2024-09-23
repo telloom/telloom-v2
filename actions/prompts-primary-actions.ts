@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 export async function createPromptAction(data: InsertPromptPrimary): Promise<ActionState> {
   try {
     const newPrompt = await createPrompt(data);
-    revalidatePath("/prompts");
+    revalidatePath("/prompts", "page"); // Add 'page' as the second argument
     return { status: "success", message: "Prompt created successfully", data: newPrompt };
   } catch (error) {
     console.error("Error creating prompt:", error);
@@ -19,7 +19,7 @@ export async function createPromptAction(data: InsertPromptPrimary): Promise<Act
 export async function updatePromptAction(id: string, data: Partial<InsertPromptPrimary>): Promise<ActionState> {
   try {
     const updatedPrompt = await updatePrompt(id, data);
-    revalidatePath("/prompts");
+    revalidatePath("/prompts", "page"); // Add 'page' as the second argument
     return { status: "success", message: "Prompt updated successfully", data: updatedPrompt };
   } catch (error) {
     console.error("Error updating prompt:", error);
@@ -30,7 +30,7 @@ export async function updatePromptAction(id: string, data: Partial<InsertPromptP
 export async function deletePromptAction(id: string): Promise<ActionState> {
   try {
     await deletePrompt(id);
-    revalidatePath("/prompts");
+    revalidatePath("/prompts", "page"); // Add 'page' as the second argument
     return { status: "success", message: "Prompt deleted successfully" };
   } catch (error) {
     console.error("Error deleting prompt:", error);
@@ -49,8 +49,10 @@ export async function getPromptByIdAction(id: string): Promise<ActionState> {
 }
 
 export async function getAllPromptsAction(): Promise<ActionState> {
+  console.log('Fetching all prompts...'); // Add this line
   try {
     const prompts = await getAllPrompts();
+    console.log('Prompts fetched successfully'); // Add this line
     return { status: "success", message: "Prompts retrieved successfully", data: prompts };
   } catch (error) {
     console.error("Error retrieving all prompts:", error);
