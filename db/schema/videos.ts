@@ -1,35 +1,29 @@
-import { pgTable, bigint, uuid, text, doublePrecision, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, bigserial, doublePrecision, pgEnum, numeric } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { profilesTable } from './profiles';
 import { promptsPrimaryTable } from './prompts_primary';
+import { profilesTable } from './profiles';
 
-export const videosTable = pgTable("videos", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull().default(sql`nextval('videos_id_seq')`),
-  userId: uuid("user_id").notNull().references(() => profilesTable.id, { onUpdate: 'cascade', onDelete: 'restrict' }),
-  muxUploadId: text("mux_upload_id").notNull(),
-  muxAssetId: text("mux_asset_id"),
-  muxPlaybackId: text("mux_playback_id"),
-  status: text("status", { enum: ['processing', 'ready', 'errored'] }).notNull(),
-  duration: doublePrecision("duration"),
-  aspectRatio: text("aspect_ratio"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-  airtableRecordId: text("airtable_record_id"),
-  promptId: uuid("prompt_id").references(() => promptsPrimaryTable.id, { onUpdate: 'cascade' }),
+export const videoStatusEnum = pgEnum('video_status', ['waiting', 'preparing', 'asset_created', 'ready', 'errored']);
+
+export const videosTable = pgTable('videos', {
+  id: bigserial('id', { mode: 'number' }).primaryKey().unique(),
+  userId: uuid('user_id').default(sql`auth.uid()`).references(() => profilesTable.id, { onUpdate: 'cascade', onDelete: 'restrict' }),
+  muxAssetId: text('mux_asset_id').unique(),
+  muxUploadId: text('mux_upload_id').unique(), // Remove .notNull()
+  muxPlaybackId: text('mux_playback_id').unique(),
+  status: videoStatusEnum('status').default('waiting'),
+  duration: doublePrecision('duration'),
+  aspectRatio: text('aspect_ratio'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  airtableRecordId: text('airtable_record_id'),
+  promptId: uuid('prompt_id').references(() => promptsPrimaryTable.id, { onUpdate: 'cascade' }),
+  videoQuality: text('video_quality'),
+  maxWidth: numeric('max_width'),
+  maxHeight: numeric('max_height'),
+  maxFrameRate: numeric('max_frame_rate'),
+  languageCode: text('language_code'),
+  resolutionTier: text('resolution_tier'),
 });
 
-export type InsertVideo = {
-  id?: bigint;  // Make id optional
-  userId: string;
-  muxUploadId: string;
-  muxAssetId?: string;
-  muxPlaybackId?: string;
-  status: 'processing' | 'ready' | 'errored';
-  duration?: number;
-  aspectRatio?: string;
-  airtableRecordId?: string;
-  promptId: string; // Add this line
-};
-
-export type SelectVideo = typeof videosTable.$inferSelect;
-export type Video = typeof videosTable.$inferSelect;
+export type InsertVideo = typeof videosTable.$inferInsert;

@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import * as schema from "../schema";
 import { InsertPromptPrimary } from "../schema/prompts_primary";
 import { db } from '../db';
+import { cache } from 'react';
 
 export const createPrompt = async (data: InsertPromptPrimary) => {
   const result = await db.insert(schema.promptsPrimaryTable).values(data).returning();
@@ -14,9 +15,9 @@ export const getPromptById = async (id: string) => {
   return db.select().from(schema.promptsPrimaryTable).where(eq(schema.promptsPrimaryTable.id, id));
 };
 
-export const getAllPrompts = async () => {
+export const getAllPrompts = cache(async () => {
   return db.select().from(schema.promptsPrimaryTable);
-};
+});
 
 export const updatePrompt = async (id: string, data: Partial<InsertPromptPrimary>) => {
   return db.update(schema.promptsPrimaryTable)
