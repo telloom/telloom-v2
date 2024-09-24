@@ -2,6 +2,7 @@
 
 import React from 'react';
 import MuxUploader from '@mux/mux-uploader-react';
+import { useUser, useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useRouter } from 'next/navigation';
 import { createUploadUrl } from '@/utils/muxClient';
 
@@ -10,7 +11,13 @@ interface MuxUploaderProps {
 }
 
 export default function MuxUploaderComponent({ promptId }: MuxUploaderProps) {
+  const user = useUser();
+  const supabase = useSupabaseClient();
   const router = useRouter();
+
+  if (!user) {
+    return <div>Please sign in to upload a video.</div>;
+  }
 
   const handleUploadSuccess = async (event: CustomEvent) => {
     console.log('Upload success event:', event);
