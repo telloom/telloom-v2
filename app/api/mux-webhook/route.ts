@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Mux from '@mux/mux-node';
+import * as Mux from '@mux/mux-node'; // Use namespace import
 import { updateVideoWithMuxInfo } from '@/actions/videos-actions';
 
 export async function POST(req: NextRequest) {
-  // Get the raw request body as a Buffer
-  const arrayBuffer = await req.arrayBuffer();
-  const rawBodyBuffer = Buffer.from(arrayBuffer);
-
-  // Convert Buffer to UTF-8 string
-  const rawBody = rawBodyBuffer.toString('utf8');
-
+  const rawBody = await req.text();
   const signature = req.headers.get('mux-signature');
   const webhookSigningSecret = process.env.MUX_WEBHOOK_SIGNING_SECRET;
 
@@ -26,13 +20,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Verify the signature and parse the event
-    const event = Mux.Webhooks.verifyHeader(
-      rawBody,
-      signature,
-      webhookSigningSecret
-    );
+    // Verify the signature
+    Mux.Webhooks.verifyHeader(rawBody, signature, webhookSigningSecret);
 
+    // Parse the event data
+    const event = JSON.parse(rawBody);
     const { type, data } = event;
 
     console.log('Received webhook data:', JSON.stringify(event, null, 2));
@@ -81,9 +73,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'Webhook processed successfully' });
   } catch (error) {
     console.error('Error verifying webhook signature:', error);
-    console.error('Raw Body:', rawBody.toString());
-    console.error('Signature:', signature);
-    console.error('Webhook Signing Secret:', webhookSigningSecret);
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 }
