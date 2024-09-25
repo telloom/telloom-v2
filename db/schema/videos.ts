@@ -24,6 +24,7 @@ export const videosTable = pgTable('videos', {
   maxFrameRate: numeric('max_frame_rate'),
   languageCode: text('language_code'),
   resolutionTier: text('resolution_tier'),
+  passthrough: text('passthrough').unique(),
 });
 
 export type InsertVideo = typeof videosTable.$inferInsert;

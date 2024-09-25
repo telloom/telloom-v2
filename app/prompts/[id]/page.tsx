@@ -1,3 +1,4 @@
+// app/prompts/[id]/respond/page.tsx
 import React from 'react';
 import { getPromptById } from '@/db/queries/prompts-primary-queries';
 import VideoUploader from '@/components/VideoUploader';
