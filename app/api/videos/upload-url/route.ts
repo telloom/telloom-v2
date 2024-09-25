@@ -1,16 +1,27 @@
 // app/api/videos/upload-url/route.ts
-import { NextResponse } from 'next/server';
-import { createUploadUrl } from '@/utils/muxClient';
 
-export async function GET() {
-  console.log('MUX_ACCESS_TOKEN_ID:', process.env.MUX_ACCESS_TOKEN_ID ? 'Set' : 'Not set');
-  console.log('MUX_SECRET_KEY:', process.env.MUX_SECRET_KEY ? 'Set' : 'Not set');
-  
+import { createMuxUpload } from '@/actions/videos-actions';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { Database } from '@/types/supabase';
+import { NextResponse } from 'next/server';
+
+export async function POST(request: Request) {
+  const supabase = createServerComponentClient<Database>({ cookies });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { prompt_id } = await request.json();
+
   try {
-    const { uploadUrl, uploadId } = await createUploadUrl();
-    return NextResponse.json({ uploadUrl, uploadId });
+    const uploadUrl = await createMuxUpload(user.id, prompt_id, supabase);
+    return NextResponse.json({ url: uploadUrl });
   } catch (error) {
-    console.error('Error in upload-url route:', error);
-    return NextResponse.json({ error: 'Failed to create upload URL' }, { status: 500 });
+    return NextResponse.json({ error: 'Mux upload creation failed' }, { status: 500 });
   }
 }
