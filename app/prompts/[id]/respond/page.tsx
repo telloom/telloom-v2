@@ -6,10 +6,10 @@ import dynamic from 'next/dynamic';
 import { db } from '@/db/db';
 import { promptsPrimaryTable } from '@/db/schema/prompts_primary';
 import { eq } from 'drizzle-orm';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 const Header = dynamic(() => import('@/components/Header'), { ssr: false });
-const MuxUploaderComponent = dynamic(() => import('@/components/MuxUploader'), { ssr: false });
+const VideoUploader = dynamic(() => import('@/components/VideoUploader'), { ssr: false });
 
 export default async function PromptResponsePage({ params }: { params: { id: string } }) {
   const supabase = createServerComponentClient({ cookies });
@@ -18,6 +18,8 @@ export default async function PromptResponsePage({ params }: { params: { id: str
   if (!session) {
     return <div>Please log in to respond to prompts.</div>;
   }
+
+  const userId = session.user.id;
 
   const [prompt] = await db
     .select()
@@ -51,7 +53,7 @@ export default async function PromptResponsePage({ params }: { params: { id: str
               <CardTitle>Upload Your Response</CardTitle>
             </CardHeader>
             <CardContent>
-              <MuxUploaderComponent promptId={params.id} />
+              <VideoUploader promptId={params.id} userId={userId} />
             </CardContent>
           </Card>
         </div>

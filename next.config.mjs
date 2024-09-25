@@ -13,6 +13,7 @@ const nextConfig = {
   swcMinify: true,
   experimental: {
     // appDir: true, // This line is already commented out
+    serverActions: true
   },
   images: {
     domains: ['placeholder.com'], // Keep the existing image domain configuration
