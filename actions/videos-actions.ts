@@ -1,89 +1,80 @@
 "use server";
 
 import { db } from '@/db/db';
-import { videosTable as videos, InsertVideo, videoStatusEnum } from '@/db/schema/videos';
+import { videosTable } from '@/db/schema/videos';
+import { v4 as uuidv4 } from 'uuid';
+import Mux from '@mux/mux-node';
 import { eq } from 'drizzle-orm';
-import { ActionState } from '../types/action-types';
-import Mux from '@mux/mux-node';  // Import the Mux SDK correctly
-import { v4 as uuid } from 'uuid';
 
-// Instantiate Mux with no arguments (as of v8.0)
-const mux = new Mux();
+// Initialize Mux and log the object
+const muxClient = new Mux();
 
-/**
- * Create a direct upload URL for users to upload their videos.
- * Uses the Mux Video API to generate a direct upload URL.
- */
+// Log the initialized muxClient object to see its properties
+console.log(muxClient);  // <-- This will log the entire Mux client object
+
+// Try to destructure 'Video' after confirming it exists
+const { Video } = muxClient;
+
 export async function createUploadUrl(promptId: string, userId: string) {
-  const passthrough = uuid();  // Generate a unique passthrough identifier
-
-  // Use mux.Video.Uploads.create to create a new upload URL
-  const upload = await mux.Video.Uploads.create({
-    new_asset_settings: {
-      playback_policy: ['public'], // Ensure the video is public
-      encoding_tier: 'baseline',   // Set the encoding tier
-      passthrough,                 // Add passthrough UUID to track the video
-    },
-    cors_origin: process.env.NEXT_PUBLIC_APP_URL || '*'  // Set the CORS origin (use * for testing)
-  });
-
-  // Insert the new video record in the database with 'waiting' status
-  await db.insert(videos).values({
-    status: 'waiting',
-    passthrough: passthrough,
-    muxUploadId: upload.id,
-    userId: userId,
-    promptId: promptId
-  });
-
-  return { uploadUrl: upload.url, uploadId: upload.id };
-}
-
-// Define VideoStatus type based on the enum values in the schema
-type VideoStatus = (typeof videoStatusEnum.enumValues)[number];
-
-/**
- * Create a preliminary video record in the database with provided information.
- */
-export async function createPreliminaryVideoRecord(data: {
-  muxUploadId: string;
-  userId: string;
-  promptId: string;
-  status: VideoStatus;
-}): Promise<ActionState> {
   try {
-    // Convert the input data to match the InsertVideo type
-    const insertData: InsertVideo = {
-      muxUploadId: data.muxUploadId,
-      userId: data.userId,
-      promptId: data.promptId,
-      status: data.status,
-    };
+    const upload = await Video.Uploads.create({
+      new_asset_settings: {
+        playback_policy: 'public',
+        passthrough: uuidv4()
+      },
+      cors_origin: '*'
+    });
 
-    // Insert the video record into the database
-    const [video] = await db.insert(videos).values(insertData).returning();
-    return { status: 'success', data: video, message: 'Video record created successfully' };
+    const [video] = await db.insert(videosTable).values({
+      userId,
+      promptId,
+      muxUploadId: upload.id,
+      passthrough: upload.new_asset_settings.passthrough
+    }).returning();
+
+    return {
+      uploadUrl: upload.url,
+      uploadId: video.id
+    };
   } catch (error) {
-    console.error('Failed to create preliminary video record:', error);
-    return { status: 'error', message: 'Failed to create video record' };
+    console.error('Error creating upload URL:', error);
+    throw new Error('Failed to create upload URL');
   }
 }
 
-/**
- * Update an existing video record with new Mux information in the database.
- */
-export async function updateVideoWithMuxInfo(muxUploadId: string, data: Partial<InsertVideo>): Promise<ActionState> {
+export async function finalizeVideoUpload(uploadId: string) {
   try {
-    // Update the video record in the database with new Mux info
-    const [updatedVideo] = await db
-      .update(videos)
-      .set(data)
-      .where(eq(videos.muxUploadId, muxUploadId))
-      .returning();
+    const [video] = await db
+      .select()
+      .from(videosTable)
+      .where(eq(videosTable.id, parseInt(uploadId, 10)));
 
-    return { status: 'success', data: updatedVideo, message: 'Video record updated successfully' };
+    if (!video) {
+      throw new Error('Video not found');
+    }
+
+    const asset = await Video.Assets.get(video.muxAssetId);
+
+    await db
+      .update(videosTable)
+      .set({
+        muxAssetId: asset.id,
+        muxPlaybackId: asset.playback_ids[0].id,
+        status: asset.status,
+        duration: asset.duration,
+        aspectRatio: asset.aspect_ratio,
+        videoQuality: asset.max_stored_resolution,
+        maxWidth: asset.max_stored_frame_width,
+        maxHeight: asset.max_stored_frame_height,
+        maxFrameRate: asset.max_stored_frame_rate,
+        languageCode: asset.language_code,
+        resolutionTier: asset.resolution_tier
+      })
+      .where(eq(videosTable.id, uploadId));
+
+    return { status: 'success' };
   } catch (error) {
-    console.error('Failed to update video with Mux info:', error);
-    return { status: 'error', message: 'Failed to update video record' };
+    console.error('Error finalizing video upload:', error);
+    return { status: 'error', message: 'Failed to finalize video upload' };
   }
 }

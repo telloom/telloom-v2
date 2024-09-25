@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import MuxUploader from "@mux/mux-uploader-react";
-import { createUploadUrl } from '@/actions/videos-actions';
+import { createUploadUrl, finalizeVideoUpload } from '@/actions/videos-actions';
 
 interface VideoUploaderProps {
   promptId: string;
@@ -12,28 +12,46 @@ interface VideoUploaderProps {
 
 const VideoUploader: React.FC<VideoUploaderProps> = ({ promptId, userId }) => {
   const [error, setError] = useState<string | null>(null);
+  const [uploadId, setUploadId] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleUploadSuccess = useCallback(async (event: CustomEvent) => {
-    console.log('Upload success:', event.detail);
-    // The video record is already created, so we can just redirect
-    router.push(`/prompts/${promptId}`); // Adjust this route as needed
-  }, [promptId, router]);
+  const initializeUpload = useCallback(async () => {
+    try {
+      const result = await createUploadUrl(promptId, userId);
+      console.log('Upload initialized:', result); // Add logging
+      if (result.uploadId) {
+        setUploadId(result.uploadId.toString());
+      }
+      return result.uploadUrl;
+    } catch (error) {
+      console.error('Failed to initialize upload:', error);
+      setError('Failed to initialize upload');
+      return null;
+    }
+  }, [promptId, userId]);
+
+  const handleUploadSuccess = useCallback(async () => {
+    console.log('Upload success called, uploadId:', uploadId);
+    if (!uploadId) {
+      setError('Upload ID not found');
+      return;
+    }
+
+    try {
+      await finalizeVideoUpload(uploadId);
+      console.log('Upload finalized successfully');
+      router.push(`/prompts/${promptId}`);
+    } catch (error) {
+      console.error('Failed to finalize upload:', error);
+      setError('Failed to finalize upload');
+    }
+  }, [uploadId, promptId, router]);
 
   return (
     <>
       {error && <div className="text-red-500">{error}</div>}
       <MuxUploader
-        endpoint={async () => {
-          try {
-            const { uploadUrl } = await createUploadUrl(promptId, userId);
-            return uploadUrl;
-          } catch (error) {
-            console.error('Failed to initialize upload:', error);
-            setError('Failed to initialize uploader. Please try again.');
-            return '';
-          }
-        }}
+        endpoint={initializeUpload}
         onSuccess={handleUploadSuccess}
         onError={(error) => {
           console.error('Upload error:', error);

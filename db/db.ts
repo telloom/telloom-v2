@@ -22,5 +22,4 @@ const decodedConnectionString = decodeURIComponent(connectionString);
 
 const client = postgres(decodedConnectionString);
 export const db = drizzle(client);
-
 console.log('DATABASE_URL:', decodedConnectionString);
