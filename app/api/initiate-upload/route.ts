@@ -1,10 +1,9 @@
-import { db } from '@/db/db';
-import { uploadInfoTable } from '@/db/schema/uploadInfo';
+import { PrismaClient } from '@prisma/client';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 import Mux from '@mux/mux-node';
 import { NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
 
+const prisma = new PrismaClient();
 const muxClient = new Mux();
 
 export async function POST() {
@@ -30,20 +29,26 @@ export async function POST() {
     console.log('Mux upload created:', JSON.stringify(upload, null, 2));
 
     // Store the upload info
-    const [uploadInfo] = await db.insert(uploadInfoTable).values({
-      muxUploadId: upload.id,
-      userId: userId,
-    }).returning();
+    const uploadInfo = await prisma.uploadInfo.create({
+      data: {
+        muxUploadId: upload.id,
+        userId: userId,
+      },
+    });
 
     console.log('Upload info stored:', JSON.stringify(uploadInfo, null, 2));
 
     // Verify the upload info was stored
-    const storedInfo = await db.select().from(uploadInfoTable).where(eq(uploadInfoTable.muxUploadId, upload.id));
+    const storedInfo = await prisma.uploadInfo.findUnique({
+      where: { muxUploadId: upload.id },
+    });
     console.log('Verified stored upload info:', JSON.stringify(storedInfo, null, 2));
 
     return NextResponse.json({ ...upload, uploadInfo }, { status: 200 });
   } catch (error) {
     console.error('Error initiating upload:', error);
     return NextResponse.json({ error: 'Failed to initiate upload' }, { status: 500 });
+  } finally {
+    await prisma.$disconnect();
   }
 }

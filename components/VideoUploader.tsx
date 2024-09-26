@@ -3,49 +3,39 @@
 import React, { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import MuxUploader from "@mux/mux-uploader-react";
-import { createUploadUrl, finalizeVideoUpload } from '@/actions/videos-actions';
+import { PrismaClient } from '@prisma/client';
+import { createUploadUrl } from '@/actions/videos-actions';
 
 interface VideoUploaderProps {
   promptId: string;
   userId: string;
 }
 
+const prisma = new PrismaClient();
+
 const VideoUploader: React.FC<VideoUploaderProps> = ({ promptId, userId }) => {
   const [error, setError] = useState<string | null>(null);
   const [uploadId, setUploadId] = useState<string | null>(null);
   const router = useRouter();
 
-  const initializeUpload = useCallback(async () => {
+  const handleUploadSuccess = useCallback(async (event: CustomEvent) => {
+    console.log('Upload success:', event.detail);
     try {
-      const result = await createUploadUrl(promptId, userId);
-      console.log('Upload initialized:', result); // Add logging
-      if (result.uploadId) {
-        setUploadId(result.uploadId.toString());
-      }
-      return result.uploadUrl;
-    } catch (error) {
-      console.error('Failed to initialize upload:', error);
-      setError('Failed to initialize upload');
-      return null;
-    }
-  }, [promptId, userId]);
-
-  const handleUploadSuccess = useCallback(async () => {
-    console.log('Upload success called, uploadId:', uploadId);
-    if (!uploadId) {
-      setError('Upload ID not found');
-      return;
-    }
-
-    try {
-      await finalizeVideoUpload(uploadId);
-      console.log('Upload finalized successfully');
+      // Create a new Video record in the database
+      await prisma.video.create({
+        data: {
+          userId,
+          promptId,
+          status: 'WAITING',
+          // Add other fields as necessary
+        },
+      });
       router.push(`/prompts/${promptId}`);
     } catch (error) {
-      console.error('Failed to finalize upload:', error);
-      setError('Failed to finalize upload');
+      console.error('Failed to create video record:', error);
+      setError('Failed to process upload. Please try again.');
     }
-  }, [uploadId, promptId, router]);
+  }, [promptId, userId, router]);
 
   return (
     <>

@@ -1,32 +1,34 @@
 "use server";
 
-import { sql } from '@vercel/postgres';
-import { drizzle } from 'drizzle-orm/vercel-postgres';
-import * as schema from "../schema";
-import { eq } from "drizzle-orm";
-import { InsertSubscription, SelectSubscription } from "../schema/subscriptions";
+import { PrismaClient } from '@prisma/client';
 
-// Create a typed database instance
-const typedDb = drizzle(sql, { schema });
+const prisma = new PrismaClient();
 
-export const createSubscription = async (data: InsertSubscription) => {
-  return typedDb.insert(schema.subscriptionsTable).values(data).returning();
+export const createSubscription = async (data: Omit<Subscription, 'id'>) => {
+  return prisma.subscription.create({
+    data,
+  });
 };
 
 export const getSubscriptionById = async (id: bigint) => {
-  return typedDb.query.subscriptionsTable.findFirst({
-    where: eq(schema.subscriptionsTable.id, Number(id)),
+  return prisma.subscription.findUnique({
+    where: { id },
   });
 };
 
 export const getAllSubscriptions = async () => {
-  return typedDb.query.subscriptionsTable.findMany();
+  return prisma.subscription.findMany();
 };
 
-export const updateSubscription = async (id: bigint, data: Partial<InsertSubscription>) => {
-  return typedDb.update(schema.subscriptionsTable).set(data).where(eq(schema.subscriptionsTable.id, Number(id))).returning();
+export const updateSubscription = async (id: bigint, data: Partial<Omit<Subscription, 'id'>>) => {
+  return prisma.subscription.update({
+    where: { id },
+    data,
+  });
 };
 
 export const deleteSubscription = async (id: bigint) => {
-  return typedDb.delete(schema.subscriptionsTable).where(eq(schema.subscriptionsTable.id, Number(id)));
+  return prisma.subscription.delete({
+    where: { id },
+  });
 };

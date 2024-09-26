@@ -1,33 +1,44 @@
 "use server";
 
-import * as schema from "../schema";
-import { thematicVideosTable } from "../schema/thematic_videos";
-import { eq } from "drizzle-orm";
-import { InsertThematicVideo, SelectThematicVideo } from "../schema/thematic_videos";
+import { PrismaClient } from '@prisma/client';
 
-// Update the db import to include the schema
-import { sql } from '@vercel/postgres';
-import { drizzle } from 'drizzle-orm/vercel-postgres';
+const prisma = new PrismaClient();
 
-// Create a typed database instance
-const typedDb = drizzle(sql, { schema });
-
-export const createThematicVideo = async (data: InsertThematicVideo) => {
-  return typedDb.insert(thematicVideosTable).values(data).returning();
+export const createThematicVideo = async (data: {
+  title: string;
+  description?: string | null;
+  url: string;
+  metadata?: any | null;
+}) => {
+  return prisma.thematicVideo.create({
+    data: data,
+  });
 };
 
 export const getThematicVideoById = async (id: bigint) => {
-  return typedDb.select().from(thematicVideosTable).where(eq(thematicVideosTable.id, Number(id))).limit(1);
+  return prisma.thematicVideo.findUnique({
+    where: { id: id },
+  });
 };
 
 export const getAllThematicVideos = async () => {
-  return typedDb.select().from(thematicVideosTable);
+  return prisma.thematicVideo.findMany();
 };
 
-export const updateThematicVideo = async (id: bigint, data: Partial<InsertThematicVideo>) => {
-  return typedDb.update(thematicVideosTable).set(data).where(eq(thematicVideosTable.id, Number(id))).returning();
+export const updateThematicVideo = async (id: bigint, data: {
+  title?: string;
+  description?: string | null;
+  url?: string;
+  metadata?: any | null;
+}) => {
+  return prisma.thematicVideo.update({
+    where: { id: id },
+    data: data,
+  });
 };
 
 export const deleteThematicVideo = async (id: bigint) => {
-  return typedDb.delete(thematicVideosTable).where(eq(thematicVideosTable.id, Number(id)));
+  return prisma.thematicVideo.delete({
+    where: { id: id },
+  });
 };

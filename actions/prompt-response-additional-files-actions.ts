@@ -1,94 +1,98 @@
 "use server";
 
-import { createPromptResponseAdditionalFile, deletePromptResponseAdditionalFile, getAllPromptResponseAdditionalFiles, getPromptResponseAdditionalFileById, updatePromptResponseAdditionalFile, getPromptResponseAdditionalFilesByUserId } from "@/db/queries/prompt_response_additional_files-queries";
-import { ActionState } from "@/types";
-import { InsertPromptResponseAdditionalFile } from "@/db/schema/prompt_response_additional_files";
+import { PrismaClient } from '@prisma/client';
+import { ActionState } from '../types/action-types';
 import { revalidatePath } from "next/cache";
-import { auth } from "@/auth"; // Assuming you have an auth helper
 
-export async function createPromptResponseAdditionalFileAction(data: InsertPromptResponseAdditionalFile): Promise<ActionState> {
+const prisma = new PrismaClient();
+
+/**
+ * Create a new prompt response additional file.
+ */
+export async function createPromptResponseAdditionalFileAction(data: {
+  promptResponseId: bigint;
+  fileUrl: string;
+  fileType: string;
+  // Add other fields as necessary
+}): Promise<ActionState> {
   try {
-    const session = await auth();
-    if (!session) {
-      return { status: "error", message: "Not authenticated" };
-    }
-    
-    const newFile = await createPromptResponseAdditionalFile({ ...data, userId: session.user.id });
-    revalidatePath("/prompt-responses");
-    return { status: "success", message: "File uploaded successfully", data: newFile };
+    const newFile = await prisma.promptResponseAdditionalFile.create({
+      data: data,
+    });
+    revalidatePath("/prompt-response-additional-files");
+    return { status: "success", message: "File created successfully", data: newFile };
   } catch (error) {
-    return { status: "error", message: "Failed to upload file" };
+    console.error("Failed to create file:", error);
+    return { status: "error", message: "Failed to create file" };
   }
 }
 
-export async function updatePromptResponseAdditionalFileAction(id: string, data: Partial<InsertPromptResponseAdditionalFile>): Promise<ActionState> {
+/**
+ * Update an existing prompt response additional file.
+ */
+export async function updatePromptResponseAdditionalFileAction(id: string, data: Partial<{
+  promptResponseId?: bigint;
+  fileUrl?: string;
+  fileType?: string;
+  // Add other fields as necessary
+}>): Promise<ActionState> {
   try {
-    const session = await auth();
-    if (!session) {
-      return { status: "error", message: "Not authenticated" };
-    }
-    
-    const file = await getPromptResponseAdditionalFileById(id);
-    if (file?.userId !== session.user.id) {
-      return { status: "error", message: "Not authorized to update this file" };
-    }
-    
-    const updatedFile = await updatePromptResponseAdditionalFile(id, data);
-    revalidatePath("/prompt-responses");
+    const updatedFile = await prisma.promptResponseAdditionalFile.update({
+      where: { id: id },
+      data: data,
+    });
+    revalidatePath("/prompt-response-additional-files");
     return { status: "success", message: "File updated successfully", data: updatedFile };
   } catch (error) {
+    console.error("Failed to update file:", error);
     return { status: "error", message: "Failed to update file" };
   }
 }
 
+/**
+ * Delete a prompt response additional file.
+ */
 export async function deletePromptResponseAdditionalFileAction(id: string): Promise<ActionState> {
   try {
-    const session = await auth();
-    if (!session) {
-      return { status: "error", message: "Not authenticated" };
-    }
-    
-    const file = await getPromptResponseAdditionalFileById(id);
-    if (file?.userId !== session.user.id) {
-      return { status: "error", message: "Not authorized to delete this file" };
-    }
-    
-    await deletePromptResponseAdditionalFile(id);
-    revalidatePath("/prompt-responses");
+    await prisma.promptResponseAdditionalFile.delete({
+      where: { id: id },
+    });
+    revalidatePath("/prompt-response-additional-files");
     return { status: "success", message: "File deleted successfully" };
   } catch (error) {
+    console.error("Failed to delete file:", error);
     return { status: "error", message: "Failed to delete file" };
   }
 }
 
+/**
+ * Get a prompt response additional file by ID.
+ */
 export async function getPromptResponseAdditionalFileByIdAction(id: string): Promise<ActionState> {
   try {
-    const file = await getPromptResponseAdditionalFileById(id);
-    return { status: "success", message: "File retrieved successfully", data: file };
+    const file = await prisma.promptResponseAdditionalFile.findUnique({
+      where: { id: id },
+    });
+    if (file) {
+      return { status: "success", message: "File retrieved successfully", data: file };
+    } else {
+      return { status: "error", message: "File not found" };
+    }
   } catch (error) {
+    console.error("Failed to retrieve file:", error);
     return { status: "error", message: "Failed to retrieve file" };
   }
 }
 
+/**
+ * Get all prompt response additional files.
+ */
 export async function getAllPromptResponseAdditionalFilesAction(): Promise<ActionState> {
   try {
-    const files = await getAllPromptResponseAdditionalFiles();
+    const files = await prisma.promptResponseAdditionalFile.findMany();
     return { status: "success", message: "Files retrieved successfully", data: files };
   } catch (error) {
+    console.error("Failed to retrieve files:", error);
     return { status: "error", message: "Failed to retrieve files" };
-  }
-}
-
-export async function getPromptResponseAdditionalFilesByUserIdAction(): Promise<ActionState> {
-  try {
-    const session = await auth();
-    if (!session) {
-      return { status: "error", message: "Not authenticated" };
-    }
-    
-    const files = await getPromptResponseAdditionalFilesByUserId(session.user.id);
-    return { status: "success", message: "User files retrieved successfully", data: files };
-  } catch (error) {
-    return { status: "error", message: "Failed to retrieve user files" };
   }
 }

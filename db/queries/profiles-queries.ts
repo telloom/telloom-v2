@@ -1,32 +1,35 @@
 "use server";
 
-import { sql } from '@vercel/postgres';
-import { drizzle } from 'drizzle-orm/vercel-postgres';
-import * as schema from "../schema";
-import { eq } from "drizzle-orm";
-import { InsertProfile, SelectProfile } from "../schema/profiles";
+import { PrismaClient } from '@prisma/client';
 
-// Create a typed database instance
-const typedDb = drizzle(sql, { schema });
+// Create a Prisma client instance
+const prisma = new PrismaClient();
 
-export const createProfile = async (data: InsertProfile) => {
-  return typedDb.insert(schema.profilesTable).values(data).returning();
+export const createProfile = async (data: Omit<Profile, 'id'>) => {
+  return prisma.profile.create({
+    data,
+  });
 };
 
 export const getProfileById = async (id: string) => {
-  return typedDb.query.profilesTable.findFirst({
-    where: eq(schema.profilesTable.id, id),
+  return prisma.profile.findUnique({
+    where: { id },
   });
 };
 
 export const getAllProfiles = async () => {
-  return typedDb.query.profilesTable.findMany();
+  return prisma.profile.findMany();
 };
 
-export const updateProfile = async (id: string, data: Partial<InsertProfile>) => {
-  return typedDb.update(schema.profilesTable).set(data).where(eq(schema.profilesTable.id, id)).returning();
+export const updateProfile = async (id: string, data: Partial<Omit<Profile, 'id'>>) => {
+  return prisma.profile.update({
+    where: { id },
+    data,
+  });
 };
 
 export const deleteProfile = async (id: string) => {
-  return typedDb.delete(schema.profilesTable).where(eq(schema.profilesTable.id, id));
+  return prisma.profile.delete({
+    where: { id },
+  });
 };

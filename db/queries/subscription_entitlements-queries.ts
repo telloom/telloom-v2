@@ -1,32 +1,41 @@
 "use server";
 
-import { sql } from '@vercel/postgres';
-import { drizzle } from 'drizzle-orm/vercel-postgres';
-import * as schema from "../schema";
-import { eq } from "drizzle-orm";
-import { InsertSubscriptionEntitlement, SelectSubscriptionEntitlement } from "../schema/subscription_entitlements";
+import { PrismaClient } from '@prisma/client';
 
-// Create a typed database instance
-const typedDb = drizzle(sql, { schema });
+// Create a Prisma client instance
+const prisma = new PrismaClient();
 
-export const createSubscriptionEntitlement = async (data: InsertSubscriptionEntitlement) => {
-  return typedDb.insert(schema.subscriptionEntitlementsTable).values(data).returning();
+export const createSubscriptionEntitlement = async (data: {
+  subscriptionId: bigint;
+  entitlementId: bigint;
+}) => {
+  return prisma.subscriptionEntitlement.create({
+    data: data,
+  });
 };
 
 export const getSubscriptionEntitlementById = async (id: bigint) => {
-  return typedDb.query.subscriptionEntitlementsTable.findFirst({
-    where: eq(schema.subscriptionEntitlementsTable.id, Number(id)),
+  return prisma.subscriptionEntitlement.findUnique({
+    where: { id: id },
   });
 };
 
 export const getAllSubscriptionEntitlements = async () => {
-  return typedDb.query.subscriptionEntitlementsTable.findMany();
+  return prisma.subscriptionEntitlement.findMany();
 };
 
-export const updateSubscriptionEntitlement = async (id: bigint, data: Partial<InsertSubscriptionEntitlement>) => {
-  return typedDb.update(schema.subscriptionEntitlementsTable).set(data).where(eq(schema.subscriptionEntitlementsTable.id, Number(id))).returning();
+export const updateSubscriptionEntitlement = async (id: bigint, data: {
+  subscriptionId?: bigint;
+  entitlementId?: bigint;
+}) => {
+  return prisma.subscriptionEntitlement.update({
+    where: { id: id },
+    data: data,
+  });
 };
 
 export const deleteSubscriptionEntitlement = async (id: bigint) => {
-  return typedDb.delete(schema.subscriptionEntitlementsTable).where(eq(schema.subscriptionEntitlementsTable.id, Number(id)));
+  return prisma.subscriptionEntitlement.delete({
+    where: { id: id },
+  });
 };

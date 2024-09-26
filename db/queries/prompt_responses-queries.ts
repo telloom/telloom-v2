@@ -1,47 +1,67 @@
 "use server";
 
-import { sql } from '@vercel/postgres';
-import { drizzle } from 'drizzle-orm/vercel-postgres';
-import * as schema from "../schema";
-import { eq } from "drizzle-orm";
-import { InsertPromptResponse, SelectPromptResponse, promptResponsesTable } from "../schema/prompt_responses";
-import { PromptPrimary } from "../schema/prompts_primary";
-import { Video } from "../schema/videos";
+import { PrismaClient } from '@prisma/client';
 
-const typedDb = drizzle(sql, { schema });
+const prisma = new PrismaClient();
 
-export const createPromptResponse = async (data: InsertPromptResponse) => {
+export const createPromptResponse = async (data: {
+  userId: string;
+  promptId: string;
+  videoId: bigint;
+  responseText?: string;
+  privacyLevel?: string;
+  airtableRecordId?: string;
+  additionalFilesId?: string;
+}) => {
   console.log('Inserting prompt response:', data);
   if (!data.userId || !data.promptId || !data.videoId) {
     throw new Error('userId, promptId, and videoId are required');
   }
-  const result = await typedDb.insert(promptResponsesTable).values(data).returning();
+  const result = await prisma.promptResponse.create({
+    data: {
+      userId: data.userId,
+      promptId: data.promptId,
+      videoId: data.videoId,
+      responseText: data.responseText,
+      privacyLevel: data.privacyLevel,
+      airtableRecordId: data.airtableRecordId,
+      additionalFilesId: data.additionalFilesId,
+    },
+  });
   console.log('Inserted prompt response:', result);
-  return result[0];
+  return result;
 };
 
-// ... other existing queries ...
-
-export const getPromptResponseById = async (id: bigint): Promise<(SelectPromptResponse & { prompt: PromptPrimary | null, video: Video | null }) | null> => {
-  const result = await typedDb.query.promptResponsesTable.findFirst({
-    where: eq(schema.promptResponsesTable.id, Number(id)),
-    with: {
+export const getPromptResponseById = async (id: bigint) => {
+  const result = await prisma.promptResponse.findUnique({
+    where: { id },
+    include: {
       prompt: true,
       video: true,
     },
   });
 
-  return result ?? null;
+  return result;
 };
 
 export const getAllPromptResponses = async () => {
-  return typedDb.query.promptResponsesTable.findMany();
+  return prisma.promptResponse.findMany();
 };
 
-export const updatePromptResponse = async (id: bigint, data: Partial<InsertPromptResponse>) => {
-  return typedDb.update(schema.promptResponsesTable).set(data).where(eq(schema.promptResponsesTable.id, Number(id))).returning();
+export const updatePromptResponse = async (id: bigint, data: {
+  responseText?: string;
+  privacyLevel?: string;
+  airtableRecordId?: string;
+  additionalFilesId?: string;
+}) => {
+  return prisma.promptResponse.update({
+    where: { id },
+    data,
+  });
 };
 
 export const deletePromptResponse = async (id: bigint) => {
-  return typedDb.delete(schema.promptResponsesTable).where(eq(schema.promptResponsesTable.id, Number(id)));
+  return prisma.promptResponse.delete({
+    where: { id },
+  });
 };

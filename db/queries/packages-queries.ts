@@ -1,32 +1,35 @@
 "use server";
 
-import { sql } from '@vercel/postgres';
-import { drizzle } from 'drizzle-orm/vercel-postgres';
-import * as schema from "../schema";
-import { eq } from "drizzle-orm";
-import { InsertPackage, SelectPackage } from "../schema/packages";
+import { PrismaClient } from '@prisma/client';
 
-// Create a typed database instance
-const typedDb = drizzle(sql, { schema });
+// Create a Prisma client instance
+const prisma = new PrismaClient();
 
-export const createPackage = async (data: InsertPackage) => {
-  return typedDb.insert(schema.packagesTable).values(data).returning();
+export const createPackage = async (data: Omit<Package, 'id'>) => {
+  return prisma.package.create({
+    data,
+  });
 };
 
 export const getPackageById = async (id: bigint) => {
-  return typedDb.query.packagesTable.findFirst({
-    where: eq(schema.packagesTable.id, Number(id)),
+  return prisma.package.findUnique({
+    where: { id },
   });
 };
 
 export const getAllPackages = async () => {
-  return typedDb.query.packagesTable.findMany();
+  return prisma.package.findMany();
 };
 
-export const updatePackage = async (id: bigint, data: Partial<InsertPackage>) => {
-  return typedDb.update(schema.packagesTable).set(data).where(eq(schema.packagesTable.id, Number(id))).returning();
+export const updatePackage = async (id: bigint, data: Partial<Omit<Package, 'id'>>) => {
+  return prisma.package.update({
+    where: { id },
+    data,
+  });
 };
 
 export const deletePackage = async (id: bigint) => {
-  return typedDb.delete(schema.packagesTable).where(eq(schema.packagesTable.id, Number(id)));
+  return prisma.package.delete({
+    where: { id },
+  });
 };

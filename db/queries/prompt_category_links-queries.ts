@@ -1,33 +1,43 @@
 "use server";
 
-import { sql } from '@vercel/postgres';
-import { drizzle } from 'drizzle-orm/vercel-postgres';
-import { eq } from "drizzle-orm";
-import * as schema from "../schema";
-import { promptCategoryLinksTable } from "../schema";
-import { InsertPromptCategoryLink, SelectPromptCategoryLink } from "../schema/prompt_category_links";
+import { PrismaClient } from '@prisma/client';
 
-// Create a typed database instance
-const typedDb = drizzle(sql, { schema });
+// Create a Prisma client instance
+const prisma = new PrismaClient();
 
-export const createPromptCategoryLink = async (data: InsertPromptCategoryLink) => {
-  return typedDb.insert(promptCategoryLinksTable).values(data).returning();
+export const createPromptCategoryLink = async (data: {
+  airtableId?: string | null;
+  promptAirtableId?: string | null;
+  categoryAirtableId?: string | null;
+}) => {
+  return prisma.promptCategoryLink.create({
+    data: data,
+  });
 };
 
 export const getPromptCategoryLinkById = async (id: bigint) => {
-  return typedDb.query.promptCategoryLinksTable.findFirst({
-    where: eq(promptCategoryLinksTable.id, Number(id)),
+  return prisma.promptCategoryLink.findUnique({
+    where: { id: id },
   });
 };
 
 export const getAllPromptCategoryLinks = async () => {
-  return typedDb.query.promptCategoryLinksTable.findMany();
+  return prisma.promptCategoryLink.findMany();
 };
 
-export const updatePromptCategoryLink = async (id: bigint, data: Partial<InsertPromptCategoryLink>) => {
-  return typedDb.update(promptCategoryLinksTable).set(data).where(eq(promptCategoryLinksTable.id, Number(id))).returning();
+export const updatePromptCategoryLink = async (id: bigint, data: {
+  airtableId?: string | null;
+  promptAirtableId?: string | null;
+  categoryAirtableId?: string | null;
+}) => {
+  return prisma.promptCategoryLink.update({
+    where: { id: id },
+    data: data,
+  });
 };
 
 export const deletePromptCategoryLink = async (id: bigint) => {
-  return typedDb.delete(promptCategoryLinksTable).where(eq(promptCategoryLinksTable.id, Number(id)));
+  return prisma.promptCategoryLink.delete({
+    where: { id: id },
+  });
 };

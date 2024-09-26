@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import { PrismaClient } from '@prisma/client';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -11,15 +10,17 @@ if (!supabaseUrl || !supabaseKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
-const connectionString = process.env.DATABASE_URL;
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-if (!connectionString) {
-  throw new Error('DATABASE_URL environment variable is not set');
-}
+export const prisma =
+  globalForPrisma.prisma ||
+  new PrismaClient({
+    log: ['query'],
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
+  });
 
-// Decode the connection string before using it
-const decodedConnectionString = decodeURIComponent(connectionString);
-
-const client = postgres(decodedConnectionString);
-export const db = drizzle(client);
-console.log('DATABASE_URL:', decodedConnectionString);
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;

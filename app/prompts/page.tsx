@@ -1,6 +1,6 @@
 import PromptsClient from './PromptsClient';
 import { getAllPromptCategories, testDatabaseConnection } from '../../db/queries/prompt_categories-queries';
-import { getPromptsByCategoryAction } from '../../actions/prompts-primary-actions';
+import { getPromptsByCategoryAction } from '../../actions/prompt-actions';
 import { PromptCategory } from '../../db/schema/prompt_categories';
 
 export type Category = {

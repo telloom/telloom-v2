@@ -1,43 +1,48 @@
 "use server";
 
-import { eq } from "drizzle-orm";
-import * as schema from "../schema";
-import { InsertPromptPrimary } from "../schema/prompts_primary";
-import { db } from '../db';
+import { PrismaClient } from '@prisma/client';
 import { cache } from 'react';
 
-export const createPrompt = async (data: InsertPromptPrimary) => {
-  const result = await db.insert(schema.promptsPrimaryTable).values(data).returning();
-  return result[0];
+const prisma = new PrismaClient();
+
+export const createPrompt = async (data: Omit<Prompt, 'id' | 'createdAt' | 'updatedAt'>) => {
+  return prisma.prompt.create({
+    data,
+  });
 };
 
 export const getPromptById = async (id: string) => {
-  return db.select().from(schema.promptsPrimaryTable).where(eq(schema.promptsPrimaryTable.id, id));
+  return prisma.prompt.findUnique({
+    where: { id },
+  });
 };
 
 export const getAllPrompts = cache(async () => {
-  return db.select().from(schema.promptsPrimaryTable);
+  return prisma.prompt.findMany();
 });
 
-export const updatePrompt = async (id: string, data: Partial<InsertPromptPrimary>) => {
-  return db.update(schema.promptsPrimaryTable)
-    .set(data)
-    .where(eq(schema.promptsPrimaryTable.id, id))
-    .returning();
+export const updatePrompt = async (id: string, data: Partial<Omit<Prompt, 'id' | 'createdAt' | 'updatedAt'>>) => {
+  return prisma.prompt.update({
+    where: { id },
+    data,
+  });
 };
 
 export const deletePrompt = async (id: string) => {
-  return db.delete(schema.promptsPrimaryTable)
-    .where(eq(schema.promptsPrimaryTable.id, id));
+  return prisma.prompt.delete({
+    where: { id },
+  });
 };
 
-export const getPromptsByCategory = async (categoryId: number) => {
-  return db.select().from(schema.promptsPrimaryTable)
-    .where(eq(schema.promptsPrimaryTable.promptCategoryId, categoryId));
+export const getPromptsByCategory = async (categoryId: bigint) => {
+  return prisma.prompt.findMany({
+    where: { promptCategoryId: categoryId },
+  });
 };
 
 export const getLatestPrompts = async (limit: number = 10) => {
-  return db.select().from(schema.promptsPrimaryTable)
-    .orderBy(schema.promptsPrimaryTable.createdAt)
-    .limit(limit);
+  return prisma.prompt.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  });
 };

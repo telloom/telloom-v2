@@ -1,22 +1,25 @@
 "use server";
 
-import { eq } from "drizzle-orm";
-import * as schema from "../schema";
-import { promptCategoriesTable, InsertPromptCategory } from '../schema/prompt_categories';
-import { db, supabase } from '../db';
+import { PrismaClient } from '@prisma/client';
 
-export const createPromptCategory = async (data: InsertPromptCategory) => {
-  return db.insert(promptCategoriesTable).values(data).returning();
+const prisma = new PrismaClient();
+
+export const createPromptCategory = async (data: { category?: string, description?: string, airtableId?: string }) => {
+  return prisma.promptCategory.create({
+    data: data
+  });
 };
 
-export const getPromptCategoryById = async (id: number) => {
-  return db.select().from(schema.promptCategoriesTable).where(eq(schema.promptCategoriesTable.id, id));
+export const getPromptCategoryById = async (id: bigint) => {
+  return prisma.promptCategory.findUnique({
+    where: { id: id }
+  });
 };
 
 export const getAllPromptCategories = async () => {
   try {
     console.log('Executing getAllPromptCategories query...');
-    const result = await db.select().from(schema.promptCategoriesTable);
+    const result = await prisma.promptCategory.findMany();
     console.log('Query executed successfully');
     console.log('getAllPromptCategories result:', result);
     return result;
@@ -30,24 +33,23 @@ export const getAllPromptCategories = async () => {
   }
 };
 
-export const updatePromptCategory = async (id: number, data: Partial<InsertPromptCategory>) => {
-  return db.update(promptCategoriesTable).set(data).where(eq(promptCategoriesTable.id, id)).returning();
+export const updatePromptCategory = async (id: bigint, data: { category?: string, description?: string, airtableId?: string }) => {
+  return prisma.promptCategory.update({
+    where: { id: id },
+    data: data
+  });
 };
 
-export const deletePromptCategory = async (id: number) => {
-  return db.delete(promptCategoriesTable).where(eq(promptCategoriesTable.id, id));
+export const deletePromptCategory = async (id: bigint) => {
+  return prisma.promptCategory.delete({
+    where: { id: id }
+  });
 };
 
 export const testDatabaseConnection = async () => {
   try {
-    const { data, error } = await supabase
-      .from('prompt_categories')
-      .select('*')
-      .limit(1);
-    
-    if (error) throw error;
-    
-    console.log('Test query result:', data);
+    const result = await prisma.promptCategory.findFirst();
+    console.log('Test query result:', result);
     return true;
   } catch (error) {
     console.error('Test query failed:', error);
