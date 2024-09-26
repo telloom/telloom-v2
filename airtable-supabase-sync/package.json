@@ -12,6 +12,15 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.45.2",
     "airtable": "^0.12.2",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "@prisma/client": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "typescript": "^5.0.0",
+    "prisma": "^5.0.0"
+  },
+  "prisma": {
+    "schema": "../prisma/schema.prisma"
   }
 }

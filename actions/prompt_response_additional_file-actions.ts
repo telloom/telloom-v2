@@ -2,18 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { ActionState } from "../types/action-types";
-import { InsertPromptResponseAdditionalFile } from "../db/schema/prompt_response_additional_files";
-import {
-  createPromptResponseAdditionalFile,
-  deletePromptResponseAdditionalFile,
-  getAllPromptResponseAdditionalFiles,
-  getPromptResponseAdditionalFileById,
-  updatePromptResponseAdditionalFile
-} from "../db/queries/prompt_response_additional_files-queries";
+import { PrismaClient, Prisma } from '@prisma/client';
 
-export async function createPromptResponseAdditionalFileAction(data: InsertPromptResponseAdditionalFile): Promise<ActionState> {
+const prisma = new PrismaClient();
+
+export async function createPromptResponseAdditionalFileAction(data: Prisma.PromptResponseAdditionalFileCreateInput): Promise<ActionState> {
   try {
-    const newFile = await createPromptResponseAdditionalFile(data);
+    const newFile = await prisma.promptResponseAdditionalFile.create({
+      data: data,
+    });
     revalidatePath("/prompt-response-additional-files");
     return { status: "success", message: "File created successfully", data: newFile };
   } catch (error) {
@@ -22,9 +19,12 @@ export async function createPromptResponseAdditionalFileAction(data: InsertPromp
   }
 }
 
-export async function updatePromptResponseAdditionalFileAction(id: string, data: Partial<InsertPromptResponseAdditionalFile>): Promise<ActionState> {
+export async function updatePromptResponseAdditionalFileAction(id: string, data: Prisma.PromptResponseAdditionalFileUpdateInput): Promise<ActionState> {
   try {
-    const updatedFile = await updatePromptResponseAdditionalFile(id, data);
+    const updatedFile = await prisma.promptResponseAdditionalFile.update({
+      where: { id: id },
+      data: data,
+    });
     revalidatePath("/prompt-response-additional-files");
     return { status: "success", message: "File updated successfully", data: updatedFile };
   } catch (error) {
@@ -34,7 +34,9 @@ export async function updatePromptResponseAdditionalFileAction(id: string, data:
 
 export async function deletePromptResponseAdditionalFileAction(id: string): Promise<ActionState> {
   try {
-    await deletePromptResponseAdditionalFile(id);
+    await prisma.promptResponseAdditionalFile.delete({
+      where: { id: id },
+    });
     revalidatePath("/prompt-response-additional-files");
     return { status: "success", message: "File deleted successfully" };
   } catch (error) {
@@ -44,7 +46,9 @@ export async function deletePromptResponseAdditionalFileAction(id: string): Prom
 
 export async function getPromptResponseAdditionalFileByIdAction(id: string): Promise<ActionState> {
   try {
-    const file = await getPromptResponseAdditionalFileById(id);
+    const file = await prisma.promptResponseAdditionalFile.findUnique({
+      where: { id: id },
+    });
     return { status: "success", message: "File retrieved successfully", data: file };
   } catch (error) {
     return { status: "error", message: "Failed to retrieve file" };
@@ -53,7 +57,7 @@ export async function getPromptResponseAdditionalFileByIdAction(id: string): Pro
 
 export async function getAllPromptResponseAdditionalFilesAction(): Promise<ActionState> {
   try {
-    const files = await getAllPromptResponseAdditionalFiles();
+    const files = await prisma.promptResponseAdditionalFile.findMany();
     return { status: "success", message: "Files retrieved successfully", data: files };
   } catch (error) {
     return { status: "error", message: "Failed to retrieve files" };

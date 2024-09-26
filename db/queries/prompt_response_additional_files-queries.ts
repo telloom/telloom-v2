@@ -1,36 +1,52 @@
 "use server";
 
-import { eq } from "drizzle-orm";
-import * as schema from "../schema";
-import { InsertPromptResponseAdditionalFile } from "../schema/prompt_response_additional_files";
-import { db } from '../db';
+import { PrismaClient } from '@prisma/client';
 
-export const createPromptResponseAdditionalFile = async (data: InsertPromptResponseAdditionalFile) => {
-  const result = await db.insert(schema.promptResponseAdditionalFilesTable).values(data).returning();
-  return result[0];
+const prisma = new PrismaClient();
+
+export const createPromptResponseAdditionalFile = async (data: {
+  fileName: string;
+  fileUrl: string;
+  userId?: string;
+  fileSize?: bigint;
+  fileType?: string;
+}) => {
+  return prisma.promptResponseAdditionalFile.create({
+    data,
+  });
 };
 
 export const getPromptResponseAdditionalFileById = async (id: string) => {
-  return db.select().from(schema.promptResponseAdditionalFilesTable).where(eq(schema.promptResponseAdditionalFilesTable.id, id));
+  return prisma.promptResponseAdditionalFile.findUnique({
+    where: { id },
+  });
 };
 
 export const getAllPromptResponseAdditionalFiles = async () => {
-  return db.select().from(schema.promptResponseAdditionalFilesTable);
+  return prisma.promptResponseAdditionalFile.findMany();
 };
 
-export const updatePromptResponseAdditionalFile = async (id: string, data: Partial<InsertPromptResponseAdditionalFile>) => {
-  return db.update(schema.promptResponseAdditionalFilesTable)
-    .set(data)
-    .where(eq(schema.promptResponseAdditionalFilesTable.id, id))
-    .returning();
+export const updatePromptResponseAdditionalFile = async (id: string, data: {
+  fileName?: string;
+  fileUrl?: string;
+  userId?: string;
+  fileSize?: bigint;
+  fileType?: string;
+}) => {
+  return prisma.promptResponseAdditionalFile.update({
+    where: { id },
+    data,
+  });
 };
 
 export const deletePromptResponseAdditionalFile = async (id: string) => {
-  return db.delete(schema.promptResponseAdditionalFilesTable)
-    .where(eq(schema.promptResponseAdditionalFilesTable.id, id));
+  return prisma.promptResponseAdditionalFile.delete({
+    where: { id },
+  });
 };
 
 export const getPromptResponseAdditionalFilesByUserId = async (userId: string) => {
-  return db.select().from(schema.promptResponseAdditionalFilesTable)
-    .where(eq(schema.promptResponseAdditionalFilesTable.userId, userId));
+  return prisma.promptResponseAdditionalFile.findMany({
+    where: { userId },
+  });
 };

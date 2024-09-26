@@ -1,13 +1,16 @@
 "use server";
 
-import { createProfile, deleteProfile, getAllProfiles, getProfileById, updateProfile } from "../db/queries/profiles-queries";
+import { PrismaClient } from '@prisma/client';
 import { ActionState } from "../types";
-import { InsertProfile } from "../db/schema/profiles"; // Add this import
 import { revalidatePath } from "next/cache";
 
-export async function createProfileAction(data: InsertProfile): Promise<ActionState> {
+const prisma = new PrismaClient();
+
+export async function createProfileAction(data: any): Promise<ActionState> {
   try {
-    const newProfile = await createProfile(data);
+    const newProfile = await prisma.profile.create({
+      data: data,
+    });
     revalidatePath("/profiles");
     return { status: "success", message: "Profile created successfully", data: newProfile };
   } catch (error) {
@@ -15,9 +18,12 @@ export async function createProfileAction(data: InsertProfile): Promise<ActionSt
   }
 }
 
-export async function updateProfileAction(id: string, data: Partial<InsertProfile>): Promise<ActionState> {
+export async function updateProfileAction(id: string, data: any): Promise<ActionState> {
   try {
-    const updatedProfile = await updateProfile(id, data);
+    const updatedProfile = await prisma.profile.update({
+      where: { id: id },
+      data: data,
+    });
     revalidatePath("/profiles");
     return { status: "success", message: "Profile updated successfully", data: updatedProfile };
   } catch (error) {
@@ -27,7 +33,9 @@ export async function updateProfileAction(id: string, data: Partial<InsertProfil
 
 export async function deleteProfileAction(id: string): Promise<ActionState> {
   try {
-    await deleteProfile(id);
+    await prisma.profile.delete({
+      where: { id: id },
+    });
     revalidatePath("/profiles");
     return { status: "success", message: "Profile deleted successfully" };
   } catch (error) {
@@ -37,7 +45,9 @@ export async function deleteProfileAction(id: string): Promise<ActionState> {
 
 export async function getProfileByIdAction(id: string): Promise<ActionState> {
   try {
-    const profile = await getProfileById(id);
+    const profile = await prisma.profile.findUnique({
+      where: { id: id },
+    });
     return { status: "success", message: "Profile retrieved successfully", data: profile };
   } catch (error) {
     return { status: "error", message: "Failed to retrieve profile" };
@@ -46,7 +56,7 @@ export async function getProfileByIdAction(id: string): Promise<ActionState> {
 
 export async function getAllProfilesAction(): Promise<ActionState> {
   try {
-    const profiles = await getAllProfiles();
+    const profiles = await prisma.profile.findMany();
     return { status: "success", message: "Profiles retrieved successfully", data: profiles };
   } catch (error) {
     return { status: "error", message: "Failed to retrieve profiles" };

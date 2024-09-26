@@ -1,32 +1,41 @@
 "use server";
 
-import { sql } from '@vercel/postgres';
-import { drizzle } from 'drizzle-orm/vercel-postgres';
-import * as schema from "../schema";
-import { eq } from "drizzle-orm";
-import { InsertVideoTranscript, SelectVideoTranscript } from "../schema/video_transcripts";
+import { PrismaClient } from '@prisma/client';
 
-// Create a typed database instance
-const typedDb = drizzle(sql, { schema });
+// Create a Prisma client instance
+const prisma = new PrismaClient();
 
-export const createVideoTranscript = async (data: InsertVideoTranscript) => {
-  return typedDb.insert(schema.videoTranscriptsTable).values(data).returning();
+export const createVideoTranscript = async (data: {
+  videoId?: bigint | null;
+  transcript: string;
+}) => {
+  return prisma.videoTranscript.create({
+    data: data,
+  });
 };
 
 export const getVideoTranscriptById = async (id: bigint) => {
-  return typedDb.query.videoTranscriptsTable.findFirst({
-    where: eq(schema.videoTranscriptsTable.id, Number(id)),
+  return prisma.videoTranscript.findUnique({
+    where: { id: id },
   });
 };
 
 export const getAllVideoTranscripts = async () => {
-  return typedDb.query.videoTranscriptsTable.findMany();
+  return prisma.videoTranscript.findMany();
 };
 
-export const updateVideoTranscript = async (id: bigint, data: Partial<InsertVideoTranscript>) => {
-  return typedDb.update(schema.videoTranscriptsTable).set(data).where(eq(schema.videoTranscriptsTable.id, Number(id))).returning();
+export const updateVideoTranscript = async (id: bigint, data: {
+  videoId?: bigint | null;
+  transcript?: string;
+}) => {
+  return prisma.videoTranscript.update({
+    where: { id: id },
+    data: data,
+  });
 };
 
 export const deleteVideoTranscript = async (id: bigint) => {
-  return typedDb.delete(schema.videoTranscriptsTable).where(eq(schema.videoTranscriptsTable.id, Number(id)));
+  return prisma.videoTranscript.delete({
+    where: { id: id },
+  });
 };

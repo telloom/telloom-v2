@@ -1,0 +1,337 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Models
+model Entitlement {
+  id                      BigInt                     @id
+  revenuecatId            String
+  lookupKey               String
+  displayName             String
+  createdAt               DateTime?                  @default(now()) @db.Timestamptz(6)
+  updatedAt               DateTime?                  @default(now()) @db.Timestamptz(6)
+  subscriptionEntitlements SubscriptionEntitlement[]
+}
+
+model ObjectCategory {
+  id                   BigInt              @id
+  categoryName         String
+  description          String?
+  airtableRecordId     String?
+  createdAt            DateTime?           @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime?           @default(now()) @db.Timestamptz(6)
+  objectCategoryLinks  ObjectCategoryLink[]
+}
+
+model ObjectCategoryLink {
+  id                 BigInt             @id
+  objectId           BigInt?
+  categoryId         BigInt?
+  airtableRecordId   String?
+  createdAt          DateTime?          @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime?          @default(now()) @db.Timestamptz(6)
+
+  objectCategory     ObjectCategory?    @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "object_category_links_category_id_object_categories_id_fk")
+  object             Object?            @relation(fields: [objectId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "object_category_links_object_id_objects_id_fk")
+}
+
+model Object {
+  id                  BigInt               @id
+  userId              String?              @db.Uuid
+  objectName          String
+  objectDescription   String?
+  airtableRecordId    String?
+  createdAt           DateTime?            @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime?            @default(now()) @db.Timestamptz(6)
+  objectCategoryLinks ObjectCategoryLink[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Offering {
+  id           BigInt     @id
+  revenuecatId String
+  lookupKey    String
+  displayName  String
+  isCurrent    Boolean
+  createdAt    DateTime?  @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime?  @default(now()) @db.Timestamptz(6)
+  packages     Package[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Package {
+  id           BigInt     @id
+  revenuecatId String
+  offeringId   BigInt?
+  productId    BigInt?
+  lookupKey    String
+  displayName  String
+  position     Int?
+  createdAt    DateTime?  @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime?  @default(now()) @db.Timestamptz(6)
+
+  offering     Offering?  @relation(fields: [offeringId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "packages_offering_id_offerings_id_fk")
+  product      Product?   @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "packages_product_id_products_id_fk")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Product {
+  id               BigInt          @id
+  revenuecatId     String
+  storeIdentifier  String
+  type             String
+  displayName      String?
+  createdAt        DateTime?       @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime?       @default(now()) @db.Timestamptz(6)
+  packages         Package[]
+  purchases        Purchase[]
+  subscriptions    Subscription[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Profile {
+  id                              String                             @id @db.Uuid
+  updatedAt                       DateTime?                          @db.Timestamptz(6)
+  username                        String?
+  fullName                        String?
+  avatarUrl                       String?
+  createdAt                       DateTime?                          @default(now()) @db.Timestamptz(6)
+  email                           String?
+  passwordHash                    String?
+  firstName                       String?
+  lastName                        String?
+  phone                           String?
+  revenuecatAppUserId             String?
+  status                          String?
+  airtableRecordId                String?
+  addressStreet                   String?
+  addressUnit                     String?
+  addressCity                     String?
+  addressState                    String?
+  addressZipcode                  String?
+  executorFirstName               String?
+  executorLastName                String?
+  executorRelation                String?
+  executorPhone                   String?
+  executorEmail                   String?
+  promptResponseAdditionalFiles   PromptResponseAdditionalFile[]
+  promptResponses                 PromptResponse[]
+  uploadInfos                     UploadInfo[]
+  videos                          Video[]
+}
+
+model PromptCategory {
+  id             BigInt            @id
+  category       String?
+  description    String?
+  airtableId     String?
+  createdAt      DateTime?         @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime?         @default(now()) @db.Timestamptz(6)
+  prompts        Prompt[]
+}
+
+model PromptCategoryLink {
+  id                  BigInt    @id
+  airtableId          String?
+  promptAirtableId    String?
+  categoryAirtableId  String?
+  createdAt           DateTime? @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model PromptResponseAdditionalFile {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fileName         String
+  fileUrl          String
+  uploadedAt       DateTime          @default(now()) @db.Timestamptz(6)
+  userId           String?           @db.Uuid
+  fileSize         BigInt?
+  fileType         String?
+
+  profile          Profile?          @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "prompt_response_additional_files_user_id_profiles_id_fk")
+  promptResponses  PromptResponse[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model PromptResponse {
+  id                             BigInt                            @id @default(autoincrement())
+  userId                         String?                           @db.Uuid
+  videoId                        BigInt?
+  responseText                   String?
+  privacyLevel                   String                            @default("Private")
+  airtableRecordId               String?
+  createdAt                      DateTime?                         @default(now()) @db.Timestamptz(6)
+  updatedAt                      DateTime?                         @default(now()) @db.Timestamptz(6)
+  promptId                       String?                           @db.Uuid
+  additionalFilesId              String?                           @db.Uuid
+
+  additionalFiles                PromptResponseAdditionalFile?     @relation(fields: [additionalFilesId], references: [id], map: "prompt_responses_additional_files_fk")
+  prompt                         Prompt?                           @relation(fields: [promptId], references: [id], onDelete: Restrict, map: "prompt_responses_prompt_id_fk")
+  profile                        Profile?                          @relation(fields: [userId], references: [id], onDelete: Restrict, map: "prompt_responses_user_id_fk")
+  video                          Video?                            @relation(fields: [videoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "prompt_responses_video_id_fk")
+  responsePermissions            ResponsePermission[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Prompt {
+  id                         String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  promptText                 String             @db.VarChar(255)
+  promptType                 String?            @default("default") @db.VarChar(255)
+  isContextEstablishing      Boolean?           @default(false)
+  airtableId                 String?            @db.VarChar
+  createdAt                  DateTime?          @default(now()) @db.Timestamp(6)
+  updatedAt                  DateTime?          @default(now()) @db.Timestamp(6)
+  promptCategoryId           BigInt?
+  categoryAirtableId         String?            @db.VarChar
+  isObjectPrompt             Boolean?
+
+  promptResponses            PromptResponse[]
+  promptCategory             PromptCategory?    @relation(fields: [promptCategoryId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "prompts_primary_prompt_category_id_prompt_categories_id_fk")
+  videos                     Video[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Purchase {
+  id                        BigInt    @id
+  revenuecatId              String
+  userId                    String?   @db.Uuid
+  productId                 BigInt?
+  purchasedAt               DateTime  @db.Timestamptz(6)
+  store                     String
+  revenueInUsd              Decimal   @db.Decimal
+  status                    String
+  environment               String
+  storePurchaseIdentifier   String?
+  createdAt                 DateTime? @default(now()) @db.Timestamptz(6)
+  updatedAt                 DateTime? @default(now()) @db.Timestamptz(6)
+
+  product                   Product?  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchases_product_id_fk")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model ResponsePermission {
+  id                BigInt            @id
+  userId            String?           @db.Uuid
+  permissionLevel   String
+  createdAt         DateTime?         @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime?         @default(now()) @db.Timestamptz(6)
+  responseId        BigInt?
+
+  promptResponse    PromptResponse?   @relation(fields: [responseId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "response_permissions_response_id_fk")
+}
+
+model SubscriptionEntitlement {
+  id              BigInt        @id
+  subscriptionId  BigInt
+  entitlementId   BigInt
+  createdAt       DateTime?     @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime?     @default(now()) @db.Timestamptz(6)
+
+  entitlement     Entitlement   @relation(fields: [entitlementId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "subscription_entitlements_entitlement_id_fk")
+  subscription    Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "subscription_entitlements_subscription_id_fk")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Subscription {
+  id                           BigInt                      @id
+  revenuecatId                 String
+  userId                       String?                     @db.Uuid
+  productId                    BigInt?
+  startsAt                     DateTime                    @db.Timestamptz(6)
+  currentPeriodStartsAt        DateTime                    @db.Timestamptz(6)
+  currentPeriodEndsAt          DateTime?                   @db.Timestamptz(6)
+  givesAccess                  Boolean
+  autoRenewalStatus            String?
+  status                       String
+  store                        String
+  environment                  String
+  storeSubscriptionIdentifier  String?
+  createdAt                    DateTime?                   @default(now()) @db.Timestamptz(6)
+  updatedAt                    DateTime?                   @default(now()) @db.Timestamptz(6)
+
+  subscriptionEntitlements     SubscriptionEntitlement[]
+  product                      Product?                   @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "subscriptions_product_id_fk")
+}
+
+model ThematicVideo {
+  id          BigInt    @id @default(autoincrement())
+  title       String
+  description String?
+  url         String
+  metadata    Json?
+  createdAt   DateTime? @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model UploadInfo {
+  muxUploadId   String    @id
+  userId        String    @db.Uuid
+  createdAt     DateTime? @default(now()) @db.Timestamptz(6)
+
+  profile       Profile   @relation(fields: [userId], references: [id], map: "upload_info_user_id_fk")
+}
+
+model VideoNote {
+  id         Int       @id @default(autoincrement())
+  videoId    Int
+  content    String
+  createdAt  DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model VideoTranscript {
+  id          BigInt    @id @default(autoincrement())
+  videoId     BigInt?
+  transcript  String
+  createdAt   DateTime? @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime? @default(now()) @db.Timestamptz(6)
+
+  video       Video?    @relation(fields: [videoId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "video_transcripts_video_id_fk")
+}
+
+model Video {
+  id                 BigInt                @id @unique @default(autoincrement())
+  userId             String?               @default(dbgenerated("auth.uid()")) @db.Uuid
+  muxAssetId         String?               @unique
+  muxPlaybackId      String?               @unique
+  duration           Float?
+  aspectRatio        String?
+  createdAt          DateTime?             @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime?             @default(now()) @db.Timestamptz(6)
+  airtableRecordId   String?
+  muxUploadId        String?               @unique
+  promptId           String?               @db.Uuid
+  status             VideoStatus?          @default(WAITING)
+  videoQuality       String?
+  maxWidth           Decimal?              @db.Decimal
+  maxHeight          Decimal?              @db.Decimal
+  maxFrameRate       Decimal?              @db.Decimal
+  languageCode       String?
+  resolutionTier     String?
+  passthrough        String?               @unique
+
+  promptResponses    PromptResponse[]
+  videoTranscripts   VideoTranscript[]
+  prompt             Prompt?               @relation(fields: [promptId], references: [id], onDelete: NoAction)
+  profile            Profile?              @relation(fields: [userId], references: [id], onDelete: Restrict)
+}
+
+enum VideoStatus {
+  WAITING
+  PREPARING
+  ASSET_CREATED
+  READY
+  ERRORED
+}

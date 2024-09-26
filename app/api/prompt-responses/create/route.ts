@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { db } from '@/db/db';
-import { promptResponsesTable } from '@/db/schema/prompt_responses';
-import { videosTable } from '@/db/schema/videos';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   // Create Supabase client linked to the request
@@ -27,24 +27,22 @@ export async function POST(request: NextRequest) {
 
   try {
     // Insert video information into the database
-    const [video] = await db
-      .insert(videosTable)
-      .values({
+    const video = await prisma.video.create({
+      data: {
         userId,
         muxUploadId: uploadId,
-        status: 'waiting', // You can adjust the status as needed
-      })
-      .returning();
+        status: 'WAITING', // Assuming 'WAITING' is a valid enum value for VideoStatus
+      },
+    });
 
     // Create the prompt response tied to the user, prompt, and video
-    const [promptResponse] = await db
-      .insert(promptResponsesTable)
-      .values({
+    const promptResponse = await prisma.promptResponse.create({
+      data: {
         userId,
         promptId,
         videoId: video.id,
-      })
-      .returning();
+      },
+    });
 
     // Return success response
     return NextResponse.json({
@@ -57,5 +55,7 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to create prompt response' },
       { status: 500 }
     );
+  } finally {
+    await prisma.$disconnect();
   }
 }

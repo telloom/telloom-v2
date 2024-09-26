@@ -1,52 +1,96 @@
 "use server";
 
-import { NextResponse } from 'next/server';
-import { db } from '../db/db';
-import { promptsPrimaryTable, InsertPromptPrimary } from '../db/schema/prompts_primary';
-import { desc } from 'drizzle-orm';
-import { createPromptCategory, deletePromptCategory, getAllPromptCategories, getPromptCategoryById, updatePromptCategory } from "../db/queries/prompt_categories-queries";
-import { ActionState } from "../types";
-import { InsertPromptCategory } from "../db/schema/prompt_categories";
+import { PrismaClient } from '@prisma/client';
+import { ActionState } from '../types/action-types';
 import { revalidatePath } from "next/cache";
 
-export async function POST(request: Request) {
-  try {
-    const { text, categoryId } = await request.json();
-    
-    const newPrompt: InsertPromptPrimary = {
-      prompt: text,
-      promptCategoryId: categoryId !== undefined ? Number(categoryId) : null,
-      promptType: 'default',
-      contextEstablishingQuestion: false,
-    };
-    
-    const result = await db.insert(promptsPrimaryTable).values(newPrompt).returning();
-    
-    return NextResponse.json(result[0]);
-  } catch (error: unknown) {
-    console.error('Error creating prompt:', error);
-    return NextResponse.json({ error: 'Error creating prompt', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
-  }
-}
+const prisma = new PrismaClient();
 
-export async function GET() {
+/**
+ * Create a new prompt category.
+ */
+export async function createPromptCategoryAction(data: {
+  name: string;
+  description?: string;
+  // Add other fields as necessary
+}): Promise<ActionState> {
   try {
-    console.log("Attempting to fetch prompts...");
-    const prompts = await db.select().from(promptsPrimaryTable).orderBy(desc(promptsPrimaryTable.createdAt));
-    console.log("Fetched prompts:", prompts);
-    return NextResponse.json(prompts);
-  } catch (error: unknown) {
-    console.error('Error fetching prompts:', error);
-    return NextResponse.json({ error: 'Error fetching prompts', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
-  }
-}
-
-export async function createPromptCategoryAction(data: InsertPromptCategory): Promise<ActionState> {
-  try {
-    const newPromptCategory = await createPromptCategory(data);
+    const newPromptCategory = await prisma.promptCategory.create({
+      data: data,
+    });
     revalidatePath("/prompt-categories");
     return { status: "success", message: "Prompt category created successfully", data: newPromptCategory };
   } catch (error) {
+    console.error("Failed to create prompt category:", error);
     return { status: "error", message: "Failed to create prompt category" };
+  }
+}
+
+/**
+ * Update an existing prompt category.
+ */
+export async function updatePromptCategoryAction(id: bigint, data: Partial<{
+  name?: string;
+  description?: string;
+  // Add other fields as necessary
+}>): Promise<ActionState> {
+  try {
+    const updatedPromptCategory = await prisma.promptCategory.update({
+      where: { id: id },
+      data: data,
+    });
+    revalidatePath("/prompt-categories");
+    return { status: "success", message: "Prompt category updated successfully", data: updatedPromptCategory };
+  } catch (error) {
+    console.error("Failed to update prompt category:", error);
+    return { status: "error", message: "Failed to update prompt category" };
+  }
+}
+
+/**
+ * Delete a prompt category.
+ */
+export async function deletePromptCategoryAction(id: bigint): Promise<ActionState> {
+  try {
+    await prisma.promptCategory.delete({
+      where: { id: id },
+    });
+    revalidatePath("/prompt-categories");
+    return { status: "success", message: "Prompt category deleted successfully" };
+  } catch (error) {
+    console.error("Failed to delete prompt category:", error);
+    return { status: "error", message: "Failed to delete prompt category" };
+  }
+}
+
+/**
+ * Get a prompt category by ID.
+ */
+export async function getPromptCategoryByIdAction(id: bigint): Promise<ActionState> {
+  try {
+    const promptCategory = await prisma.promptCategory.findUnique({
+      where: { id: id },
+    });
+    if (promptCategory) {
+      return { status: "success", message: "Prompt category retrieved successfully", data: promptCategory };
+    } else {
+      return { status: "error", message: "Prompt category not found" };
+    }
+  } catch (error) {
+    console.error("Failed to retrieve prompt category:", error);
+    return { status: "error", message: "Failed to retrieve prompt category" };
+  }
+}
+
+/**
+ * Get all prompt categories.
+ */
+export async function getAllPromptCategoriesAction(): Promise<ActionState> {
+  try {
+    const promptCategories = await prisma.promptCategory.findMany();
+    return { status: "success", message: "Prompt categories retrieved successfully", data: promptCategories };
+  } catch (error) {
+    console.error("Failed to retrieve prompt categories:", error);
+    return { status: "error", message: "Failed to retrieve prompt categories" };
   }
 }

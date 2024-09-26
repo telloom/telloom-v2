@@ -1,32 +1,35 @@
 "use server";
 
-import { sql } from '@vercel/postgres';
-import { drizzle } from 'drizzle-orm/vercel-postgres';
-import * as schema from "../schema";
-import { eq } from "drizzle-orm";
-import { InsertPurchase, SelectPurchase } from "../schema/purchases";
+import { PrismaClient } from '@prisma/client';
 
-// Create a typed database instance
-const typedDb = drizzle(sql, { schema });
+// Create a Prisma client instance
+const prisma = new PrismaClient();
 
-export const createPurchase = async (data: InsertPurchase) => {
-  return typedDb.insert(schema.purchasesTable).values(data).returning();
+export const createPurchase = async (data: Omit<Purchase, 'id'>) => {
+  return prisma.purchase.create({
+    data,
+  });
 };
 
 export const getPurchaseById = async (id: bigint) => {
-  return typedDb.query.purchasesTable.findFirst({
-    where: eq(schema.purchasesTable.id, Number(id)),
+  return prisma.purchase.findUnique({
+    where: { id },
   });
 };
 
 export const getAllPurchases = async () => {
-  return typedDb.query.purchasesTable.findMany();
+  return prisma.purchase.findMany();
 };
 
-export const updatePurchase = async (id: bigint, data: Partial<InsertPurchase>) => {
-  return typedDb.update(schema.purchasesTable).set(data).where(eq(schema.purchasesTable.id, Number(id))).returning();
+export const updatePurchase = async (id: bigint, data: Partial<Omit<Purchase, 'id'>>) => {
+  return prisma.purchase.update({
+    where: { id },
+    data,
+  });
 };
 
 export const deletePurchase = async (id: bigint) => {
-  return typedDb.delete(schema.purchasesTable).where(eq(schema.purchasesTable.id, Number(id)));
+  return prisma.purchase.delete({
+    where: { id },
+  });
 };

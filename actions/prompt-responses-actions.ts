@@ -1,21 +1,15 @@
 "use server";
 
-import { 
-  createPromptResponse as dbCreatePromptResponse,
-  updatePromptResponse,
-  deletePromptResponse,
-  getPromptResponseById,
-  getAllPromptResponses
-} from "../db/queries/prompt_responses-queries";
+import { PrismaClient } from '@prisma/client';
 import { ActionState } from "../types";
 import { revalidatePath } from "next/cache";
-import { InsertPromptResponse, promptResponsesTable } from "../db/schema/prompt_responses";
-import { db } from "../db/db";
+
+const prisma = new PrismaClient();
 
 interface CreatePromptResponseData {
   userId: string;
   promptId: string;
-  videoId: bigint | number; // Allow both bigint and number
+  videoId: number;
 }
 
 export async function createPromptResponse(data: CreatePromptResponseData): Promise<ActionState> {
@@ -24,10 +18,12 @@ export async function createPromptResponse(data: CreatePromptResponseData): Prom
     if (!data.userId || !data.promptId || !data.videoId) {
       throw new Error('Missing required fields for creating prompt response');
     }
-    const newPromptResponse = await dbCreatePromptResponse({
-      userId: data.userId,
-      promptId: data.promptId,
-      videoId: Number(data.videoId), // Convert to Number here
+    const newPromptResponse = await prisma.promptResponse.create({
+      data: {
+        userId: data.userId,
+        promptId: data.promptId,
+        videoId: data.videoId,
+      },
     });
     console.log('Prompt response created:', newPromptResponse);
     revalidatePath("/prompt-responses");
@@ -38,9 +34,12 @@ export async function createPromptResponse(data: CreatePromptResponseData): Prom
   }
 }
 
-export async function updatePromptResponseAction(id: bigint, data: Partial<InsertPromptResponse>): Promise<ActionState> {
+export async function updatePromptResponseAction(id: number, data: Partial<CreatePromptResponseData>): Promise<ActionState> {
   try {
-    const updatedPromptResponse = await updatePromptResponse(id, data);
+    const updatedPromptResponse = await prisma.promptResponse.update({
+      where: { id },
+      data,
+    });
     revalidatePath("/prompt-responses");
     return { status: "success", message: "Prompt response updated successfully", data: updatedPromptResponse };
   } catch (error) {
@@ -48,9 +47,11 @@ export async function updatePromptResponseAction(id: bigint, data: Partial<Inser
   }
 }
 
-export async function deletePromptResponseAction(id: bigint): Promise<ActionState> {
+export async function deletePromptResponseAction(id: number): Promise<ActionState> {
   try {
-    await deletePromptResponse(id);
+    await prisma.promptResponse.delete({
+      where: { id },
+    });
     revalidatePath("/prompt-responses");
     return { status: "success", message: "Prompt response deleted successfully" };
   } catch (error) {
@@ -58,9 +59,11 @@ export async function deletePromptResponseAction(id: bigint): Promise<ActionStat
   }
 }
 
-export async function getPromptResponseByIdAction(id: bigint): Promise<ActionState> {
+export async function getPromptResponseByIdAction(id: number): Promise<ActionState> {
   try {
-    const promptResponse = await getPromptResponseById(id);
+    const promptResponse = await prisma.promptResponse.findUnique({
+      where: { id },
+    });
     return { status: "success", message: "Prompt response retrieved successfully", data: promptResponse };
   } catch (error) {
     return { status: "error", message: "Failed to retrieve prompt response" };
@@ -69,17 +72,19 @@ export async function getPromptResponseByIdAction(id: bigint): Promise<ActionSta
 
 export async function getAllPromptResponsesAction(): Promise<ActionState> {
   try {
-    const promptResponses = await getAllPromptResponses();
+    const promptResponses = await prisma.promptResponse.findMany();
     return { status: "success", message: "Prompt responses retrieved successfully", data: promptResponses };
   } catch (error) {
     return { status: "error", message: "Failed to retrieve prompt responses" };
   }
 }
 
-export async function createPromptResponseAction(data: InsertPromptResponse): Promise<ActionState> {
+export async function createPromptResponseAction(data: CreatePromptResponseData): Promise<ActionState> {
   try {
-    const newPromptResponse = await db.insert(promptResponsesTable).values(data).returning();
-    return { status: "success", message: "Prompt response created successfully", data: newPromptResponse[0] };
+    const newPromptResponse = await prisma.promptResponse.create({
+      data,
+    });
+    return { status: "success", message: "Prompt response created successfully", data: newPromptResponse };
   } catch (error) {
     console.error("Failed to create prompt response:", error);
     return { status: "error", message: `Failed to create prompt response: ${error instanceof Error ? error.message : String(error)}` };

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db/db';
-import { videosTable } from '@/db/schema/videos';
-import { promptResponsesTable } from '@/db/schema/prompt_responses';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   const { uploadId, promptId, userId } = await request.json();
@@ -9,19 +9,23 @@ export async function POST(request: NextRequest) {
 
   try {
     console.log('Inserting video into database...');
-    const [video] = await db.insert(videosTable).values({
-      userId,
-      muxUploadId: uploadId,
-      status: 'processing',
-    }).returning();
+    const video = await prisma.video.create({
+      data: {
+        userId,
+        muxUploadId: uploadId,
+        status: 'WAITING',
+      },
+    });
     console.log('Inserted video:', video);
 
     console.log('Creating prompt response...');
-    const [promptResponse] = await db.insert(promptResponsesTable).values({
-      userId,
-      promptId,
-      videoId: video.id,
-    }).returning();
+    const promptResponse = await prisma.promptResponse.create({
+      data: {
+        userId,
+        promptId,
+        videoId: video.id,
+      },
+    });
     console.log('Created prompt response:', promptResponse);
 
     return NextResponse.json({ success: true, promptResponseId: promptResponse.id });
@@ -32,5 +36,7 @@ export async function POST(request: NextRequest) {
       console.error('Error stack:', error.stack);
     }
     return NextResponse.json({ error: 'Failed to process upload', details: error instanceof Error ? error.message : String(error) }, { status: 500 });
+  } finally {
+    await prisma.$disconnect();
   }
 }

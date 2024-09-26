@@ -1,32 +1,35 @@
 "use server";
 
-import { sql } from '@vercel/postgres';
-import { drizzle } from 'drizzle-orm/vercel-postgres';
-import * as schema from "../schema";
-import { eq } from "drizzle-orm";
-import { InsertEntitlement, SelectEntitlement } from "../schema/entitlements";
+import { PrismaClient } from '@prisma/client';
 
-// Create a typed database instance
-const typedDb = drizzle(sql, { schema });
+// Create a Prisma client instance
+const prisma = new PrismaClient();
 
-export const createEntitlement = async (data: InsertEntitlement) => {
-  return typedDb.insert(schema.entitlementsTable).values(data).returning();
+export const createEntitlement = async (data: Omit<Entitlement, 'id' | 'createdAt' | 'updatedAt'>) => {
+  return prisma.entitlement.create({
+    data,
+  });
 };
 
 export const getEntitlementById = async (id: bigint) => {
-  return typedDb.query.entitlementsTable.findFirst({
-    where: eq(schema.entitlementsTable.id, Number(id)),
+  return prisma.entitlement.findUnique({
+    where: { id },
   });
 };
 
 export const getAllEntitlements = async () => {
-  return typedDb.query.entitlementsTable.findMany();
+  return prisma.entitlement.findMany();
 };
 
-export const updateEntitlement = async (id: bigint, data: Partial<InsertEntitlement>) => {
-  return typedDb.update(schema.entitlementsTable).set(data).where(eq(schema.entitlementsTable.id, Number(id))).returning();
+export const updateEntitlement = async (id: bigint, data: Partial<Omit<Entitlement, 'id' | 'createdAt' | 'updatedAt'>>) => {
+  return prisma.entitlement.update({
+    where: { id },
+    data,
+  });
 };
 
 export const deleteEntitlement = async (id: bigint) => {
-  return typedDb.delete(schema.entitlementsTable).where(eq(schema.entitlementsTable.id, Number(id)));
+  return prisma.entitlement.delete({
+    where: { id },
+  });
 };

@@ -1,8 +1,10 @@
 // app/api/webhooks/mux/route.ts
 import { Webhooks } from '@mux/mux-node';  // Import the Webhooks helper
-import { createClient } from '@/utils/supabase/server';
+import { PrismaClient } from '@prisma/client';
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
+
+const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   const WEBHOOK_SECRET = process.env.MUX_WEBHOOK_SECRET;
@@ -32,86 +34,64 @@ export async function POST(req: Request) {
 
   const payload = JSON.parse(rawBody);  // Parse the body only after verification
   const { type, data } = payload;
-  const supabase = createClient();
 
   switch (type) {
     case 'video.asset.created': {
-      const { data: video, error } = await supabase
-        .from('videos')
-        .select('*')
-        .eq('passthrough', data.passthrough)
-        .single();
+      const video = await prisma.video.findUnique({
+        where: { passthrough: data.passthrough }
+      });
 
-      if (error || !video) {
-        console.error('Video not found:', error);
+      if (!video) {
+        console.error('Video not found');
         return new NextResponse('Video not found!', { status: 400 });
       }
 
-      if (video.status !== 'ready') {
-        const { error: updateError } = await supabase
-          .from('videos')
-          .update({
+      if (video.status !== 'READY') {
+        await prisma.video.update({
+          where: { id: video.id },
+          data: {
             status: data.status,
-            mux_asset_id: data.id,
-            mux_playback_id: data.playback_ids[0].id
-          })
-          .eq('id', video.id);
-
-        if (updateError) {
-          console.error('Error updating video:', updateError);
-          return new NextResponse('Error updating video', { status: 500 });
-        }
+            muxAssetId: data.id,
+            muxPlaybackId: data.playback_ids[0].id
+          }
+        });
       }
       break;
     }
     case 'video.asset.ready': {
-      const { data: video, error } = await supabase
-        .from('videos')
-        .select('*')
-        .eq('passthrough', data.passthrough)
-        .single();
+      const video = await prisma.video.findUnique({
+        where: { passthrough: data.passthrough }
+      });
 
-      if (error || !video) {
-        console.error('Video not found:', error);
+      if (!video) {
+        console.error('Video not found');
         return new NextResponse('Video not found!', { status: 400 });
       }
 
-      const { error: updateError } = await supabase
-        .from('videos')
-        .update({
+      await prisma.video.update({
+        where: { id: video.id },
+        data: {
           status: data.status,
           duration: data.duration,
-          aspect_ratio: data.aspect_ratio
-        })
-        .eq('id', video.id);
-
-      if (updateError) {
-        console.error('Error updating video:', updateError);
-        return new NextResponse('Error updating video', { status: 500 });
-      }
+          aspectRatio: data.aspect_ratio
+        }
+      });
       break;
     }
     case 'video.upload.cancelled': {
-      const { data: video, error } = await supabase
-        .from('videos')
-        .select('*')
-        .eq('passthrough', data.passthrough)
-        .single();
+      const video = await prisma.video.findUnique({
+        where: { passthrough: data.passthrough }
+      });
 
-      if (error || !video) {
-        console.error('Video not found:', error);
+      if (!video) {
+        console.error('Video not found');
         return new NextResponse('Video not found!', { status: 400 });
       }
 
-      const { error: updateError } = await supabase
-        .from('videos')
-        .update({ status: 'cancelled' })
-        .eq('id', video.id);
-
-      if (updateError) {
-        console.error('Error updating video:', updateError);
-        return new NextResponse('Error updating video', { status: 500 });
-      }
+      await prisma.video.update({
+        where: { id: video.id },
+        data: { status: 'CANCELLED' }
+      });
       break;
     }
     default:

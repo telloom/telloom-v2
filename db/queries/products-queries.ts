@@ -1,32 +1,35 @@
 "use server";
 
-import { sql } from '@vercel/postgres';
-import { drizzle } from 'drizzle-orm/vercel-postgres';
-import * as schema from "../schema";
-import { eq } from "drizzle-orm";
-import { InsertProduct, SelectProduct } from "../schema/products";
+import { PrismaClient } from '@prisma/client';
 
-// Create a typed database instance
-const typedDb = drizzle(sql, { schema });
+// Create a Prisma client instance
+const prisma = new PrismaClient();
 
-export const createProduct = async (data: InsertProduct) => {
-  return typedDb.insert(schema.productsTable).values(data).returning();
+export const createProduct = async (data: Omit<Product, 'id'>) => {
+  return prisma.product.create({
+    data,
+  });
 };
 
 export const getProductById = async (id: bigint) => {
-  return typedDb.query.productsTable.findFirst({
-    where: eq(schema.productsTable.id, Number(id)),
+  return prisma.product.findUnique({
+    where: { id },
   });
 };
 
 export const getAllProducts = async () => {
-  return typedDb.query.productsTable.findMany();
+  return prisma.product.findMany();
 };
 
-export const updateProduct = async (id: bigint, data: Partial<InsertProduct>) => {
-  return typedDb.update(schema.productsTable).set(data).where(eq(schema.productsTable.id, Number(id))).returning();
+export const updateProduct = async (id: bigint, data: Partial<Omit<Product, 'id'>>) => {
+  return prisma.product.update({
+    where: { id },
+    data,
+  });
 };
 
 export const deleteProduct = async (id: bigint) => {
-  return typedDb.delete(schema.productsTable).where(eq(schema.productsTable.id, Number(id)));
+  return prisma.product.delete({
+    where: { id },
+  });
 };
