@@ -35,33 +35,55 @@ export default function SignUp() {
         },
       });
 
+      console.log('Auth response:', authData, authError);
+
       if (authError) throw authError;
 
       if (authData.user) {
         // Create profile
-        const response = await fetch('/api/profiles/create', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            user_id: authData.user.id,
-            email: authData.user.email,
-            first_name: firstName,
-            last_name: lastName,
-          }),
-        });
+        try {
+          const response = await fetch('/api/profiles/create', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: authData.user.id,
+              email: authData.user.email,
+              first_name: firstName,
+              last_name: lastName,
+            }),
+          });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to create profile');
+          const responseData = await response.text();
+          console.log('Profile creation response:', response.status, responseData);
+
+          if (!response.ok) {
+            console.error('Profile creation error:', responseData);
+            throw new Error(responseData || 'Failed to create profile');
+          }
+
+          const profileData = JSON.parse(responseData);
+          console.log('Profile created:', profileData);
+
+          setMessage('Sign up successful! Please check your email to confirm your account.');
+        } catch (profileError) {
+          console.error('Profile creation error:', profileError);
+          if (profileError instanceof Error) {
+            console.error('Error message:', profileError.message);
+            console.error('Error stack:', profileError.stack);
+          }
+          setError('Failed to create profile. Please try again.');
         }
-
-        setMessage('Sign up successful! Please check your email to confirm your account.');
       } else {
         setMessage('Please check your email to confirm your account before signing in.');
       }
     } catch (error) {
+      console.error('Signup error:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
     }
   };

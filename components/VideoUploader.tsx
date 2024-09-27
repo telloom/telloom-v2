@@ -4,7 +4,7 @@ import React, { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import MuxUploader from "@mux/mux-uploader-react";
 import { PrismaClient } from '@prisma/client';
-import { createUploadUrl } from '@/actions/videos-actions';
+import { createUploadUrl } from '@/actions/video-actions';
 
 interface VideoUploaderProps {
   promptId: string;
