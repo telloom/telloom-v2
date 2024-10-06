@@ -2,7 +2,7 @@
 
 import { NextResponse } from 'next/server';
 import { Webhooks } from '@mux/mux-node';
-import { Database } from '@/types/supabase';
+import { Database } from '@/_types/supabase';
 import { createClient } from '@supabase/supabase-js';
 
 const webhookSecret = process.env.MUX_WEBHOOK_SECRET!; // Ensure this is set
