@@ -2,7 +2,7 @@ import React from 'react'
 import type { Metadata } from 'next'
 import '../app/globals.css'
 import { Toaster } from "sonner"
-import { ThemeProvider } from '../components/theme-provider'
+import { ThemeProvider } from './components/theme-provider'
 import ClientWrapper from './ClientWrapper'
 
 export const metadata: Metadata = {

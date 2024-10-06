@@ -26,7 +26,7 @@
     "types": ["phoenix"],
     "outDir": "./dist",
     "rootDir": "./",
-    "typeRoots": ["./node_modules/@types", "./types"]
+    "typeRoots": ["./node_modules/@types", "app/_types"]
   },
   "include": [
     "next-env.d.ts",
@@ -34,11 +34,11 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "drizzle.config.mjs",
-    "types"
+    "app/_types"
   ],
   "exclude": [
     "node_modules",
     "tailwind.config.js",
-    "tailwind.config.mjs"
+    "tailwind.config.js"
   ]
 }

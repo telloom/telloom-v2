@@ -38,3 +38,6 @@ next-env.d.ts
 
 # Cursor IDE
 .cursor/
+
+# Webhook logs
+/webhook-logs-testing/
