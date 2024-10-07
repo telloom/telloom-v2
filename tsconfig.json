@@ -35,7 +35,7 @@
     ".next/types/**/*.ts",
     "drizzle.config.mjs",
     "app/_types"
-  ],
+, "app/_components/ThemeProvider.tsx"  ],
   "exclude": [
     "node_modules",
     "tailwind.config.js",

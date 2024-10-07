@@ -1,8 +1,8 @@
 'use client';
 
 import { useUser, useSupabaseClient } from '@supabase/auth-helpers-react';
-import { Button } from '@/app/components/ui/button';
-import { Avatar, AvatarFallback } from '@/app/components/ui/avatar';
+import { Button } from '@/app/_components/ui/button';
+import { Avatar, AvatarFallback } from '@/app/_components/ui/avatar';
 
 export default function UserInfo() {
   const user = useUser();
