@@ -1,44 +1,35 @@
 {
   "compilerOptions": {
-    "target": "ES2018",
-    "lib": ["dom", "dom.iterable", "esnext", "es2018", "esnext.asynciterable"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
-    "forceConsistentCasingInFileNames": true,
     "noEmit": true,
+    "incremental": true,
     "esModuleInterop": true,
-    "module": "commonjs",
+    "module": "esnext",
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "incremental": true,
     "plugins": [
       {
         "name": "next"
       }
     ],
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./*"]
-    },
-    "types": ["phoenix"],
-    "outDir": "./dist",
-    "rootDir": "./",
-    "typeRoots": ["./node_modules/@types", "app/_types"]
+    "forceConsistentCasingInFileNames": true
   },
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
-    "drizzle.config.mjs",
-    "app/_types"
-, "app/_components/ThemeProvider.tsx"  ],
+    ".next/types/**/*.ts"
+  ],
   "exclude": [
-    "node_modules",
-    "tailwind.config.js",
-    "tailwind.config.js"
+    "node_modules"
   ]
 }

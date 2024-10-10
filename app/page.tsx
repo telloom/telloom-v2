@@ -6,7 +6,7 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Telloom',
-  description: 'Bridging Generations through Video Storytelling',
+  description: 'Guided Video Journals: Share family history, stories, & wisdom through simple video prompts for future generations',
 }
 
 export default function RootLayout({
