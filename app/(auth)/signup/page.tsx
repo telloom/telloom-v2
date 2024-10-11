@@ -1,18 +1,21 @@
-import Header from '@/app/_components/Header';
-import { RegisterForm } from './RegisterForm';
+import { signUp } from './actions'
 
-export default async function RegisterPage() {
+export default function SignUpPage() {
   return (
-    <>
-      <Header />
-      
-      <section className="bg-ct-blue-600 min-h-screen pt-20">
-        <div className="container mx-auto px-6 py-12 h-full flex justify-center items-center">
-          <div className="md:w-8/12 lg:w-5/12 bg-white px-8 py-10">
-            <RegisterForm />
-          </div>
+    <div className="flex justify-center items-center min-h-screen">
+      <form className="space-y-4">
+        <div>
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email:</label>
+          <input id="email" name="email" type="email" required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50" />
         </div>
-      </section>
-    </>
-  );
+        <div>
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password:</label>
+          <input id="password" name="password" type="password" required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50" />
+        </div>
+        <button formAction={signUp} className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+          Sign up
+        </button>
+      </form>
+    </div>
+  )
 }
