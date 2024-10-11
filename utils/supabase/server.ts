@@ -1,35 +1,22 @@
-// File: app/_utils/supabase/server.ts
+// File: utils/supabase/server.ts
 //
 // This module exports a function to create a Supabase client for server-side operations.
-// It uses Next.js cookies for session management and handles cookie operations
-// in a way that's compatible with both server-side rendering and API routes.
+// It uses Next.js cookies for session management and handles authentication tokens.
 
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
 
-export function createClient() {
-  const cookieStore = cookies()
+export function supabaseServerClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const cookieStore = cookies();
+  const access_token = cookieStore.get('sb-access-token')?.value;
 
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
-        },
-      },
-    }
-  )
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: access_token ? { Authorization: `Bearer ${access_token}` } : {},
+    },
+  });
+
+  return supabase;
 }
