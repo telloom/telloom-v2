@@ -1,14 +1,15 @@
-import { Button } from "../../../components/ui/button"
-import Link from "next/link"
+// app/(auth)/error/page.tsx
+import React from 'react';
+import { useSearchParams } from 'next/navigation';
 
-export default function AuthError() {
+export default function ErrorPage() {
+  const searchParams = useSearchParams();
+  const error = searchParams.get('error');
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen">
-      <h1 className="text-2xl font-bold mb-4">Authentication Error</h1>
-      <p className="mb-4">There was an error during the authentication process. Please try again.</p>
-      <Button asChild>
-        <Link href="/auth/signup">Back to Sign Up</Link>
-      </Button>
+    <div>
+      <h1>Error</h1>
+      <p>{error || 'An unexpected error occurred.'}</p>
     </div>
-  )
+  );
 }

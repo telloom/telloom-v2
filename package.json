@@ -16,6 +16,7 @@
   "dependencies": {
     "@eslint/config-array": "^0.18.0",
     "@eslint/object-schema": "^2.1.4",
+    "@hookform/resolvers": "^3.9.0",
     "@mux/mux-node": "^8.7.1",
     "@mux/mux-player-react": "^3.0.0",
     "@mux/mux-uploader-react": "^1.0.2",
