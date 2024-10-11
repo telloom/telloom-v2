@@ -3,7 +3,7 @@
 // components/VideoRecorder.tsx
 import React, { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { InsertVideo } from '../_types/video'; // Add this import
+import { InsertVideo } from '../types/video'; // Add this import
 
 interface VideoRecorderProps {
   promptId: string;

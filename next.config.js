@@ -1,24 +1,23 @@
 const dotenv = require('dotenv');
+const path = require('path');
 dotenv.config();
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  experimental: {
-    serverActions: true
-  },
   images: {
     domains: ['placeholder.com'],
   },
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@': resolve(__dirname),
-      '@/components': resolve(__dirname, 'components'),
-      '@/lib': resolve(__dirname, 'lib'),
-      '@/styles': resolve(__dirname, 'styles'),
-      '@/utils': resolve(__dirname, 'utils'),
+      '@': path.resolve(__dirname),
+      '@/components': path.resolve(__dirname, 'app/_components'),
+      '@/hooks': path.resolve(__dirname, 'app/_hooks'),
+      '@/lib': path.resolve(__dirname, 'app/_lib'),
+      '@/styles': path.resolve(__dirname, 'app/styles'),
+      '@/utils': path.resolve(__dirname, 'app/_utils'),
     };
     return config;
   },
