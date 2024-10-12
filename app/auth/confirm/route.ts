@@ -1,12 +1,14 @@
 // app/auth/confirm/route.ts
+// This component handles email confirmation and OTP verification for user authentication
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const token = searchParams.get('token');
-  const email = searchParams.get('email');
   const type = searchParams.get('type');
+  const email = searchParams.get('email');
 
   if (token && type && email) {
     const supabase = createClient(
@@ -21,6 +23,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (error) {
+      console.error('Error verifying OTP:', error);
       return NextResponse.redirect(
         `/auth/error?error=${encodeURIComponent(error.message)}`
       );

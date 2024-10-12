@@ -1,4 +1,6 @@
 // app/api/auth/login/route.ts
+// This component handles user authentication login flow
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -16,6 +18,7 @@ export async function POST(req: NextRequest) {
   });
 
   if (error) {
+    console.error('Login error:', error);
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 

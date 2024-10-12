@@ -11,13 +11,7 @@ const signupSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
-  const body = await req.json();
-  const parseResult = signupSchema.safeParse(body);
+  const parseResult = signupSchema.safeParse(await req.json());
 
   if (!parseResult.success) {
     return NextResponse.json(
@@ -28,7 +22,11 @@ export async function POST(req: NextRequest) {
 
   const { firstName, lastName, email, password } = parseResult.data;
 
-  // Sign up the user
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
@@ -53,6 +51,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (profileError) {
+      console.error('Error inserting into Profile:', profileError);
       return NextResponse.json({ error: profileError.message }, { status: 400 });
     }
   }
