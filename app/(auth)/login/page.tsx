@@ -1,3 +1,6 @@
+// app/(auth)/login/page.tsx
+// This component handles user login
+
 "use client";
 
 import React from 'react';
@@ -33,7 +36,7 @@ export default function LoginPage() {
     });
 
     if (res.ok) {
-      router.push('/');
+      router.push('/'); // Redirect to homepage upon successful login
     } else {
       const errorData = await res.json();
       alert(errorData.error);

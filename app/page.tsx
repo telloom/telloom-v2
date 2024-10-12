@@ -12,6 +12,10 @@ export default function Component() {
     router.push('/login')
   }
 
+  const handleSignUp = () => {
+    router.push('/signup')
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-purple-50 to-white">
       <main className="flex-1 flex items-center justify-center">
@@ -24,7 +28,11 @@ export default function Component() {
               Connect, share, and discover with Telloom. Your new favorite social platform.
             </p>
             <div className="flex flex-col gap-4 min-[400px]:flex-row justify-center">
-              <Button size="lg" className="w-full min-[400px]:w-auto">
+              <Button 
+                size="lg" 
+                className="w-full min-[400px]:w-auto"
+                onClick={handleSignUp}
+              >
                 Sign Up
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
