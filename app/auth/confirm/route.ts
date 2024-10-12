@@ -6,52 +6,44 @@ import { createClient } from '@supabase/supabase-js';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const token = searchParams.get('token');
-  const type = searchParams.get('type');
-  const email = searchParams.get('email');
 
-  if (token && type && email) {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+  // Extract parameters from the URL
+  const confirmationUrl = searchParams.get('confirmationUrl');
 
-    const { data, error } = await supabase.auth.verifyOtp({
-      email,
-      token,
-      type: type as 'signup' | 'invite',
-    });
+  if (confirmationUrl) {
+    // Parse the confirmation URL to extract the token and other parameters
+    const confirmationUrlObj = new URL(confirmationUrl);
+    const token = confirmationUrlObj.searchParams.get('token');
+    const type = confirmationUrlObj.searchParams.get('type');
+    const email = confirmationUrlObj.searchParams.get('email');
 
-    if (error) {
-      console.error('Error verifying OTP:', error);
-      return NextResponse.redirect(
-        `/auth/error?error=${encodeURIComponent(error.message)}`
+    if (token && type && email) {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       );
-    }
 
-    const { session } = data;
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: type as 'signup' | 'invite',
+      });
 
-    if (session) {
-      const response = NextResponse.redirect('/select-role');
-      response.cookies.set('sb-access-token', session.access_token, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: session.expires_in,
-      });
-      response.cookies.set('sb-refresh-token', session.refresh_token, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 60 * 60 * 24 * 7, // 7 days
-      });
-      return response;
+      if (error) {
+        console.error('Error verifying OTP:', error);
+        return NextResponse.redirect(
+          `/auth/error?error=${encodeURIComponent(error.message)}`
+        );
+      }
+
+      // Redirect to a success page
+      return NextResponse.redirect('/auth/confirmed');
     } else {
+      console.error('Missing token, type, or email in confirmation URL.');
       return NextResponse.redirect('/auth/error');
     }
   } else {
+    console.error('Confirmation URL not found in query parameters.');
     return NextResponse.redirect('/auth/error');
   }
 }

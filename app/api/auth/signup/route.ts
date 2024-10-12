@@ -8,6 +8,7 @@ const signupSchema = z.object({
   lastName: z.string(),
   email: z.string().email(),
   password: z.string(),
+  phone: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { firstName, lastName, email, password } = parseResult.data;
+  const { firstName, lastName, email, password, phone } = parseResult.data;
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,6 +33,11 @@ export async function POST(req: NextRequest) {
     password,
     options: {
       emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
+      data: {
+        firstName,
+        lastName,
+        phone,
+      },
     },
   });
 
@@ -48,6 +54,7 @@ export async function POST(req: NextRequest) {
       email: user.email,
       firstName,
       lastName,
+      phone,
     });
 
     if (profileError) {

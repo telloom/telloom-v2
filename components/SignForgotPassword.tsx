@@ -9,39 +9,58 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, Loader2 } from "lucide-react"
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
 import Image from 'next/image'
+import { z } from 'zod'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 
-export default function EmailSignIn() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+const forgotPasswordSchema = z.object({
+  email: z.string().email('Invalid email address'),
+});
+
+type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
+
+export default function SignForgotPassword() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const router = useRouter()
-  const supabase = createClient()
 
-  const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ForgotPasswordFormData>({
+    resolver: zodResolver(forgotPasswordSchema),
+  });
+
+  const onSubmit = async (data: ForgotPasswordFormData) => {
     setLoading(true)
     setMessage(null)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
 
-      if (error) throw error
-
-      setMessage({ type: 'success', text: 'Successfully signed in!' })
-      router.refresh()
+      if (res.ok) {
+        setMessage({ type: 'success', text: 'Password reset email sent. Please check your inbox.' })
+        // Optionally, redirect to a confirmation page
+        // router.push('/auth/check-email');
+      } else {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'An error occurred');
+      }
     } catch (error) {
-      console.error('Sign-in error:', error)
-      setMessage({ type: 'error', text: 'Failed to sign in. Please check your credentials and try again.' })
+      console.error('Forgot password error:', error)
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to send reset email. Please try again.' })
     } finally {
       setLoading(false)
     }
-  }
+  };
 
   return (
     <Card className="w-[350px]">
@@ -53,11 +72,11 @@ export default function EmailSignIn() {
           height={50}
           className="mb-4"
         />
-        <CardTitle>Sign in to Telloom</CardTitle>
-        <CardDescription>Enter your email and password to sign in</CardDescription>
+        <CardTitle>Forgot Password</CardTitle>
+        <CardDescription>Enter your email to reset your password</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSignIn}>
+        <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid w-full items-center gap-4">
             <div className="flex flex-col space-y-1.5">
               <Label htmlFor="email">Email</Label>
@@ -65,20 +84,9 @@ export default function EmailSignIn() {
                 id="email"
                 type="email"
                 placeholder="m@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
+                {...register('email')}
               />
-            </div>
-            <div className="flex flex-col space-y-1.5">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              {errors.email && <p className="text-red-500 text-sm">{errors.email.message}</p>}
             </div>
           </div>
         </form>
@@ -86,18 +94,15 @@ export default function EmailSignIn() {
       <CardFooter className="flex flex-col items-center gap-4">
         <Button 
           className="w-full" 
-          onClick={handleSignIn}
+          onClick={handleSubmit(onSubmit)}
           disabled={loading}
         >
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          {loading ? 'Signing In...' : 'Sign In'}
+          {loading ? 'Sending...' : 'Reset Password'}
         </Button>
-        <div className="flex w-full justify-between text-sm">
-          <Link href="/auth/forgot-password" className="text-primary hover:underline">
-            Forgot Password?
-          </Link>
-          <Link href="/auth/register" className="text-primary hover:underline">
-            Register
+        <div className="flex w-full justify-center text-sm">
+          <Link href="/login" className="text-primary hover:underline">
+            Back to Sign In
           </Link>
         </div>
         {message && (
@@ -111,3 +116,4 @@ export default function EmailSignIn() {
     </Card>
   )
 }
+
