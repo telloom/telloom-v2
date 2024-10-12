@@ -6,7 +6,7 @@ import {
 } from "@radix-ui/react-icons"
 import * as MenubarPrimitive from "@radix-ui/react-menubar"
 
-import { cn } from "@/app/_utils/utils"
+import { cn } from "@/utils/utils"
 
 const MenubarMenu = MenubarPrimitive.Menu
 

@@ -1,16 +1,37 @@
 'use client';
 
-import { useUser, useSupabaseClient } from '@supabase/auth-helpers-react';
-import { Button } from '@/app/_components/ui/button';
-import { Avatar, AvatarFallback } from '@/app/_components/ui/avatar';
+import { useState, useEffect, useCallback } from 'react';
+import { createClient } from '@/utils/supabase/client';
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { User } from '@supabase/supabase-js';
 
 export default function UserInfo() {
-  const user = useUser();
-  const supabase = useSupabaseClient();
+  const [user, setUser] = useState<User | null>(null);
+  const supabase = createClient();
+
+  const getUser = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    setUser(user);
+  }, [supabase.auth]);
+
+  useEffect(() => {
+    getUser();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [supabase.auth, getUser]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    // Optionally, redirect or update the UI
+    // The UI will update automatically due to the auth state change listener
   };
 
   if (!user) {
@@ -23,7 +44,6 @@ export default function UserInfo() {
   return (
     <div className="flex items-center space-x-3">
       <Avatar>
-        {/* If no image, AvatarImage can be omitted */}
         <AvatarFallback>{userInitial}</AvatarFallback>
       </Avatar>
       <div>
