@@ -11,11 +11,11 @@
  * The `middleware` function is the entry point for Next.js middleware execution.
  */
 
-import { type NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, NextRequest } from 'next/server';
 
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,37 +26,33 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
+          supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, options)
           );
         },
       },
     }
   );
 
-  // IMPORTANT: Avoid any logic between createServerClient and supabase.auth.getUser()
+  // Important: Avoid writing logic between client creation and auth.getUser()
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
-
   if (
     !user &&
-    !pathname.startsWith('/login') &&
-    !pathname.startsWith('/signup') &&
-    !pathname.startsWith('/auth') // Adjust according to your public routes
+    !request.nextUrl.pathname.startsWith('/login') &&
+    !request.nextUrl.pathname.startsWith('/auth')
   ) {
-    // No user, redirect to login
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
-  // Return the response object
-  return response;
+  return supabaseResponse;
 }
 
 export async function middleware(request: NextRequest) {

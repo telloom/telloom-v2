@@ -1,62 +1,90 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import { Button } from "./ui/button"
-import { Input } from "./ui/input"
-import { Label } from "./ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card"
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert"
-import { AlertCircle, Loader2 } from "lucide-react"
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { createClient } from '../utils/supabase/client'
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 export default function SignUp() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  const router = useRouter()
-  const supabase = createClient()
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(
+    null
+  );
+  const router = useRouter();
 
   const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setMessage(null)
+    e.preventDefault();
+    setLoading(true);
+    setMessage(null);
+
+    if (password !== confirmPassword) {
+      setMessage({ type: 'error', text: 'Passwords do not match.' });
+      setLoading(false);
+      return;
+    }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-            phone: phone,
-          },
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      })
+        body: JSON.stringify({
+          email,
+          password,
+          firstName,
+          lastName,
+          phone,
+        }),
+      });
 
-      if (error) throw error
-
-      if (data.user) {
-        setMessage({ type: 'success', text: 'Successfully signed up! Please check your email for confirmation.' })
-        router.push('/auth/confirm') // Redirect to a confirmation page
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to sign up');
       }
-    } catch (error) {
-      console.error('Sign-up error:', error)
-      setMessage({ type: 'error', text: 'Failed to sign up. Please try again.' })
+
+      setMessage({
+        type: 'success',
+        text: 'Successfully signed up! Please check your email for confirmation.',
+      });
+      router.push('/auth/check-email'); // Redirect to a confirmation page
+    } catch (error: any) {
+      console.error('Sign-up error:', error);
+      setMessage({ type: 'error', text: error.message });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <Card className="w-[350px]">
-      <CardHeader>
+      <CardHeader className="flex flex-col items-center">
+        <Image
+          src="/images/Telloom Logo V1-Horizontal Green.png"
+          alt="Telloom Logo"
+          width={200}
+          height={50}
+          className="mb-4"
+        />
         <CardTitle>Sign up for Telloom</CardTitle>
         <CardDescription>Create your account to get started</CardDescription>
       </CardHeader>
@@ -81,6 +109,16 @@ export default function SignUp() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <div className="flex flex-col space-y-1.5">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 required
               />
             </div>
@@ -115,30 +153,29 @@ export default function SignUp() {
               />
             </div>
           </div>
+          <CardFooter className="flex flex-col items-center gap-4">
+            <Button className="w-full" type="submit" disabled={loading}>
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {loading ? 'Signing Up...' : 'Sign Up'}
+            </Button>
+            <div className="flex w-full justify-center text-sm">
+              <Link href="/login" className="text-primary hover:underline">
+                Already have an account? Sign in
+              </Link>
+            </div>
+            {message && (
+              <Alert
+                className="mt-4"
+                variant={message.type === 'error' ? 'destructive' : 'default'}
+              >
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>{message.type === 'error' ? 'Error' : 'Success'}</AlertTitle>
+                <AlertDescription>{message.text}</AlertDescription>
+              </Alert>
+            )}
+          </CardFooter>
         </form>
       </CardContent>
-      <CardFooter className="flex flex-col items-center gap-4">
-        <Button 
-          className="w-full" 
-          onClick={handleSignUp}
-          disabled={loading}
-        >
-          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          {loading ? 'Signing Up...' : 'Sign Up'}
-        </Button>
-        <div className="flex w-full justify-center text-sm">
-          <Link href="/auth/login" className="text-primary hover:underline">
-            Already have an account? Sign in
-          </Link>
-        </div>
-        {message && (
-          <Alert className="mt-4" variant={message.type === 'error' ? "destructive" : "default"}>
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>{message.type === 'error' ? 'Error' : 'Success'}</AlertTitle>
-            <AlertDescription>{message.text}</AlertDescription>
-          </Alert>
-        )}
-      </CardFooter>
     </Card>
-  )
+  );
 }
