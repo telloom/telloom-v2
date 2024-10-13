@@ -15,17 +15,14 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { login } from '@/app/(auth)/login/actions';
 
 export default function SignIn() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(
-    null
-  );
-  const router = useRouter();
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,24 +30,15 @@ export default function SignIn() {
     setMessage(null);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      const formData = new FormData();
+      formData.append('email', email);
+      formData.append('password', password);
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to sign in');
-      }
-
-      setMessage({ type: 'success', text: 'Successfully signed in!' });
-      router.push('/'); // Redirect to homepage upon successful login
+      await login(formData);
+      // If login is successful, it will automatically redirect to the home page
     } catch (error: any) {
       console.error('Sign-in error:', error);
-      setMessage({ type: 'error', text: error.message });
+      setMessage({ type: 'error', text: error.message || 'Failed to sign in' });
     } finally {
       setLoading(false);
     }
@@ -94,32 +82,32 @@ export default function SignIn() {
               />
             </div>
           </div>
-          <CardFooter className="flex flex-col items-center gap-4">
-            <Button className="w-full" type="submit" disabled={loading}>
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {loading ? 'Signing In...' : 'Sign In'}
-            </Button>
-            <div className="flex w-full justify-between text-sm">
-              <Link href="/forgot-password" className="text-primary hover:underline">
-                Forgot Password?
-              </Link>
-              <Link href="/signup" className="text-primary hover:underline">
-                Register
-              </Link>
-            </div>
-            {message && (
-              <Alert
-                className="mt-4"
-                variant={message.type === 'error' ? 'destructive' : 'default'}
-              >
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>{message.type === 'error' ? 'Error' : 'Success'}</AlertTitle>
-                <AlertDescription>{message.text}</AlertDescription>
-              </Alert>
-            )}
-          </CardFooter>
         </form>
       </CardContent>
+      <CardFooter className="flex flex-col items-center gap-4 pt-6">
+        <Button className="w-full" type="submit" disabled={loading} onClick={handleSignIn}>
+          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {loading ? 'Signing In...' : 'Sign In'}
+        </Button>
+        <div className="flex w-full justify-between text-sm">
+          <Link href="/forgot-password" className="text-primary hover:underline">
+            Forgot Password?
+          </Link>
+          <Link href="/signup" className="text-primary hover:underline">
+            Register
+          </Link>
+        </div>
+        {message && (
+          <Alert
+            className="mt-4"
+            variant={message.type === 'error' ? 'destructive' : 'default'}
+          >
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>{message.type === 'error' ? 'Error' : 'Success'}</AlertTitle>
+            <AlertDescription>{message.text}</AlertDescription>
+          </Alert>
+        )}
+      </CardFooter>
     </Card>
   );
 }

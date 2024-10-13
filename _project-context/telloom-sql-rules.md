@@ -1,5 +1,3 @@
-As of 2024-10-01, the following SQL rules are in place:
-
 -- ***********************************************************************
 -- *               Script to Drop All RLS Policies and Functions         *
 -- ***********************************************************************
@@ -864,6 +862,9 @@ BEGIN
     RETURN NEW;
 END; $$ LANGUAGE plpgsql;
 
+CREATE TRIGGER prompt_search_vector_update
+BEFORE INSERT OR UPDATE ON public."Prompt"
+FOR EACH ROW EXECUTE FUNCTION update_prompt_search_vector();
 
 -- For PromptResponse
 CREATE OR REPLACE FUNCTION update_prompt_response_search_vector() RETURNS TRIGGER AS $$
@@ -872,6 +873,9 @@ BEGIN
     RETURN NEW;
 END; $$ LANGUAGE plpgsql;
 
+CREATE TRIGGER prompt_response_search_vector_update
+BEFORE INSERT OR UPDATE ON public."PromptResponse"
+FOR EACH ROW EXECUTE FUNCTION update_prompt_response_search_vector();
 
 -- Create GIN Indexes
 CREATE INDEX IF NOT EXISTS prompt_search_idx ON public."Prompt" USING GIN ("search_vector");
@@ -908,6 +912,31 @@ BEGIN
     ) AS completed;
 END;
 $$ LANGUAGE plpgsql STABLE;
+
+-- ==========================================================
+-- New User Creation Trigger
+-- ==========================================================
+
+-- Function to handle new user creation
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public."Profile" (id, email, "firstName", "lastName", phone)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    NEW.raw_user_meta_data->>'firstName',
+    NEW.raw_user_meta_data->>'lastName',
+    NEW.raw_user_meta_data->>'phone'
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to call the handle_new_user function
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
 -- ==========================================================
 -- Final Notes

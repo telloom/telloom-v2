@@ -1,67 +1,29 @@
 // app/api/auth/signup/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { z } from 'zod';
+import { createClient } from '@/utils/supabase/server'
+import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 
-const signupSchema = z.object({
-  firstName: z.string(),
-  lastName: z.string(),
-  email: z.string().email(),
-  password: z.string(),
-  phone: z.string().optional(),
-});
+export async function POST(request: Request) {
+  const requestUrl = new URL(request.url)
+  const formData = await request.json()
+  const supabase = createClient()
 
-export async function POST(req: NextRequest) {
-  const parseResult = signupSchema.safeParse(await req.json());
-
-  if (!parseResult.success) {
-    return NextResponse.json(
-      { error: parseResult.error.errors[0].message },
-      { status: 400 }
-    );
-  }
-
-  const { firstName, lastName, email, password, phone } = parseResult.data;
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
-  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-    email,
-    password,
+  const { data, error } = await supabase.auth.signUp({
+    email: formData.email,
+    password: formData.password,
     options: {
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
+      emailRedirectTo: `${requestUrl.origin}/auth/callback`,
       data: {
-        firstName,
-        lastName,
-        phone,
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        phone: formData.phone,
       },
     },
-  });
+  })
 
-  if (signUpError) {
-    return NextResponse.json({ error: signUpError.message }, { status: 400 });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 })
   }
 
-  const user = signUpData.user;
-
-  if (user) {
-    // Create a profile record
-    const { error: profileError } = await supabase.from('Profile').insert({
-      id: user.id,
-      email: user.email,
-      firstName,
-      lastName,
-      phone,
-    });
-
-    if (profileError) {
-      console.error('Error inserting into Profile:', profileError);
-      return NextResponse.json({ error: profileError.message }, { status: 400 });
-    }
-  }
-
-  return NextResponse.json({ success: true }, { status: 200 });
+  return NextResponse.json({ user: data.user, message: 'Check your email for the confirmation link!' })
 }

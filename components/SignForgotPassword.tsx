@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, Loader2 } from "lucide-react"
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
@@ -23,7 +22,6 @@ type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
 export default function SignForgotPassword() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  const router = useRouter()
 
   const {
     register,
@@ -46,14 +44,12 @@ export default function SignForgotPassword() {
         body: JSON.stringify(data),
       });
 
-      if (res.ok) {
-        setMessage({ type: 'success', text: 'Password reset email sent. Please check your inbox.' })
-        // Optionally, redirect to a confirmation page
-        // router.push('/auth/check-email');
-      } else {
+      if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || 'An error occurred');
+        throw new Error(errorData.error || 'Failed to send reset password email');
       }
+
+      setMessage({ type: 'success', text: 'Password reset email sent. Please check your inbox.' })
     } catch (error) {
       console.error('Forgot password error:', error)
       setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to send reset email. Please try again.' })
@@ -89,31 +85,33 @@ export default function SignForgotPassword() {
               {errors.email && <p className="text-red-500 text-sm">{errors.email.message}</p>}
             </div>
           </div>
+          <CardFooter className="flex flex-col items-center gap-4 px-0 pt-6">
+            <Button 
+              className="w-full" 
+              type="submit"
+              disabled={loading}
+            >
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {loading ? 'Sending...' : 'Reset Password'}
+            </Button>
+            <div className="flex w-full justify-between text-sm">
+              <Link href="/login" className="text-primary hover:underline">
+                Back to Login
+              </Link>
+              <Link href="/signup" className="text-primary hover:underline">
+                Sign Up
+              </Link>
+            </div>
+            {message && (
+              <Alert className="mt-4" variant={message.type === 'error' ? "destructive" : "default"}>
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>{message.type === 'error' ? 'Error' : 'Success'}</AlertTitle>
+                <AlertDescription>{message.text}</AlertDescription>
+              </Alert>
+            )}
+          </CardFooter>
         </form>
       </CardContent>
-      <CardFooter className="flex flex-col items-center gap-4">
-        <Button 
-          className="w-full" 
-          onClick={handleSubmit(onSubmit)}
-          disabled={loading}
-        >
-          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          {loading ? 'Sending...' : 'Reset Password'}
-        </Button>
-        <div className="flex w-full justify-center text-sm">
-          <Link href="/login" className="text-primary hover:underline">
-            Back to Sign In
-          </Link>
-        </div>
-        {message && (
-          <Alert className="mt-4" variant={message.type === 'error' ? "destructive" : "default"}>
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>{message.type === 'error' ? 'Error' : 'Success'}</AlertTitle>
-            <AlertDescription>{message.text}</AlertDescription>
-          </Alert>
-        )}
-      </CardFooter>
     </Card>
   )
 }
-
