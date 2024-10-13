@@ -1,10 +1,10 @@
 // app/select-role/page.tsx
-import { supabaseServerClient } from '@/utils/supabase/server';
+import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import RoleSelection from '@/components/RoleSelection';
 
 export default async function SelectRolePage() {
-  const supabase = supabaseServerClient();
+  const supabase = createClient();
   const {
     data: { user },
     error,

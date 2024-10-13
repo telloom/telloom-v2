@@ -1,49 +1,28 @@
-// app/auth/confirm/route.ts
-// This component handles email confirmation and OTP verification for user authentication
+import { type EmailOtpType } from '@supabase/supabase-js'
+import { type NextRequest } from 'next/server'
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/utils/supabase/server'
+import { redirect } from 'next/navigation'
 
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const token_hash = searchParams.get('token_hash')
+  const type = searchParams.get('type') as EmailOtpType | null
+  const next = searchParams.get('next') ?? '/'
 
-  // Extract parameters from the URL
-  const confirmationUrl = searchParams.get('confirmationUrl');
+  if (token_hash && type) {
+    const supabase = createClient()
 
-  if (confirmationUrl) {
-    // Parse the confirmation URL to extract the token and other parameters
-    const confirmationUrlObj = new URL(confirmationUrl);
-    const token = confirmationUrlObj.searchParams.get('token');
-    const type = confirmationUrlObj.searchParams.get('type');
-    const email = confirmationUrlObj.searchParams.get('email');
-
-    if (token && type && email) {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
-
-      const { error } = await supabase.auth.verifyOtp({
-        email,
-        token,
-        type: type as 'signup' | 'invite',
-      });
-
-      if (error) {
-        console.error('Error verifying OTP:', error);
-        return NextResponse.redirect(
-          `/auth/error?error=${encodeURIComponent(error.message)}`
-        );
-      }
-
-      // Redirect to a success page
-      return NextResponse.redirect('/auth/confirmed');
-    } else {
-      console.error('Missing token, type, or email in confirmation URL.');
-      return NextResponse.redirect('/auth/error');
+    const { error } = await supabase.auth.verifyOtp({
+      type,
+      token_hash,
+    })
+    if (!error) {
+      // redirect user to specified redirect URL or root of app
+      redirect(next)
     }
-  } else {
-    console.error('Confirmation URL not found in query parameters.');
-    return NextResponse.redirect('/auth/error');
   }
+
+  // redirect the user to an error page with some instructions
+  redirect('/error')
 }
