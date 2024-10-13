@@ -17,6 +17,11 @@ Telloom is a web application that connects generations by preserving and sharing
 - React Hook Form for efficient form handling and validation
 - Zustand for lightweight and flexible state management
 - Framer Motion for animations and interactive UI elements
+## Component Usage
+
+### Header Component
+
+When using the Header component, always pass the `profileId` prop:
 
 ## Core Principles
 
