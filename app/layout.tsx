@@ -1,3 +1,6 @@
+// app/layout.tsx
+// This component serves as the root layout for the entire application
+
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import '../app/styles/globals.css'

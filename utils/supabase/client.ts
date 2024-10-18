@@ -1,3 +1,6 @@
+// File: utils/supabase/client.ts
+// This module exports a function to create a Supabase client for client-side operations.
+
 import { createBrowserClient } from '@supabase/ssr'
 
 export function createClient() {

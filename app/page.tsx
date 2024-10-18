@@ -1,3 +1,6 @@
+// app/page.tsx
+// This component renders the landing page for Telloom
+
 'use client'
 
 import { Button } from "../components/ui/button"

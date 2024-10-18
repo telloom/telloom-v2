@@ -1,4 +1,6 @@
-'use client';
+// components/SignIn.tsx
+// This component handles user sign-in functionality
+
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';

@@ -1,3 +1,6 @@
+// app/(auth)/login/actions.ts
+// This file contains server actions for user authentication
+
 'use server'
 
 import { revalidatePath } from 'next/cache'

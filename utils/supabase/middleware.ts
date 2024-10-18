@@ -1,4 +1,5 @@
 /**
+ * File: utils/supabase/middleware.ts
  * This middleware file handles authentication and session management for a Next.js application using Supabase.
  * 
  * Key functionalities:
