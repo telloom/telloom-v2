@@ -1,3 +1,6 @@
+// app/auth/confirm/route.ts
+// This file handles email confirmation for user authentication
+
 import { type EmailOtpType } from '@supabase/supabase-js'
 import { type NextRequest } from 'next/server'
 

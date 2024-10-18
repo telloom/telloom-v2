@@ -1,7 +1,6 @@
 // components/SignIn.tsx
 // This component handles user sign-in functionality
-
-
+'use client';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,14 +29,12 @@ export default function SignIn() {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
-
     try {
       const formData = new FormData();
       formData.append('email', email);
       formData.append('password', password);
-
       await login(formData);
-      // If login is successful, it will automatically redirect to the home page
+      // If login is successful, it will automatically redirect
     } catch (error: any) {
       console.error('Sign-in error:', error);
       setMessage({ type: 'error', text: error.message || 'Failed to sign in' });

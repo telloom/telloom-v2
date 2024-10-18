@@ -1,4 +1,4 @@
-
+const path = require('path');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -7,12 +7,13 @@ const nextConfig = {
   webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@': '.',
-      '@/components': './app/_components',
-      '@/hooks': './app/_hooks',
-      '@/lib': './app/_lib',
-      '@/styles': './app/styles',
-      '@/utils': './app/_utils',
+      '@': path.resolve(process.cwd()),
+      '@/components': path.resolve(process.cwd(), 'components'),
+      '@/hooks': path.resolve(process.cwd(), 'hooks'),
+      '@/lib': path.resolve(process.cwd(), 'lib'),
+      '@/styles': path.resolve(process.cwd(), 'app/styles'),
+      '@/utils': path.resolve(process.cwd(), 'utils'),
+      '@/app': path.resolve(process.cwd(), 'app'),
     };
     return config;
   },
