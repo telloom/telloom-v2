@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "jsx": "preserve",
     "lib": [
       "dom",
       "dom.iterable",
@@ -15,7 +16,6 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
     "plugins": [
       {
         "name": "next"
@@ -24,12 +24,27 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "@/components/*": ["./app/_components/*"],
-      "@/hooks/*": ["./app/_hooks/*"],
-      "@/lib/*": ["./app/_lib/*"],
-      "@/styles/*": ["./app/styles/*"],
-      "@/utils/*": ["./app/_utils/*"]
+      "@/*": [
+        "./*"
+      ],
+      "@/components/*": [
+        "components/*"
+      ],
+      "@/hooks/*": [
+        "hooks/*"
+      ],
+      "@/lib/*": [
+        "lib/*"
+      ],
+      "@/styles/*": [
+        "app/styles/*"
+      ],
+      "@/utils/*": [
+        "utils/*"
+      ],
+      "@/app/*": [
+        "app/*"
+      ]
     }
   },
   "include": [

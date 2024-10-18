@@ -2,21 +2,21 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from '@supabase/auth-helpers-react';
+import { createClient } from '@/utils/supabase/client';
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const session = useSession();
   const router = useRouter();
+  const supabase = createClient();
 
   useEffect(() => {
-    if (!session) {
-      router.push('/signin');
-    }
-  }, [session, router]);
-
-  if (!session) {
-    return null;
-  }
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/signin');
+      }
+    };
+    checkUser();
+  }, [router, supabase]);
 
   return <>{children}</>;
 }

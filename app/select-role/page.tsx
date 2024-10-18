@@ -3,6 +3,8 @@ import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import RoleSelection from '@/components/RoleSelection';
 
+import AuthenticatedLayout from '@/components/AuthenticatedLayout';
+
 export default async function SelectRolePage() {
   const supabase = createClient();
   const {
@@ -14,5 +16,9 @@ export default async function SelectRolePage() {
     redirect('/auth/login');
   }
 
-  return <RoleSelection />;
+  return (
+    <AuthenticatedLayout>
+      <RoleSelection />
+    </AuthenticatedLayout>
+  );
 }
