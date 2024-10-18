@@ -1,3 +1,6 @@
+// File: utils/supabase/admin.ts
+// This module exports a function to create a Supabase admin client for server-side operations.
+
 import { createClient } from '@supabase/supabase-js';
 
 export function supabaseAdminClient() {
