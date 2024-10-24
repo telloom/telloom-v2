@@ -25,7 +25,7 @@ export default function SignIn() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
@@ -57,7 +57,7 @@ export default function SignIn() {
         <CardDescription>Enter your email and password to sign in</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSignIn}>
+        <form onSubmit={handleSubmit}>
           <div className="grid w-full items-center gap-4">
             <div className="flex flex-col space-y-1.5">
               <Label htmlFor="email">Email</Label>
@@ -81,13 +81,13 @@ export default function SignIn() {
               />
             </div>
           </div>
+          <Button className="w-full mt-4" type="submit" disabled={loading}>
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {loading ? 'Signing In...' : 'Sign In'}
+          </Button>
         </form>
       </CardContent>
       <CardFooter className="flex flex-col items-center gap-4 pt-6">
-        <Button className="w-full" type="submit" disabled={loading} onClick={handleSignIn}>
-          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          {loading ? 'Signing In...' : 'Sign In'}
-        </Button>
         <div className="flex w-full justify-between text-sm">
           <Link href="/forgot-password" className="text-primary hover:underline">
             Forgot Password?

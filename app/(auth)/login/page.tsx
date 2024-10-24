@@ -10,7 +10,7 @@ export default async function LoginPage() {
   const { data: { session } } = await supabase.auth.getSession();
 
   if (session) {
-    redirect('/dashboard');
+    redirect('/select-role');
   }
 
   return (
