@@ -18,6 +18,10 @@ export async function login(formData: FormData) {
     return redirect('/login?error=Invalid email or password')
   }
   revalidatePath('/', 'layout')
+  // Dispatch a custom event to notify the Header component
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('auth-state-changed'));
+  }
   redirect('/')
 }
 
