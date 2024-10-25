@@ -23,6 +23,7 @@ export function useUser() {
       setLoading(true);
       try {
         const { data: { user }, error } = await supabase.auth.getUser();
+        console.log("Auth user:", user); // Add this line
         if (error) throw error;
 
         if (user) {
@@ -32,6 +33,8 @@ export function useUser() {
             .select('firstName, lastName, avatarUrl')
             .eq('id', user.id)
             .single();
+
+          console.log("Profile data:", profile); // Add this line
 
           if (profileError) throw profileError;
 
@@ -68,5 +71,6 @@ export function useUser() {
     };
   }, []);
 
+  console.log("Returning user:", user, "loading:", loading); // Add this line
   return { user, loading };
 }
