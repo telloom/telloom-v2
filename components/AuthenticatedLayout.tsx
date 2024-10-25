@@ -1,8 +1,7 @@
 // components/AuthenticatedLayout.tsx
-// This component provides a layout wrapper for authenticated pages, including a common header
+// This component provides a layout wrapper for authenticated pages
 
 import React from 'react';
-import Header from './Header';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -11,11 +10,9 @@ interface AuthenticatedLayoutProps {
 export default function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
       <main className="flex-grow">
         {children}
       </main>
     </div>
   );
 }
-

@@ -1,9 +1,7 @@
-// app/select-role/page.tsx
-// app/select-role/page.tsx
+// app/page.tsx
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import RoleSelection from '@/components/RoleSelection';
-
 import AuthenticatedLayout from '@/components/AuthenticatedLayout';
 
 export default async function SelectRolePage() {

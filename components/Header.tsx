@@ -1,52 +1,82 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
-import { useUser } from '@/hooks/useUser';
-import Link from 'next/link';
+import { createClient } from '@/utils/supabase/client';
+import { User } from '@supabase/supabase-js';
 
 export default function Header() {
-  const { user, loading } = useUser();
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      setLoading(false);
+    };
+
+    getUser();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [supabase.auth]); // Add supabase.auth to the dependency array
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <div>Loading header...</div>;
   }
 
   return (
-    <header className="flex items-center justify-between p-4 shadow-md">
-      <Image
-        src="/Telloom Logo V1-Horizontal Green.png"
-        alt="Telloom Logo"
-        width={150}
-        height={40}
-      />
+    <header className="flex items-center justify-between px-6 py-3 shadow-md">
+      <div>
+        <Image
+          src="/images/Telloom Logo V1-Horizontal Green.png"
+          alt="Telloom Logo"
+          width={120}
+          height={32}
+        />
+      </div>
       {user ? (
-        <div className="flex items-center space-x-4">
-          <span className="text-sm">Welcome, {user.profile?.firstName || user.email}</span>
+        <div className="flex items-center space-x-3">
+          <span className="text-sm">Welcome, {user.user_metadata?.firstName || user.email}</span>
           <DropdownMenu>
             <DropdownMenuTrigger>
-              <Avatar>
-                <AvatarImage src={user.profile?.avatarUrl} />
-                <AvatarFallback>{getInitials(`${user.profile?.firstName} ${user.profile?.lastName}`)}</AvatarFallback>
+              <Avatar className="h-8 w-8">
+                <AvatarFallback>{getInitials(user.user_metadata?.firstName, user.user_metadata?.lastName)}</AvatarFallback>
               </Avatar>
             </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem>View/Edit Profile</DropdownMenuItem>
-              <DropdownMenuItem>Change Role</DropdownMenuItem>
-              <DropdownMenuItem>Settings</DropdownMenuItem>
-              <DropdownMenuItem>Logout</DropdownMenuItem>
+            <DropdownMenuContent className="mr-4">
+              <DropdownMenuItem asChild>
+                <Link href="/profile">View/Edit Profile</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/select-role">Change Role</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/settings">Settings</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => supabase.auth.signOut()}>Logout</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       ) : (
-        <Link href="/login">Login</Link>
+        <div>
+          <Link href="/login">Login</Link>
+        </div>
       )}
     </header>
   );
 }
 
-const getInitials = (name: string = '') => {
-  const names = name.split(' ');
-  return names.map(n => n[0]).join('').toUpperCase();
+const getInitials = (firstName: string = '', lastName: string = '') => {
+  return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
 };
