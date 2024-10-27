@@ -1,11 +1,12 @@
 // components/Header.tsx
+
 'use client';
 
 import { useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarImage, AvatarFallback } from './ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,20 +21,40 @@ export default function Header() {
   const router = useRouter();
 
   const user = useUserStore((state) => state.user);
+  const profile = useUserStore((state) => state.profile);
   const setUser = useUserStore((state) => state.setUser);
+  const setProfile = useUserStore((state) => state.setProfile);
 
   useEffect(() => {
     // Listen for auth state changes (login, logout)
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setUser(session?.user ?? null);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setUser(session?.user ?? null);
+
+      if (session?.user) {
+        // Fetch profile data
+        const { data: profileData, error } = await supabase
+          .from('Profile')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (error) {
+          console.error('Error fetching profile:', error);
+          setProfile(null);
+        } else {
+          setProfile(profileData);
+        }
+      } else {
+        setProfile(null);
       }
-    );
+    });
 
     return () => {
-      authListener.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
-  }, [supabase, setUser]);
+  }, [supabase, setUser, setProfile]);
 
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
@@ -41,6 +62,7 @@ export default function Header() {
       console.error('Error signing out:', error);
     } else {
       setUser(null);
+      setProfile(null);
       router.replace('/login');
     }
   };
@@ -58,17 +80,18 @@ export default function Header() {
       {user ? (
         <div className="flex items-center space-x-3">
           <span className="text-sm">
-            Welcome, {user.user_metadata?.firstName || user.email}
+            Welcome, {profile?.firstName || user.email}
           </span>
           <DropdownMenu>
             <DropdownMenuTrigger>
               <Avatar className="h-8 w-8">
-                <AvatarFallback>
-                  {getInitials(
-                    user.user_metadata?.firstName,
-                    user.user_metadata?.lastName
-                  )}
-                </AvatarFallback>
+                {profile?.avatarUrl ? (
+                  <AvatarImage src={profile.avatarUrl} alt="Avatar" />
+                ) : (
+                  <AvatarFallback>
+                    {getInitials(profile?.firstName ?? '', profile?.lastName ?? '')}
+                  </AvatarFallback>
+                )}
               </Avatar>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="mr-4">

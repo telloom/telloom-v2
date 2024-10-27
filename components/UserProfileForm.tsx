@@ -7,6 +7,9 @@ import React, { useState, useTransition } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ProfileFormValues } from '@/schemas/profileSchema';
+import { formatPhoneNumber } from '@/utils/formatPhoneNumber';
+import { createClient } from '@/utils/supabase/client';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface UserProfileFormProps {
   initialData: ProfileFormValues;
@@ -16,15 +19,99 @@ interface UserProfileFormProps {
 export default function UserProfileForm({ initialData, updateProfile }: UserProfileFormProps) {
   const [isPending, startTransition] = useTransition();
   const [notification, setNotification] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState(initialData.avatarUrl || '');
+  const [uploading, setUploading] = useState(false);
+
+  const supabase = createClient();
+
+  const [phoneDisplay, setPhoneDisplay] = useState(formatPhoneNumber(initialData.phone));
+  const [executorPhoneDisplay, setExecutorPhoneDisplay] = useState(
+    formatPhoneNumber(initialData.executorPhone || '')
+  );
+
+  const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+
+    try {
+      // Check if the user is authenticated
+      const {
+        data: { session },
+        error: authError,
+      } = await supabase.auth.getSession();
+
+      if (authError || !session) {
+        setNotification('You must be logged in to upload an avatar.');
+        setUploading(false);
+        return;
+      }
+
+      // Generate a unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${session.user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `${session.user.id}/${fileName}`;
+
+      // Upload the image to Supabase Storage
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
+
+      if (uploadError) {
+        console.error('Error uploading avatar:', uploadError);
+        setNotification('An error occurred while uploading your avatar.');
+        setUploading(false);
+        return;
+      }
+
+      // Get the public URL of the uploaded image
+      const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+
+      if (publicData) {
+        setAvatarUrl(publicData.publicUrl);
+      } else {
+        setNotification('Could not retrieve the avatar URL.');
+      }
+    } catch (error) {
+      console.error('Error during avatar upload:', error);
+      setNotification('An unexpected error occurred.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Re-fetch the profile after updating to get the latest avatarUrl
+  const refreshProfile = async () => {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data: profileData, error } = await supabase
+        .from('Profile')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (!error && profileData) {
+        // Update local state or store with the new profile data
+        setAvatarUrl(profileData.avatarUrl || '');
+      }
+    }
+  };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const formData = new FormData(event.currentTarget);
 
+    // Always include avatarUrl in the formData
+    formData.append('avatarUrl', avatarUrl || '');
+
     startTransition(async () => {
       const result = await updateProfile(formData);
       if (result?.success) {
+        await refreshProfile();
         setNotification('Profile saved successfully!');
       } else {
         setNotification('An error occurred while saving your profile.');
@@ -32,8 +119,52 @@ export default function UserProfileForm({ initialData, updateProfile }: UserProf
     });
   };
 
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\D/g, '');
+    setPhoneDisplay(formatPhoneNumber(rawValue));
+    const phoneInput = e.target.form?.elements.namedItem('phone');
+    if (phoneInput && phoneInput instanceof HTMLInputElement) {
+      phoneInput.value = rawValue;
+    }
+  };
+
+  const handleExecutorPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\D/g, '');
+    setExecutorPhoneDisplay(formatPhoneNumber(rawValue));
+    const executorPhoneInput = e.target.form?.elements.namedItem('executorPhone');
+    if (executorPhoneInput instanceof HTMLInputElement) {
+      executorPhoneInput.value = rawValue;
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
+      {/* Avatar Upload */}
+      <div>
+        <label>Profile Photo</label>
+        <div className="flex items-center space-x-4">
+          <Avatar>
+            {avatarUrl ? (
+              <AvatarImage src={avatarUrl} alt="Avatar" />
+            ) : (
+              <AvatarFallback>
+                {initialData.firstName?.charAt(0)}
+                {initialData.lastName?.charAt(0)}
+              </AvatarFallback>
+            )}
+          </Avatar>
+          <div>
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarChange}
+              disabled={uploading}
+            />
+            {uploading && <p>Uploading...</p>}
+          </div>
+        </div>
+      </div>
+
       {/* Hidden input for the ID */}
       <input type="hidden" name="id" value={initialData.id} />
 
@@ -59,13 +190,8 @@ export default function UserProfileForm({ initialData, updateProfile }: UserProf
       </div>
       {/* Email (read-only) */}
       <div>
-        <label htmlFor="email">Email</label>
-        <Input
-          id="email"
-          name="email"
-          defaultValue={initialData.email}
-          readOnly
-        />
+        <label>Email</label>
+        <p>{initialData.email}</p>
       </div>
       {/* Phone */}
       <div>
@@ -73,7 +199,8 @@ export default function UserProfileForm({ initialData, updateProfile }: UserProf
         <Input
           id="phone"
           name="phone"
-          defaultValue={initialData.phone}
+          value={phoneDisplay}
+          onChange={handlePhoneChange}
           required
         />
       </div>
@@ -164,7 +291,8 @@ export default function UserProfileForm({ initialData, updateProfile }: UserProf
             <Input
               id="executorPhone"
               name="executorPhone"
-              defaultValue={initialData.executorPhone || ''}
+              value={executorPhoneDisplay}
+              onChange={handleExecutorPhoneChange}
               placeholder="Phone"
             />
           </div>
