@@ -1,21 +1,29 @@
 // app/(authenticated)/profile/page.tsx
+
 import { redirect } from 'next/navigation';
 import UserProfile from '@/components/UserProfile';
 import { prisma } from '@/lib/prisma';
-import { getSession } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { profileSchema, ProfileFormValues } from '@/schemas/profileSchema';
+import { createClient } from '@/utils/supabase/server';
 
 export default async function ProfilePage() {
-  const session = await getSession();
-  const userEmail = session?.user?.email;
+  const supabase = createClient();
 
-  if (!userEmail) {
+  // Get the authenticated user
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) {
     redirect('/login');
   }
 
+  const userId = user.id;
+
   const profile = await prisma.profile.findUnique({
-    where: { email: userEmail },
+    where: { id: userId },
   });
 
   if (!profile) {
@@ -26,13 +34,30 @@ export default async function ProfilePage() {
   async function updateProfile(formData: FormData) {
     'use server';
 
+    const supabase = createClient();
+
+    // Get the authenticated user
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error || !user) {
+      redirect('/login');
+    }
+
+    const userId = user.id;
+
     // Extract form data
     const data = Object.fromEntries(formData.entries());
+
+    // Override the ID and email with the user's data from the authenticated user
+    data.id = userId;
+    data.email = user.email ?? '';
 
     // Validate data using Zod
     const parsedData = profileSchema.safeParse({
       ...data,
-      // Convert empty strings to null for optional fields
       addressStreet: data.addressStreet || null,
       addressUnit: data.addressUnit || null,
       addressCity: data.addressCity || null,
@@ -43,6 +68,7 @@ export default async function ProfilePage() {
       executorRelation: data.executorRelation || null,
       executorPhone: data.executorPhone || null,
       executorEmail: data.executorEmail || null,
+      avatarUrl: data.avatarUrl || null,
     });
 
     if (!parsedData.success) {
@@ -53,7 +79,7 @@ export default async function ProfilePage() {
     try {
       // Update the profile using Prisma ORM
       await prisma.profile.update({
-        where: { id: parsedData.data.id },
+        where: { id: userId },
         data: {
           firstName: parsedData.data.firstName,
           lastName: parsedData.data.lastName,
@@ -68,6 +94,7 @@ export default async function ProfilePage() {
           executorRelation: parsedData.data.executorRelation,
           executorPhone: parsedData.data.executorPhone,
           executorEmail: parsedData.data.executorEmail,
+          avatarUrl: parsedData.data.avatarUrl,
           updatedAt: new Date().toISOString(),
         },
       });
@@ -82,5 +109,28 @@ export default async function ProfilePage() {
     return { success: true };
   }
 
-  return <UserProfile initialData={profile} updateProfile={updateProfile} />;
+  // Ensure required fields are present and handle optional fields
+  const sanitizedProfile: ProfileFormValues = {
+    id: profile.id,
+    email: profile.email ?? '',
+    firstName: profile.firstName ?? '',
+    lastName: profile.lastName ?? '',
+    phone: profile.phone ?? '',
+    avatarUrl: profile.avatarUrl ?? undefined,
+    addressStreet: profile.addressStreet ?? undefined,
+    addressUnit: profile.addressUnit ?? undefined,
+    addressCity: profile.addressCity ?? undefined,
+    addressState: profile.addressState ?? undefined,
+    addressZipcode: profile.addressZipcode ?? undefined,
+    executorFirstName: profile.executorFirstName ?? undefined,
+    executorLastName: profile.executorLastName ?? undefined,
+    executorRelation: profile.executorRelation ?? undefined,
+    executorPhone: profile.executorPhone ?? undefined,
+    executorEmail: profile.executorEmail ?? undefined,
+    updatedAt: profile.updatedAt?.toISOString() ?? undefined,
+  };
+
+  return (
+    <UserProfile initialData={sanitizedProfile} updateProfile={updateProfile} />
+  );
 }
