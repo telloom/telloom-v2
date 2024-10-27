@@ -1,56 +1,112 @@
 // components/SignIn.tsx
+// This component handles user sign-in functionality
 'use client';
-
-// This component handles user sign-in
-
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@/utils/supabase/client';
-import { useUserStore } from '@/stores/userStore';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { login } from '@/app/(auth)/login/actions';
 
 export default function SignIn() {
-  const supabase = createClient();
-  const router = useRouter();
-  const setUser = useUserStore((state) => state.setUser);
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) {
-      console.error('Error signing in:', error.message);
-    } else {
-      setUser(data.user);
-      router.push('/select-role');
+    setLoading(true);
+    setMessage(null);
+    try {
+      const formData = new FormData();
+      formData.append('email', email);
+      formData.append('password', password);
+      await login(formData);
+      // If login is successful, it will automatically redirect
+    } catch (error: any) {
+      console.error('Sign-in error:', error);
+      setMessage({ type: 'error', text: error.message || 'Failed to sign in' });
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSignIn} className="space-y-4">
-      <input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        className="border p-2 w-full"
-        required
-      />
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        className="border p-2 w-full"
-        required
-      />
-      <button type="submit" className="bg-blue-500 text-white p-2 w-full">
-        Sign In
-      </button>
-    </form>
+    <Card className="w-[350px]">
+      <CardHeader className="flex flex-col items-center">
+        <Image
+          src="/images/Telloom Logo V1-Horizontal Green.png"
+          alt="Telloom Logo"
+          width={200}
+          height={50}
+          className="mb-4"
+        />
+        <CardTitle>Sign in to Telloom</CardTitle>
+        <CardDescription>Enter your email and password to sign in</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit}>
+          <div className="grid w-full items-center gap-4">
+            <div className="flex flex-col space-y-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="m@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="flex flex-col space-y-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+          <Button className="w-full mt-4" type="submit" disabled={loading}>
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {loading ? 'Signing In...' : 'Sign In'}
+          </Button>
+        </form>
+      </CardContent>
+      <CardFooter className="flex flex-col items-center gap-4 pt-6">
+        <div className="flex w-full justify-between text-sm">
+          <Link href="/forgot-password" className="text-primary hover:underline">
+            Forgot Password?
+          </Link>
+          <Link href="/signup" className="text-primary hover:underline">
+            Register
+          </Link>
+        </div>
+        {message && (
+          <Alert
+            className="mt-4"
+            variant={message.type === 'error' ? 'destructive' : 'default'}
+          >
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>{message.type === 'error' ? 'Error' : 'Success'}</AlertTitle>
+            <AlertDescription>{message.text}</AlertDescription>
+          </Alert>
+        )}
+      </CardFooter>
+    </Card>
   );
 }

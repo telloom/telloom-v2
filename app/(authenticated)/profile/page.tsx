@@ -1,3 +1,5 @@
+// app/(authenticated)/profile/page.tsx
+
 import React from 'react';
 import { createClient } from '@/utils/supabase/server';
 import UserProfile from '@/components/UserProfile';
@@ -6,23 +8,31 @@ import AuthenticatedLayout from '@/components/AuthenticatedLayout';
 export default async function ProfilePage() {
   const supabase = createClient();
 
-  // Fetch the user's profile data
-  const { data: { user } } = await supabase.auth.getUser();
-  
+  // Fetch the authenticated user
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) {
+    console.error('Error fetching user:', userError);
+    return <div>Error loading user. Please try again later.</div>;
+  }
+
   if (!user) {
     // Handle the case where there's no authenticated user
     return <div>Please log in to view your profile.</div>;
   }
 
   // Fetch the user's profile data from the Profile table
-  const { data: profile, error } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('Profile')
     .select('*')
     .eq('id', user.id)
     .single();
 
-  if (error) {
-    console.error('Error fetching profile:', error);
+  if (profileError) {
+    console.error('Error fetching profile:', profileError);
     return <div>Error loading profile. Please try again later.</div>;
   }
 

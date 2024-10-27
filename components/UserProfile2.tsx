@@ -1,52 +1,59 @@
-// components/user-profile.tsx
-// This component displays and updates the user's profile information.
+// components/UserProfile.tsx
+'use client'
 
-import React from 'react';
-import { revalidatePath } from 'next/cache';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { redirect } from 'next/navigation';
-
-import { Button } from '@/components/ui/button';
+import React, { useState, useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import * as z from 'zod'
+import { useToast } from "@/hooks/use-toast"
+import { Button } from "@/components/ui/button"
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { prisma } from '@/lib/prisma';
+} from "./ui/form"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { createClient } from '@/utils/supabase/client'
 
 const profileSchema = z.object({
   id: z.string().uuid(),
-  firstName: z.string().min(2, 'First name must be at least 2 characters'),
-  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
-  email: z.string().email('Invalid email address'),
-  phone: z.string().min(10, 'Phone number must be at least 10 digits'),
-  addressStreet: z.string().optional().nullable(),
-  addressUnit: z.string().optional().nullable(),
-  addressCity: z.string().optional().nullable(),
-  addressState: z.string().optional().nullable(),
-  addressZipcode: z.string().optional().nullable(),
-  executorFirstName: z.string().optional().nullable(),
-  executorLastName: z.string().optional().nullable(),
-  executorRelation: z.string().optional().nullable(),
-  executorPhone: z.string().optional().nullable(),
-  executorEmail: z.string().optional().nullable(),
-  updatedAt: z.string().optional().nullable(),
-});
+  firstName: z.string().min(2, "First name must be at least 2 characters"),
+  lastName: z.string().min(2, "Last name must be at least 2 characters"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().min(10, "Phone number must be at least 10 digits"),
+  addressStreet: z.string().nullable().optional(),
+  addressUnit: z.string().nullable().optional(),
+  addressCity: z.string().nullable().optional(),
+  addressState: z.string().nullable().optional(),
+  addressZipcode: z.string().nullable().optional(),
+  executorFirstName: z.string().nullable().optional(),
+  executorLastName: z.string().nullable().optional(),
+  executorRelation: z.string().nullable().optional(),
+  executorPhone: z.string().nullable().optional(),
+  executorEmail: z.union([
+    z.string().email("Invalid email address").optional(),
+    z.literal('')
+  ]),
+  updatedAt: z.string().nullable().optional(),
+})
 
-type ProfileFormValues = z.infer<typeof profileSchema>;
+type ProfileFormValues = z.infer<typeof profileSchema>
 
 interface UserProfileProps {
-  initialData: ProfileFormValues;
+  initialData: ProfileFormValues
 }
 
 export default function UserProfile({ initialData }: UserProfileProps) {
+  const [loading, setLoading] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
+  const { toast } = useToast()
+  const supabase = createClient()
+
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -64,43 +71,53 @@ export default function UserProfile({ initialData }: UserProfileProps) {
       executorEmail: initialData.executorEmail ?? '',
       updatedAt: initialData.updatedAt ?? '',
     },
-  });
+  })
 
-  // Server Action for handling form submission
-  async function updateProfile(data: ProfileFormValues) {
-    'use server';
+  useEffect(() => {
+    const subscription = form.watch(() => setIsDirty(true))
+    return () => subscription.unsubscribe()
+  }, [form])
 
+  async function onSubmit(data: ProfileFormValues) {
     try {
-      // Update the profile using Prisma ORM
-      const updatedProfile = await prisma.profile.update({
-        where: { id: data.id },
-        data: {
-          firstName: data.firstName,
-          lastName: data.lastName,
-          phone: data.phone,
-          addressStreet: data.addressStreet || null,
-          addressUnit: data.addressUnit || null,
-          addressCity: data.addressCity || null,
-          addressState: data.addressState || null,
-          addressZipcode: data.addressZipcode || null,
-          executorFirstName: data.executorFirstName || null,
-          executorLastName: data.executorLastName || null,
-          executorRelation: data.executorRelation || null,
-          executorPhone: data.executorPhone || null,
-          executorEmail: data.executorEmail || null,
-          updatedAt: new Date(),
-        },
-      });
+      setLoading(true)
+      console.log('Submitting data:', data)
 
-      // Revalidate the current path to reflect the updated data
-      revalidatePath('/user-profile');
+      const { data: upsertData, error } = await supabase
+        .from('Profile')
+        .upsert({
+          ...data,
+          updatedAt: new Date().toISOString(),
+        })
+        .select()
 
-      // Optionally, redirect or show a success message
-      redirect('/user-profile?success=true');
+      if (error) {
+        console.error('Supabase error:', error)
+        throw error
+      }
+
+      console.log('Upsert response:', upsertData)
+
+      if (!upsertData || upsertData.length === 0) {
+        throw new Error('No data returned from upsert operation')
+      }
+
+      // Update the form with the returned data
+      form.reset(upsertData[0])
+      setIsDirty(false)
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been successfully updated.",
+      })
     } catch (error) {
-      console.error('Error updating profile:', error);
-      // Handle the error appropriately
-      redirect('/user-profile?error=true');
+      console.error('Error updating profile:', error)
+      toast({
+        title: "Error",
+        description: "There was a problem updating your profile.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -111,7 +128,7 @@ export default function UserProfile({ initialData }: UserProfileProps) {
       </CardHeader>
       <CardContent>
         <Form {...form}>
-          <form action={updateProfile} className="space-y-8">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             {/* First Name */}
             <FormField
               control={form.control}
@@ -120,7 +137,7 @@ export default function UserProfile({ initialData }: UserProfileProps) {
                 <FormItem>
                   <FormLabel>First Name *</FormLabel>
                   <FormControl>
-                    <Input {...field} required />
+                    <Input {...field} disabled={loading} required />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -134,7 +151,7 @@ export default function UserProfile({ initialData }: UserProfileProps) {
                 <FormItem>
                   <FormLabel>Last Name *</FormLabel>
                   <FormControl>
-                    <Input {...field} required />
+                    <Input {...field} disabled={loading} required />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -148,7 +165,7 @@ export default function UserProfile({ initialData }: UserProfileProps) {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input {...field} readOnly />
+                    <Input {...field} disabled={true} readOnly />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -162,7 +179,7 @@ export default function UserProfile({ initialData }: UserProfileProps) {
                 <FormItem>
                   <FormLabel>Phone *</FormLabel>
                   <FormControl>
-                    <Input {...field} required />
+                    <Input {...field} disabled={loading} required />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -179,7 +196,7 @@ export default function UserProfile({ initialData }: UserProfileProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input {...field} placeholder="Street" />
+                        <Input {...field} value={field.value ?? ''} placeholder="Street" disabled={loading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -192,7 +209,7 @@ export default function UserProfile({ initialData }: UserProfileProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input {...field} placeholder="Unit" />
+                        <Input {...field} value={field.value ?? ''} placeholder="Unit" disabled={loading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -205,7 +222,7 @@ export default function UserProfile({ initialData }: UserProfileProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input {...field} placeholder="City" />
+                        <Input {...field} value={field.value ?? ''} placeholder="City" disabled={loading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -218,7 +235,7 @@ export default function UserProfile({ initialData }: UserProfileProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input {...field} placeholder="State" />
+                        <Input {...field} value={field.value ?? ''} placeholder="State" disabled={loading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -231,7 +248,7 @@ export default function UserProfile({ initialData }: UserProfileProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input {...field} placeholder="Zipcode" />
+                        <Input {...field} value={field.value ?? ''} placeholder="Zipcode" disabled={loading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -250,7 +267,7 @@ export default function UserProfile({ initialData }: UserProfileProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input {...field} placeholder="First Name" />
+                        <Input {...field} value={field.value ?? ''} placeholder="First Name" disabled={loading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -263,7 +280,7 @@ export default function UserProfile({ initialData }: UserProfileProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input {...field} placeholder="Last Name" />
+                        <Input {...field} value={field.value ?? ''} placeholder="Last Name" disabled={loading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -276,7 +293,7 @@ export default function UserProfile({ initialData }: UserProfileProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input {...field} placeholder="Relation" />
+                        <Input {...field} value={field.value ?? ''} placeholder="Relation" disabled={loading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -289,7 +306,7 @@ export default function UserProfile({ initialData }: UserProfileProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input {...field} placeholder="Phone" />
+                        <Input {...field} value={field.value ?? ''} placeholder="Phone" disabled={loading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -302,7 +319,7 @@ export default function UserProfile({ initialData }: UserProfileProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input {...field} placeholder="Email" type="email" />
+                        <Input {...field} value={field.value ?? ''} placeholder="Email" disabled={loading} type="email" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -311,10 +328,17 @@ export default function UserProfile({ initialData }: UserProfileProps) {
               </div>
             </div>
             {/* Save Button */}
-            <Button type="submit">Save Changes</Button>
+            <Button type="submit" disabled={loading || !isDirty}>
+              {loading ? 'Loading...' : isDirty ? 'Save Changes' : 'Saved'}
+            </Button>
           </form>
         </Form>
       </CardContent>
+      <CardFooter>
+        <p className="text-sm text-muted-foreground">
+          Last updated: {form.getValues('updatedAt') ? new Date(form.getValues('updatedAt') ?? '').toLocaleDateString() : 'Never'}
+        </p>
+      </CardFooter>
     </Card>
-  );
+  )
 }
