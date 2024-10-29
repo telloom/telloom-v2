@@ -39,21 +39,40 @@ export default async function ProfilePage() {
     // Get the authenticated user
     const {
       data: { user },
-      error,
+      error: authError,
     } = await supabase.auth.getUser();
 
-    if (error || !user) {
+    if (authError || !user) {
       redirect('/login');
     }
 
     const userId = user.id;
 
-    // Extract form data
-    const data = Object.fromEntries(formData.entries());
+    // Handle avatar file upload if present
+    const avatarFile = formData.get('avatar') as File;
+    let avatarUrl = formData.get('avatarUrl') as string;
 
-    // Override the ID and email with the user's data from the authenticated user
+    if (avatarFile && avatarFile.size > 0) {
+      const fileExt = avatarFile.name.split('.').pop();
+      const filePath = `${userId}/${userId}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, avatarFile);
+
+      if (uploadError) {
+        console.error('Error uploading avatar:', uploadError);
+        return { success: false, error: 'Error uploading avatar' };
+      }
+
+      avatarUrl = filePath;
+    }
+
+    // Extract and prepare form data
+    const data = Object.fromEntries(formData.entries());
     data.id = userId;
     data.email = user.email ?? '';
+    data.avatarUrl = avatarUrl;
 
     // Validate data using Zod
     const parsedData = profileSchema.safeParse({
@@ -101,12 +120,12 @@ export default async function ProfilePage() {
 
       // Revalidate the current path
       revalidatePath('/profile');
+
+      return { success: true, avatarUrl: parsedData.data.avatarUrl };
     } catch (error) {
       console.error('Error updating profile:', error);
       return { success: false, error: 'Error updating profile' };
     }
-
-    return { success: true };
   }
 
   // Ensure required fields are present and handle optional fields
