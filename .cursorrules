@@ -23,7 +23,7 @@ Telloom is a web application that connects generations by preserving and sharing
 1. **Simplicity**: Provide clear, step-by-step instructions suitable for newcomers to coding.
 2. **Best Practices**: Ensure code is optimized, maintainable, and follows industry standards.
 3. **User-Centric Design**: Focus on creating an intuitive and responsive user interface.
-
+4. **Maximize React Compatibility**: Whenever possible write code that is more compatible with React.
 ## Code Style and Structure
 
 ### TypeScript Usage
@@ -76,7 +76,7 @@ const Button = ({ children }) => (
 
 ## Backend and Authentication
 
-- Utilize Supabase for backend services and their ssr authentication
+- Utilize Supabase for backend services and SSR authentication (NEVER use Supabase Auth Helpers - it's deprecated)
 - Use Prisma ORM for database interactions
 - Ensure database models align with Prisma schema
 

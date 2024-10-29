@@ -6,13 +6,7 @@ import { useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Avatar, AvatarImage, AvatarFallback } from './ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu';
+import UserAvatar from '@/components/UserAvatar';
 import { createClient } from '@/utils/supabase/client';
 import { useUserStore } from '@/stores/userStore';
 
@@ -82,33 +76,15 @@ export default function Header() {
           <span className="text-sm">
             Welcome, {profile?.firstName || user.email}
           </span>
-          <DropdownMenu>
-            <DropdownMenuTrigger>
-              <Avatar className="h-8 w-8">
-                {profile?.avatarUrl ? (
-                  <AvatarImage src={profile.avatarUrl} alt="Avatar" />
-                ) : (
-                  <AvatarFallback>
-                    {getInitials(profile?.firstName ?? '', profile?.lastName ?? '')}
-                  </AvatarFallback>
-                )}
-              </Avatar>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="mr-4">
-              <DropdownMenuItem asChild>
-                <Link href="/profile">View/Edit Profile</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/select-role">Change Role</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/settings">Settings</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleSignOut}>
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <UserAvatar
+            avatarUrl={profile?.avatarUrl ?? null}
+            firstName={profile?.firstName}
+            lastName={profile?.lastName}
+          />
+          <div>
+            <Link href="/profile">Profile</Link>
+            <Button onClick={handleSignOut}>Logout</Button>
+          </div>
         </div>
       ) : (
         <div>
@@ -118,7 +94,3 @@ export default function Header() {
     </header>
   );
 }
-
-const getInitials = (firstName: string = '', lastName: string = '') => {
-  return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
-};
