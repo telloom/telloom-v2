@@ -9,7 +9,7 @@ export const profileSchema = z.object({
   firstName: z.string(),
   lastName: z.string(),
   phone: z.string(),
-  avatarUrl: z.string().url().nullable().optional(),
+  avatarUrl: z.string().nullable().optional(), // Remove the .url() validator
   addressStreet: z.string().nullable().optional(),
   addressUnit: z.string().nullable().optional(),
   addressCity: z.string().nullable().optional(),

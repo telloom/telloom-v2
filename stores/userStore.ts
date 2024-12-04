@@ -1,7 +1,3 @@
-// stores/userStore.ts
-// This store manages the authenticated user state across the app
-
-
 import { create } from 'zustand';
 import { User } from '@supabase/supabase-js';
 import { Profile } from '@prisma/client';
@@ -18,14 +14,15 @@ export const useUserStore = create<UserState>((set) => ({
   user: null,
   profile: null,
   setUser: (user) => set({ user }),
-  setProfile: (profileOrUpdater) => 
+  setProfile: (profileOrUpdater) =>
     set((state) => ({
-      profile: typeof profileOrUpdater === 'function' 
-        ? profileOrUpdater(state.profile)
-        : profileOrUpdater
+      profile:
+        typeof profileOrUpdater === 'function'
+          ? profileOrUpdater(state.profile)
+          : profileOrUpdater,
     })),
   updateProfileField: (field, value) =>
     set((state) => ({
-      profile: state.profile ? { ...state.profile, [field]: value } : null
+      profile: state.profile ? { ...state.profile, [field]: value } : null,
     })),
 }));

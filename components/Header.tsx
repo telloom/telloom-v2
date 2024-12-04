@@ -1,12 +1,15 @@
-// components/Header.tsx
-
 'use client';
 
-import { useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import UserAvatar from '@/components/UserAvatar';
+import { Avatar as AvatarComponent, AvatarImage, AvatarFallback } from './ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 import { createClient } from '@/utils/supabase/client';
 import { useUserStore } from '@/stores/userStore';
 
@@ -18,37 +21,6 @@ export default function Header() {
   const profile = useUserStore((state) => state.profile);
   const setUser = useUserStore((state) => state.setUser);
   const setProfile = useUserStore((state) => state.setProfile);
-
-  useEffect(() => {
-    // Listen for auth state changes (login, logout)
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
-
-      if (session?.user) {
-        // Fetch profile data
-        const { data: profileData, error } = await supabase
-          .from('Profile')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-
-        if (error) {
-          console.error('Error fetching profile:', error);
-          setProfile(null);
-        } else {
-          setProfile(profileData);
-        }
-      } else {
-        setProfile(null);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [supabase, setUser, setProfile]);
 
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
@@ -76,15 +48,33 @@ export default function Header() {
           <span className="text-sm">
             Welcome, {profile?.firstName || user.email}
           </span>
-          <UserAvatar
-            avatarUrl={profile?.avatarUrl ?? null}
-            firstName={profile?.firstName}
-            lastName={profile?.lastName}
-          />
-          <div>
-            <Link href="/profile">Profile</Link>
-            <Button onClick={handleSignOut}>Logout</Button>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger>
+              <AvatarComponent className="h-8 w-8">
+                {profile?.avatarUrl ? (
+                  <AvatarImage src={profile.avatarUrl} alt={`${profile?.firstName}'s avatar`} />
+                ) : (
+                  <AvatarFallback>
+                    {getInitials(profile?.firstName ?? '', profile?.lastName ?? '')}
+                  </AvatarFallback>
+                )}
+              </AvatarComponent>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="mr-4">
+              <DropdownMenuItem asChild>
+                <Link href="/profile">View/Edit Profile</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/select-role">Change Role</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/settings">Settings</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleSignOut}>
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       ) : (
         <div>
@@ -94,3 +84,7 @@ export default function Header() {
     </header>
   );
 }
+
+const getInitials = (firstName: string = '', lastName: string = '') => {
+  return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
+};

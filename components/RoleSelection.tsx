@@ -9,51 +9,42 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Ear, Share2, Briefcase } from 'lucide-react'
 import { cn } from "@/lib/utils"
 
+interface RoleCardProps {
+  role: 'LISTENER' | 'SHARER' | 'EXECUTOR';
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  disabled?: boolean;
+}
+
 export default function RoleSelection() {
   const [selectedRole, setSelectedRole] = useState<string | null>(null)
   const router = useRouter()
 
-  const handleRoleSelect = async (role: string) => {
-    if (role === 'EXECUTOR') return // Executor is disabled
+  const handleRoleSelect = async (role: 'LISTENER' | 'SHARER' | 'EXECUTOR') => {
+    if (role === 'EXECUTOR') return; // Executor is disabled
 
-    setSelectedRole(role)
+    setSelectedRole(role);
 
     try {
-      const res = await fetch('/api/select-role', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ role }),
-      })
-
-      if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.error)
-      }
-
       // Navigate to the correct root page for each role
       switch (role) {
         case 'LISTENER':
-          router.push('/role-listener')
-          break
+          router.push('/role-listener');
+          break;
         case 'SHARER':
-          router.push('/role-sharer')
-          break
-        case 'EXECUTOR':
-          router.push('/role-executor')
-          break
+          router.push('/role-sharer');
+          break;
         default:
-          throw new Error('Invalid role selected')
+          throw new Error('Invalid role selected');
       }
     } catch (error) {
-      console.error('Error selecting role:', error)
-      alert(error instanceof Error ? error.message : 'An error occurred')
-      setSelectedRole(null)
+      console.error('Error navigating:', error);
+      setSelectedRole(null);
     }
-  }
+  };
 
-  const RoleCard = ({ role, title, description, icon: Icon, disabled = false }) => (
+  const RoleCard = ({ role, title, description, icon: Icon, disabled = false }: RoleCardProps) => (
     <Card 
       className={cn(
         "relative cursor-pointer transition-all duration-300",

@@ -49,16 +49,24 @@ export default async function ProfilePage() {
     const userId = user.id;
 
     // Handle avatar file upload if present
-    const avatarFile = formData.get('avatar') as File;
-    let avatarUrl = formData.get('avatarUrl') as string;
+    const avatarFile = formData.get('avatar') as File | null;
+    let avatarUrl = profile?.avatarUrl ?? null;
 
     if (avatarFile && avatarFile.size > 0) {
       const fileExt = avatarFile.name.split('.').pop();
-      const filePath = `${userId}/${userId}-${Date.now()}.${fileExt}`;
+      const fileName = `${userId}-${Date.now()}.${fileExt}`;
+      const filePath = `${userId}/${fileName}`;
+
+      // Remove old avatar if it exists
+      if (avatarUrl) {
+        await supabase.storage.from('avatars').remove([avatarUrl]);
+      }
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, avatarFile);
+        .upload(filePath, avatarFile, {
+          upsert: true, // Ensure the file is overwritten if it already exists
+        });
 
       if (uploadError) {
         console.error('Error uploading avatar:', uploadError);
@@ -71,8 +79,14 @@ export default async function ProfilePage() {
     // Extract and prepare form data
     const data = Object.fromEntries(formData.entries());
     data.id = userId;
-    data.email = user.email ?? '';
-    data.avatarUrl = avatarUrl;
+    data.email = user.email || '';
+
+    // Assign the updated avatarUrl to data
+    if (avatarUrl) {
+      data.avatarUrl = avatarUrl;
+    } else {
+      delete data.avatarUrl;
+    }
 
     // Validate data using Zod
     const parsedData = profileSchema.safeParse({
@@ -113,7 +127,7 @@ export default async function ProfilePage() {
           executorRelation: parsedData.data.executorRelation,
           executorPhone: parsedData.data.executorPhone,
           executorEmail: parsedData.data.executorEmail,
-          avatarUrl: parsedData.data.avatarUrl,
+          avatarUrl: parsedData.data.avatarUrl, // Ensure avatarUrl is updated
           updatedAt: new Date().toISOString(),
         },
       });
@@ -135,21 +149,23 @@ export default async function ProfilePage() {
     firstName: profile.firstName ?? '',
     lastName: profile.lastName ?? '',
     phone: profile.phone ?? '',
-    avatarUrl: profile.avatarUrl ?? undefined,
-    addressStreet: profile.addressStreet ?? undefined,
-    addressUnit: profile.addressUnit ?? undefined,
-    addressCity: profile.addressCity ?? undefined,
-    addressState: profile.addressState ?? undefined,
-    addressZipcode: profile.addressZipcode ?? undefined,
-    executorFirstName: profile.executorFirstName ?? undefined,
-    executorLastName: profile.executorLastName ?? undefined,
-    executorRelation: profile.executorRelation ?? undefined,
-    executorPhone: profile.executorPhone ?? undefined,
-    executorEmail: profile.executorEmail ?? undefined,
+    avatarUrl: profile.avatarUrl ?? null,
+    addressStreet: profile.addressStreet ?? null,
+    addressUnit: profile.addressUnit ?? null,
+    addressCity: profile.addressCity ?? null,
+    addressState: profile.addressState ?? null,
+    addressZipcode: profile.addressZipcode ?? null,
+    executorFirstName: profile.executorFirstName ?? null,
+    executorLastName: profile.executorLastName ?? null,
+    executorRelation: profile.executorRelation ?? null,
+    executorPhone: profile.executorPhone ?? null,
+    executorEmail: profile.executorEmail ?? null,
     updatedAt: profile.updatedAt?.toISOString() ?? undefined,
   };
 
   return (
-    <UserProfile initialData={sanitizedProfile} updateProfile={updateProfile} />
+    <main className="mx-auto max-w-[600px] px-4 pt-12 pb-8">
+      <UserProfile initialData={sanitizedProfile} updateProfile={updateProfile} />
+    </main>
   );
 }
