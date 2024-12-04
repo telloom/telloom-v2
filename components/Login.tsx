@@ -1,5 +1,5 @@
-// components/SignIn.tsx
-// This component handles user sign-in functionality
+// components/Login.tsx
+// This component handles user login functionality
 'use client';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { login } from '@/app/(auth)/login/actions';
 
-export default function SignIn() {
+export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,14 +45,16 @@ export default function SignIn() {
 
   return (
     <Card className="w-[350px]">
-      <CardHeader className="flex flex-col items-center">
-        <Image
-          src="/images/Telloom Logo V1-Horizontal Green.png"
-          alt="Telloom Logo"
-          width={200}
-          height={50}
-          className="mb-4"
-        />
+      <CardHeader className="flex flex-col items-center space-y-4">
+        <div className="relative w-[180px] h-[40px] mb-2">
+          <Image
+            src="/images/telloom-logo.svg"
+            alt="Telloom Logo"
+            fill
+            priority
+            className="object-contain"
+          />
+        </div>
         <CardTitle>Sign in to Telloom</CardTitle>
         <CardDescription>Enter your email and password to sign in</CardDescription>
       </CardHeader>

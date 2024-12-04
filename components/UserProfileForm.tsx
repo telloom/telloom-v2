@@ -10,6 +10,7 @@ import { ProfileFormValues } from '@/schemas/profileSchema';
 import { formatPhoneNumber } from '@/utils/formatPhoneNumber';
 import { createClient } from '@/utils/supabase/client';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Label } from '@/components/ui/label';
 
 interface UserProfileFormProps {
   initialData: ProfileFormValues;
@@ -19,7 +20,7 @@ interface UserProfileFormProps {
 export default function UserProfileForm({ initialData, updateProfile }: UserProfileFormProps) {
   const [isPending, startTransition] = useTransition();
   const [notification, setNotification] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState(initialData.avatarUrl || '');
+  const [avatarUrl, setAvatarUrl] = useState(initialData.avatarUrl || null);
   const [avatarImageUrl, setAvatarImageUrl] = useState<string | null>(null);
 
   const supabase = createClient();
@@ -31,19 +32,22 @@ export default function UserProfileForm({ initialData, updateProfile }: UserProf
 
   useEffect(() => {
     if (avatarUrl) {
-      const downloadImage = async (path: string) => {
+      const fetchAvatar = async (path: string) => {
         try {
-          const { data, error } = await supabase.storage.from('avatars').download(path);
+          const { data, error } = await supabase.storage
+            .from('avatars')
+            .createSignedUrl(path, 60); // URL valid for 60 seconds
           if (error) {
             throw error;
           }
-          const url = URL.createObjectURL(data);
-          setAvatarImageUrl(url);
+          setAvatarImageUrl(data.signedUrl);
         } catch (error) {
-          console.error('Error downloading avatar:', error);
+          console.error('Error creating signed URL for avatar:', error);
         }
       };
-      downloadImage(avatarUrl);
+      fetchAvatar(avatarUrl);
+    } else {
+      setAvatarImageUrl(null);
     }
   }, [avatarUrl, supabase]);
 
@@ -55,7 +59,7 @@ export default function UserProfileForm({ initialData, updateProfile }: UserProf
     startTransition(async () => {
       const result = await updateProfile(formData);
       if (result?.success) {
-        setAvatarUrl(result.avatarUrl || '');
+        setAvatarUrl(result.avatarUrl || null); // Update avatarUrl state
         setNotification('Profile saved successfully!');
       } else {
         setNotification('An error occurred while saving your profile.');
@@ -76,16 +80,16 @@ export default function UserProfileForm({ initialData, updateProfile }: UserProf
     const rawValue = e.target.value.replace(/\D/g, '');
     setExecutorPhoneDisplay(formatPhoneNumber(rawValue));
     const executorPhoneInput = e.target.form?.elements.namedItem('executorPhone');
-    if (executorPhoneInput instanceof HTMLInputElement) {
+    if (executorPhoneInput && executorPhoneInput instanceof HTMLInputElement) {
       executorPhoneInput.value = rawValue;
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form onSubmit={handleSubmit} className="space-y-6">
       {/* Avatar Upload */}
-      <div>
-        <label>Profile Photo</label>
+      <div className="flex flex-col space-y-1.5">
+        <Label>Profile Photo</Label>
         <div className="flex items-center space-x-4">
           <Avatar className="h-16 w-16">
             {avatarImageUrl ? (
@@ -97,11 +101,12 @@ export default function UserProfileForm({ initialData, updateProfile }: UserProf
               </AvatarFallback>
             )}
           </Avatar>
-          <div>
+          <div className="flex-1">
             <Input
               type="file"
               accept="image/*"
               name="avatar"
+              className="w-full"
             />
           </div>
         </div>
@@ -110,66 +115,62 @@ export default function UserProfileForm({ initialData, updateProfile }: UserProf
       {/* Hidden input for the ID */}
       <input type="hidden" name="id" value={initialData.id} />
 
-      {/* First Name */}
-      <div>
-        <label htmlFor="firstName">First Name *</label>
-        <Input
-          id="firstName"
-          name="firstName"
-          defaultValue={initialData.firstName}
-          required
-        />
-      </div>
-      {/* Last Name */}
-      <div>
-        <label htmlFor="lastName">Last Name *</label>
-        <Input
-          id="lastName"
-          name="lastName"
-          defaultValue={initialData.lastName}
-          required
-        />
-      </div>
-      {/* Email (read-only) */}
-      <div>
-        <label>Email</label>
-        <p>{initialData.email}</p>
-      </div>
-      {/* Phone */}
-      <div>
-        <label htmlFor="phone">Phone *</label>
-        <Input
-          id="phone"
-          name="phone"
-          value={phoneDisplay}
-          onChange={handlePhoneChange}
-          required
-        />
-      </div>
-      {/* Address */}
-      <div className="space-y-2">
-        <label>Address</label>
-        <div className="grid grid-cols-2 gap-4">
-          {/* Street */}
-          <div>
+      {/* Personal Information Section */}
+      <div className="space-y-4">
+        <h3 className="font-medium">Personal Information</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col space-y-1.5">
+            <Label htmlFor="firstName">First Name *</Label>
             <Input
-              id="addressStreet"
-              name="addressStreet"
-              defaultValue={initialData.addressStreet || ''}
-              placeholder="Street"
+              id="firstName"
+              name="firstName"
+              defaultValue={initialData.firstName}
+              required
             />
           </div>
-          {/* Unit */}
-          <div>
+          <div className="flex flex-col space-y-1.5">
+            <Label htmlFor="lastName">Last Name *</Label>
+            <Input
+              id="lastName"
+              name="lastName"
+              defaultValue={initialData.lastName}
+              required
+            />
+          </div>
+        </div>
+        <div className="flex flex-col space-y-1.5">
+          <Label>Email</Label>
+          <p className="text-sm text-muted-foreground">{initialData.email}</p>
+        </div>
+        <div className="flex flex-col space-y-1.5">
+          <Label htmlFor="phone">Phone *</Label>
+          <Input
+            id="phone"
+            name="phone"
+            value={phoneDisplay}
+            onChange={handlePhoneChange}
+            required
+          />
+        </div>
+      </div>
+
+      {/* Address Section */}
+      <div className="space-y-4">
+        <h3 className="font-medium">Address</h3>
+        <div className="grid gap-4">
+          <Input
+            id="addressStreet"
+            name="addressStreet"
+            defaultValue={initialData.addressStreet || ''}
+            placeholder="Street"
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
             <Input
               id="addressUnit"
               name="addressUnit"
               defaultValue={initialData.addressUnit || ''}
               placeholder="Unit"
             />
-          </div>
-          {/* City */}
-          <div>
             <Input
               id="addressCity"
               name="addressCity"
@@ -177,17 +178,13 @@ export default function UserProfileForm({ initialData, updateProfile }: UserProf
               placeholder="City"
             />
           </div>
-          {/* State */}
-          <div>
+          <div className="grid gap-4 sm:grid-cols-2">
             <Input
               id="addressState"
               name="addressState"
               defaultValue={initialData.addressState || ''}
               placeholder="State"
             />
-          </div>
-          {/* Zipcode */}
-          <div>
             <Input
               id="addressZipcode"
               name="addressZipcode"
@@ -197,21 +194,18 @@ export default function UserProfileForm({ initialData, updateProfile }: UserProf
           </div>
         </div>
       </div>
-      {/* Executor Information */}
-      <div className="space-y-2">
-        <label>Executor Information</label>
-        <div className="grid grid-cols-2 gap-4">
-          {/* Executor First Name */}
-          <div>
+
+      {/* Executor Section */}
+      <div className="space-y-4">
+        <h3 className="font-medium">Executor Information</h3>
+        <div className="grid gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <Input
               id="executorFirstName"
               name="executorFirstName"
               defaultValue={initialData.executorFirstName || ''}
               placeholder="First Name"
             />
-          </div>
-          {/* Executor Last Name */}
-          <div>
             <Input
               id="executorLastName"
               name="executorLastName"
@@ -219,17 +213,13 @@ export default function UserProfileForm({ initialData, updateProfile }: UserProf
               placeholder="Last Name"
             />
           </div>
-          {/* Executor Relation */}
-          <div>
-            <Input
-              id="executorRelation"
-              name="executorRelation"
-              defaultValue={initialData.executorRelation || ''}
-              placeholder="Relation"
-            />
-          </div>
-          {/* Executor Phone */}
-          <div>
+          <Input
+            id="executorRelation"
+            name="executorRelation"
+            defaultValue={initialData.executorRelation || ''}
+            placeholder="Relation"
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
             <Input
               id="executorPhone"
               name="executorPhone"
@@ -237,9 +227,6 @@ export default function UserProfileForm({ initialData, updateProfile }: UserProf
               onChange={handleExecutorPhoneChange}
               placeholder="Phone"
             />
-          </div>
-          {/* Executor Email */}
-          <div>
             <Input
               id="executorEmail"
               name="executorEmail"
@@ -250,13 +237,14 @@ export default function UserProfileForm({ initialData, updateProfile }: UserProf
           </div>
         </div>
       </div>
-      {/* Save Button */}
-      <div className="flex items-center">
-        <Button type="submit" disabled={isPending}>
+
+      {/* Save Button and Notification */}
+      <div className="flex flex-col items-center space-y-4 pt-4">
+        <Button type="submit" className="w-full" disabled={isPending}>
           {isPending ? 'Saving...' : 'Save Changes'}
         </Button>
         {notification && (
-          <span className="ml-4 text-green-500">{notification}</span>
+          <p className="text-sm text-green-500">{notification}</p>
         )}
       </div>
     </form>

@@ -25,6 +25,9 @@ const nextConfig = {
     MUX_SECRET_KEY: process.env.MUX_SECRET_KEY,
     MUX_WEBHOOK_SIGNING_SECRET: process.env.MUX_WEBHOOK_SIGNING_SECRET,
   },
+  images: {
+    domains: ['via.placeholder.com'],
+  },
 };
 
 module.exports = nextConfig;

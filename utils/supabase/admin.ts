@@ -8,4 +8,4 @@ export function supabaseAdminClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
   return createClient(supabaseUrl, serviceRoleKey);
-}
+ }

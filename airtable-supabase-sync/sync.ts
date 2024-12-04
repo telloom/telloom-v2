@@ -1,11 +1,11 @@
-import path from 'path';
-import dotenv from 'dotenv';
-import Airtable from 'airtable';
-import { PrismaClient } from '@prisma/client';
+const path = require('path');
+const dotenv = require('dotenv');
+const Airtable = require('airtable');
+const { PrismaClient } = require('@prisma/client');
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-const airtableBase = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(process.env.AIRTABLE_BASE_ID!);
+const airtableBase = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(process.env.AIRTABLE_BASE_ID);
 const prisma = new PrismaClient();
 
 interface AirtableRecord {
@@ -13,10 +13,15 @@ interface AirtableRecord {
   fields: { [key: string]: any };
 }
 
+interface PromptCategory {
+  id: string;
+  airtableId: string;
+}
+
 async function fetchAirtableRecords(tableName: string): Promise<AirtableRecord[]> {
   try {
     const records: AirtableRecord[] = [];
-    await airtableBase(tableName).select().eachPage((pageRecords, fetchNextPage) => {
+    await airtableBase(tableName).select().eachPage((pageRecords: AirtableRecord[], fetchNextPage: () => void) => {
       records.push(...pageRecords);
       fetchNextPage();
     });
@@ -35,23 +40,21 @@ async function syncPromptCategories() {
       where: { airtableId: record.id },
     });
 
+    const categoryData = {
+      airtableId: record.id,
+      category: record.fields.Category || 'Uncategorized',
+      description: record.fields.Description || null,
+      updatedAt: new Date(),
+    };
+
     if (existingCategory) {
       await prisma.promptCategory.update({
         where: { id: existingCategory.id },
-        data: {
-          category: record.fields.Category || 'Uncategorized',
-          description: record.fields.Description || null,
-          updatedAt: new Date(),
-        },
+        data: categoryData,
       });
     } else {
       await prisma.promptCategory.create({
-        data: {
-          id: BigInt(Date.now()), // Generate a unique BigInt ID
-          airtableId: record.id,
-          category: record.fields.Category || 'Uncategorized',
-          description: record.fields.Description || null,
-        },
+        data: categoryData,
       });
     }
   }
@@ -68,7 +71,7 @@ async function syncPrompts() {
       ? record.fields['Prompt Category'][0]
       : null;
 
-    const category = promptCategories.find((cat) => cat.airtableId === categoryAirtableId);
+    const category = promptCategories.find((cat: PromptCategory) => cat.airtableId === categoryAirtableId);
 
     const promptData = {
       promptText: record.fields.Prompt || 'Untitled Prompt',

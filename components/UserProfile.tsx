@@ -12,9 +12,12 @@ interface UserProfileProps {
 
 export default function UserProfile({ initialData, updateProfile }: UserProfileProps) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>User Profile</CardTitle>
+    <Card className="w-full">
+      <CardHeader className="text-center">
+        <CardTitle className="text-2xl font-semibold">Your Profile</CardTitle>
+        <CardContent className="text-muted-foreground">
+          Manage your personal information and preferences
+        </CardContent>
       </CardHeader>
       <CardContent>
         <UserProfileForm initialData={initialData} updateProfile={updateProfile} />

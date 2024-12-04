@@ -1,27 +1,23 @@
-// File: utils/supabase/server.ts
-//
+// utils/supabase/server.ts
 // This module exports a function to create a Supabase client for server-side operations.
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
 
-export function createClient() {
-  const cookieStore = cookies()
+export const createClient = () => {
+  const cookieStore = cookies();
+  const accessToken = cookieStore.get('sb-access-token')?.value;
 
-  return createServerClient(
+  const supabase = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options })
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: '', ...options })
+      global: {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
         },
       },
     }
-  )
-}
+  );
+
+  return supabase;
+};
