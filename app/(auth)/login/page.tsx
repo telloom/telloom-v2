@@ -1,5 +1,5 @@
 // app/(auth)/login/page.tsx
-// This page handles user login and authentication flow
+
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import Login from '@/components/Login';

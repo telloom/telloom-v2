@@ -28,10 +28,17 @@ export async function middleware(request: NextRequest) {
 
   const { data: { session } } = await supabase.auth.getSession();
 
-  // Allow access to login and auth callback routes
-  if (request.nextUrl.pathname === '/login' || 
-      request.nextUrl.pathname.startsWith('/auth/callback')) {
-    return response;
+  // Allow access to public assets and auth-related routes
+  if (
+    request.nextUrl.pathname.startsWith('/images/') ||
+    request.nextUrl.pathname.startsWith('/_next/') ||
+    request.nextUrl.pathname.startsWith('/api/') ||
+    request.nextUrl.pathname === '/login' ||
+    request.nextUrl.pathname === '/signup' ||
+    request.nextUrl.pathname === '/forgot-password' ||
+    request.nextUrl.pathname.startsWith('/auth/callback')
+  ) {
+    return NextResponse.next();
   }
 
   // Redirect to login if not authenticated
@@ -45,7 +52,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/app/(auth)/:path*',
-    '/((?!_next/static|_next/image|favicon.ico|public/|api/).*)',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };

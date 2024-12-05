@@ -1,7 +1,9 @@
 // components/Login.tsx
-// This component handles user login functionality
+
 'use client';
+
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,27 +19,47 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { login } from '@/app/(auth)/login/actions';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
+
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
+
     try {
-      const formData = new FormData();
-      formData.append('email', email);
-      formData.append('password', password);
-      await login(formData);
-      // If login is successful, it will automatically redirect
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || 'Login failed');
+      }
+
+      // Redirect to home page on success
+      router.push('/');
     } catch (error: any) {
       console.error('Sign-in error:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to sign in' });
+      setMessage({
+        type: 'error',
+        text:
+          error.message ||
+          'Failed to sign in. Please check your credentials and try again.',
+      });
     } finally {
       setLoading(false);
     }
@@ -48,7 +70,7 @@ export default function Login() {
       <CardHeader className="flex flex-col items-center space-y-4">
         <div className="relative w-[180px] h-[40px] mb-2">
           <Image
-            src="/images/telloom-logo.svg"
+            src="/images/Telloom Logo V1-Horizontal Green.png"
             alt="Telloom Logo"
             fill
             priority
@@ -56,7 +78,9 @@ export default function Login() {
           />
         </div>
         <CardTitle>Sign in to Telloom</CardTitle>
-        <CardDescription>Enter your email and password to sign in</CardDescription>
+        <CardDescription>
+          Enter your email and password to sign in
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit}>
@@ -84,7 +108,9 @@ export default function Login() {
             </div>
           </div>
           <Button className="w-full mt-4" type="submit" disabled={loading}>
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {loading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : null}
             {loading ? 'Signing In...' : 'Sign In'}
           </Button>
         </form>
@@ -104,7 +130,9 @@ export default function Login() {
             variant={message.type === 'error' ? 'destructive' : 'default'}
           >
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>{message.type === 'error' ? 'Error' : 'Success'}</AlertTitle>
+            <AlertTitle>
+              {message.type === 'error' ? 'Error' : 'Success'}
+            </AlertTitle>
             <AlertDescription>{message.text}</AlertDescription>
           </Alert>
         )}
