@@ -1,17 +1,12 @@
-// app/api/auth/logout.ts
-import { NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/server'; // Server-side Supabase client
+// app/api/auth/logout/route.ts
 
-export async function POST() {
-  const supabase = createClient();
+import { NextRequest, NextResponse } from 'next/server';
 
-  // Sign out the user
-  const { error } = await supabase.auth.signOut();
+export async function POST(request: NextRequest) {
+  const response = NextResponse.json({ success: true });
 
-  if (error) {
-    console.error('Error signing out:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  response.cookies.delete('supabase-access-token');
+  response.cookies.delete('supabase-refresh-token');
 
-  return NextResponse.redirect('/login');
+  return response;
 }

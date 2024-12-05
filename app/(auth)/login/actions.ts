@@ -3,26 +3,28 @@
 
 'use server'
 
-import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/utils/supabase/server'
+import { revalidatePath } from 'next/cache';
+import { createClient } from '@/utils/supabase/server';
+import { redirect } from 'next/navigation';
 
 export async function login(formData: FormData) {
-  const supabase = createClient()
-  const data = {
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
-  }
-  const { error } = await supabase.auth.signInWithPassword(data)
+  const supabase = createClient();
+
+  // Get email and password from form data
+  const email = formData.get('email') as string;
+  const password = formData.get('password') as string;
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
   if (error) {
-    return redirect('/login?error=Invalid email or password')
+    throw new Error(error.message);
   }
-  revalidatePath('/', 'layout')
-  // Dispatch a custom event to notify the Header component
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new Event('auth-state-changed'));
-  }
-  redirect('/')
+
+  // Redirect to home page on success
+  redirect('/');
 }
 
 export async function signup(formData: FormData) {

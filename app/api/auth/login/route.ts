@@ -1,47 +1,45 @@
 // app/api/auth/login/route.ts
-// This component handles user authentication login flow
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/utils/supabase/server';
 
-export async function POST(req: NextRequest) {
-  const { email, password } = await req.json();
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+export async function POST(request: NextRequest) {
+  const { email, password } = await request.json();
+  const supabase = createClient();
 
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
-  if (error) {
+  if (error || !data.session) {
     console.error('Login error:', error);
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json(
+      { error: error?.message || 'Invalid credentials' },
+      { status: 400 }
+    );
   }
 
-  const { session } = data;
+  // Set the access token and refresh token as HTTP-only cookies
+  const response = NextResponse.json({ success: true });
 
-  if (session) {
-    const response = NextResponse.json({ success: true });
-    response.cookies.set('sb-access-token', session.access_token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: session.expires_in,
-    });
-    response.cookies.set('sb-refresh-token', session.refresh_token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-    });
-    return response;
-  } else {
-    return NextResponse.json({ error: 'No session returned' }, { status: 400 });
-  }
+  const { access_token, refresh_token, expires_in } = data.session;
+
+  response.cookies.set('supabase-access-token', access_token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: expires_in,
+    path: '/',
+    sameSite: 'lax',
+  });
+
+  response.cookies.set('supabase-refresh-token', refresh_token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 60 * 60 * 24 * 7, // 7 days
+    path: '/',
+    sameSite: 'lax',
+  });
+
+  return response;
 }
