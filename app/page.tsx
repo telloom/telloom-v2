@@ -2,6 +2,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import RoleSelection from '@/components/RoleSelection';
+import Header from '@/components/Header';
 
 export default async function HomePage() {
   const supabase = createClient();
@@ -25,13 +26,22 @@ export default async function HomePage() {
 
     if (roleError) {
       console.error('Role check failed:', roleError);
-      // Instead of redirecting to login, show role selection
-      return <RoleSelection />;
+      return (
+        <>
+          <Header />
+          <RoleSelection />
+        </>
+      );
     }
 
     // If user has no roles, show role selection
     if (!roleData || roleData.length === 0) {
-      return <RoleSelection />;
+      return (
+        <>
+          <Header />
+          <RoleSelection />
+        </>
+      );
     }
 
     // If user has SHARER role, redirect to sharer dashboard
@@ -45,9 +55,19 @@ export default async function HomePage() {
     }
 
     // Default to role selection if no specific role is found
-    return <RoleSelection />;
+    return (
+      <>
+        <Header />
+        <RoleSelection />
+      </>
+    );
   } catch (error) {
     console.error('Unexpected error:', error);
-    return <RoleSelection />;
+    return (
+      <>
+        <Header />
+        <RoleSelection />
+      </>
+    );
   }
 }

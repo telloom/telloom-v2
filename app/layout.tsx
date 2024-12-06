@@ -1,33 +1,19 @@
 // app/layout.tsx
 
-import './globals.css';
-import { ReactNode, useEffect } from 'react';
-import { createClient } from '@/utils/supabase/client';
+import './styles/globals.css';
+import { ReactNode } from 'react';
+import SupabaseListener from '@/components/SupabaseListener';
+import { Inter } from 'next/font/google';
+
+const inter = Inter({ subsets: ['latin'] });
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  const supabase = createClient();
-
-  useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      await fetch('/api/auth/set', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ event, session }),
-      });
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [supabase]);
-
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className={inter.className}>
+        <SupabaseListener />
+        {children}
+      </body>
     </html>
   );
 }

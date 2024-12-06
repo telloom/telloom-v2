@@ -1,12 +1,14 @@
 import React from 'react';
+import Header from '@/components/Header';
 
-const ExecutorProfilePage: React.FC = () => {
+export default function ExecutorProfilePage() {
   return (
-    <div>
-      <h1>Executor Profile Page</h1>
-      {/* Add your component logic here */}
-    </div>
+    <>
+      <Header />
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold mb-8">Executor Profile</h1>
+        {/* Add your executor profile content here */}
+      </div>
+    </>
   );
-};
-
-export default ExecutorProfilePage;
+}

@@ -1,5 +1,8 @@
+// components/Header.tsx
+
 'use client';
 
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -10,26 +13,42 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { createClient } from '@/utils/supabase/client';
-import { useUserStore } from '@/stores/userStore';
 
 export default function Header() {
-  const supabase = createClient();
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
   const router = useRouter();
 
-  const user = useUserStore((state) => state.user);
-  const profile = useUserStore((state) => state.profile);
-  const setUser = useUserStore((state) => state.setUser);
-  const setProfile = useUserStore((state) => state.setProfile);
+  // Fetch the authenticated user's data
+  useEffect(() => {
+    const fetchUser = async () => {
+      const res = await fetch('/api/auth/user', {
+        credentials: 'include', // Include credentials (cookies) in the request
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data.user);
+        setProfile(data.profile);
+      } else {
+        setUser(null);
+        setProfile(null);
+      }
+    };
+
+    fetchUser();
+  }, []);
 
   const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Error signing out:', error);
-    } else {
+    const res = await fetch('/api/auth/logout', {
+      method: 'POST',
+    });
+
+    if (res.ok) {
       setUser(null);
       setProfile(null);
       router.replace('/login');
+    } else {
+      console.error('Error signing out');
     }
   };
 
@@ -52,7 +71,10 @@ export default function Header() {
             <DropdownMenuTrigger>
               <AvatarComponent className="h-8 w-8">
                 {profile?.avatarUrl ? (
-                  <AvatarImage src={profile.avatarUrl} alt={`${profile?.firstName}'s avatar`} />
+                  <AvatarImage
+                    src={profile.avatarUrl}
+                    alt={`${profile?.firstName}'s avatar`}
+                  />
                 ) : (
                   <AvatarFallback>
                     {getInitials(profile?.firstName ?? '', profile?.lastName ?? '')}

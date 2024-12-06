@@ -2,7 +2,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import RoleSelection from '@/components/RoleSelection';
-
+import Header from '@/components/Header';
 import AuthenticatedLayout from '@/components/AuthenticatedLayout';
 
 export default async function SelectRolePage() {
@@ -17,8 +17,11 @@ export default async function SelectRolePage() {
   }
 
   return (
-    <AuthenticatedLayout>
-      <RoleSelection />
-    </AuthenticatedLayout>
+    <>
+      <Header />
+      <AuthenticatedLayout>
+        <RoleSelection />
+      </AuthenticatedLayout>
+    </>
   );
 }

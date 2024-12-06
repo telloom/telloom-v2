@@ -1,12 +1,14 @@
 import React from 'react';
+import Header from '@/components/Header';
 
-const AdminTopicsPage: React.FC = () => {
+export default function AdminTopicsPage() {
   return (
-    <div>
-      <h1>Admin Topics Page</h1>
-      {/* Add your component logic here */}
-    </div>
+    <>
+      <Header />
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold mb-8">Admin Topics Management</h1>
+        {/* Add your admin topics management content here */}
+      </div>
+    </>
   );
-};
-
-export default AdminTopicsPage;
+}
