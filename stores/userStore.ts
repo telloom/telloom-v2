@@ -1,3 +1,6 @@
+// File: stores/userStore.ts
+// This file defines a Zustand store for managing user and profile state.
+
 import { create } from 'zustand';
 import { User } from '@supabase/supabase-js';
 import { Profile } from '@prisma/client';

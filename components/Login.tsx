@@ -23,7 +23,6 @@ import Image from 'next/image';
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{
     type: 'success' | 'error';
@@ -41,6 +40,7 @@ export default function Login() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email, password }),
       });
 
@@ -50,15 +50,12 @@ export default function Login() {
         throw new Error(result.error || 'Login failed');
       }
 
-      // Redirect to home page on success
       router.push('/');
     } catch (error: any) {
       console.error('Sign-in error:', error);
       setMessage({
         type: 'error',
-        text:
-          error.message ||
-          'Failed to sign in. Please check your credentials and try again.',
+        text: error.message || 'Failed to sign in. Please check your credentials and try again.',
       });
     } finally {
       setLoading(false);
@@ -68,11 +65,12 @@ export default function Login() {
   return (
     <Card className="w-[350px]">
       <CardHeader className="flex flex-col items-center space-y-4">
-        <div className="relative w-[180px] h-[40px] mb-2">
+        <div className="w-[180px] h-[40px] relative flex items-center justify-center">
           <Image
             src="/images/Telloom Logo V1-Horizontal Green.png"
             alt="Telloom Logo"
-            fill
+            width={180}
+            height={40}
             priority
             className="object-contain"
           />
@@ -83,7 +81,7 @@ export default function Login() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid w-full items-center gap-4">
             <div className="flex flex-col space-y-1.5">
               <Label htmlFor="email">Email</Label>
@@ -107,15 +105,13 @@ export default function Login() {
               />
             </div>
           </div>
-          <Button className="w-full mt-4" type="submit" disabled={loading}>
-            {loading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : null}
+          <Button className="w-full" type="submit" disabled={loading}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {loading ? 'Signing In...' : 'Sign In'}
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="flex flex-col items-center gap-4 pt-6">
+      <CardFooter className="flex flex-col items-center gap-4">
         <div className="flex w-full justify-between text-sm">
           <Link href="/forgot-password" className="text-primary hover:underline">
             Forgot Password?
@@ -126,7 +122,6 @@ export default function Login() {
         </div>
         {message && (
           <Alert
-            className="mt-4"
             variant={message.type === 'error' ? 'destructive' : 'default'}
           >
             <AlertCircle className="h-4 w-4" />

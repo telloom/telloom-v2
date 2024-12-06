@@ -3,6 +3,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
+import Header from '@/components/Header';
 
 export default async function SharerLayout({
   children,
@@ -67,7 +68,12 @@ export default async function SharerLayout({
       }
     });
 
-    return <>{children}</>;
+    return (
+      <>
+        <Header />
+        {children}
+      </>
+    );
   } catch (error) {
     console.error('Unexpected error in SharerLayout:', error);
     redirect('/');

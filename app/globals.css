@@ -1,0 +1,62 @@
+.swiper-button-next,
+.swiper-button-prev {
+  background: #1B4332;
+  border-radius: 50%;
+  width: 32px !important;
+  height: 32px !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  transition: all 0.2s ease-in-out;
+  z-index: 20;
+  opacity: 0;
+  visibility: hidden;
+}
+
+:root {
+  --swiper-navigation-color: white;
+  --swiper-navigation-size: 16px;
+}
+
+.swiper-button-prev {
+  left: -16px !important;
+}
+
+.swiper-button-next {
+  right: -16px !important;
+}
+
+.swiper-button-next:hover,
+.swiper-button-prev:hover {
+  background: #2D6A4F;
+  transform: translateY(-50%) scale(1.05) !important;
+}
+
+.swiper-button-disabled {
+  opacity: 0.35 !important;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.swiper:not(.swiper-locked) .swiper-button-next,
+.swiper:not(.swiper-locked) .swiper-button-prev {
+  opacity: 1;
+  visibility: visible;
+}
+
+.swiper-wrapper {
+  padding: 16px 0;
+  margin: 0 16px;
+}
+
+.swiper {
+  overflow: visible !important;
+  padding: 0 16px;
+}
+
+@media (max-width: 640px) {
+  .swiper-button-next,
+  .swiper-button-prev {
+    display: none !important;
+  }
+} 

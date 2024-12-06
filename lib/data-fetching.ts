@@ -53,8 +53,16 @@ export async function fetchPromptCategories(): Promise<PromptCategory[]> {
               duration
             )
           )
+        ),
+        favorites:TopicFavorite!left (
+          id
+        ),
+        queueItems:TopicQueueItem!left (
+          id
         )
-      `);
+      `)
+      .eq('favorites.profileId', user.id)
+      .eq('queueItems.profileId', user.id);
 
     if (error) {
       console.error('fetchPromptCategories - Supabase error:', error);
@@ -65,6 +73,8 @@ export async function fetchPromptCategories(): Promise<PromptCategory[]> {
       id: category.id,
       category: category.category,
       description: category.description,
+      isFavorite: (category.favorites || []).length > 0,
+      isInQueue: (category.queueItems || []).length > 0,
       prompts: (category.prompts || []).map(prompt => ({
         id: prompt.id,
         promptText: prompt.promptText,
@@ -196,36 +206,105 @@ export async function fetchRandomPrompt(): Promise<Prompt | null> {
   }
 
   try {
-    // Fetch prompts that the user hasn't responded to
-    const { data: prompts, error } = await supabase
+    // Get all prompts and responses in one query
+    const { data: prompts, error: promptError } = await supabase
       .from('Prompt')
       .select(`
         id,
         promptText,
         promptType,
         isContextEstablishing,
-        promptCategoryId
+        promptCategoryId,
+        promptResponses!inner (
+          id,
+          profileSharerId
+        )
       `)
-      .not('id', 'in', supabase
-        .from('PromptResponse')
-        .select('promptId')
-        .eq('profileSharerId', user.id)
-      )
+      .neq('promptResponses.profileSharerId', user.id)
       .limit(50);
 
-    if (error) {
-      console.error('fetchRandomPrompt - Supabase error:', error);
-      return null;
+    if (promptError) {
+      console.error('fetchRandomPrompt - Error fetching prompts:', promptError);
+      
+      // If the error is because there are no responses yet, try getting any prompt
+      const { data: anyPrompts, error: anyPromptsError } = await supabase
+        .from('Prompt')
+        .select(`
+          id,
+          promptText,
+          promptType,
+          isContextEstablishing,
+          promptCategoryId
+        `)
+        .limit(50);
+
+      if (anyPromptsError) {
+        console.error('fetchRandomPrompt - Error fetching any prompts:', anyPromptsError);
+        return null;
+      }
+
+      if (!anyPrompts || anyPrompts.length === 0) {
+        console.log('fetchRandomPrompt - No prompts found at all');
+        return null;
+      }
+
+      // Select a random prompt from all available prompts
+      const randomIndex = Math.floor(Math.random() * anyPrompts.length);
+      const prompt = anyPrompts[randomIndex];
+
+      console.log('fetchRandomPrompt - Selected prompt from all:', prompt.id);
+
+      return {
+        id: prompt.id,
+        promptText: prompt.promptText,
+        promptType: prompt.promptType,
+        isContextEstablishing: prompt.isContextEstablishing,
+        promptCategoryId: prompt.promptCategoryId,
+        promptResponses: [],
+        videos: []
+      };
     }
 
     if (!prompts || prompts.length === 0) {
-      console.log('fetchRandomPrompt - No prompts found');
-      return null;
+      // If no unanswered prompts found, get any prompt
+      const { data: anyPrompts, error: anyPromptsError } = await supabase
+        .from('Prompt')
+        .select(`
+          id,
+          promptText,
+          promptType,
+          isContextEstablishing,
+          promptCategoryId
+        `)
+        .limit(50);
+
+      if (anyPromptsError || !anyPrompts || anyPrompts.length === 0) {
+        console.log('fetchRandomPrompt - No prompts found at all');
+        return null;
+      }
+
+      // Select a random prompt from all available prompts
+      const randomIndex = Math.floor(Math.random() * anyPrompts.length);
+      const prompt = anyPrompts[randomIndex];
+
+      console.log('fetchRandomPrompt - Selected prompt from all:', prompt.id);
+
+      return {
+        id: prompt.id,
+        promptText: prompt.promptText,
+        promptType: prompt.promptType,
+        isContextEstablishing: prompt.isContextEstablishing,
+        promptCategoryId: prompt.promptCategoryId,
+        promptResponses: [],
+        videos: []
+      };
     }
 
-    // Select a random prompt
+    // Select a random prompt from unanswered ones
     const randomIndex = Math.floor(Math.random() * prompts.length);
     const prompt = prompts[randomIndex];
+
+    console.log('fetchRandomPrompt - Selected unanswered prompt:', prompt.id);
 
     return {
       id: prompt.id,
