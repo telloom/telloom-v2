@@ -15,7 +15,7 @@ import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/mousewheel';
 import 'swiper/css/bundle';
-import { useWindowSize } from '@/hooks/use-window-size';
+import { useWindowSize } from '@/hooks/useWindowSize';
 
 export default function TopicsList({ promptCategories }: { promptCategories: PromptCategory[] }) {
   const { width } = useWindowSize();
