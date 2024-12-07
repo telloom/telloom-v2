@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { PromptCategory } from '@/types/models';
 import TopicCard from './TopicCard';
 import Link from 'next/link';
-import { Star, ListPlus } from 'lucide-react';
+import { Star, ListPlus, MessageSquare } from 'lucide-react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, A11y, Mousewheel } from 'swiper/modules';
 
@@ -146,6 +146,11 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
   const favoriteCategories = promptCategories.filter((category) => category.isFavorite);
   const queuedCategories = promptCategories.filter((category) => category.isInQueue);
 
+  const topicsWithResponses = promptCategories.filter((category) => {
+    if (!category.prompts) return false;
+    return category.prompts.some(prompt => prompt.promptResponses.length > 0);
+  });
+
   return (
     <div className="space-y-12">
       {/* Favorites Section */}
@@ -167,6 +172,17 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
           'Topics Queue',
           <ListPlus className="h-12 w-12 text-gray-400" />,
           "Build your recording queue by adding topics you plan to work on next."
+        )
+      )}
+
+      {/* Topics with Responses Section */}
+      {topicsWithResponses.length > 0 ? (
+        renderTopicSection('Topics with Responses', topicsWithResponses)
+      ) : (
+        renderEmptySection(
+          'Topics with Responses',
+          <MessageSquare className="h-12 w-12 text-gray-400" />,
+          "Start recording responses to your topics and they'll appear here. Share your stories and experiences!"
         )
       )}
 

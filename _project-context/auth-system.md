@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides a comprehensive overview of Telloom's authentication, user management, session handling, and role-based access control (RBAC) system. The system is built using Supabase for authentication and database management, with Next.js 14 App Router for the frontend.
+This document outlines Telloom's authentication, user management, and session handling system. The implementation uses Supabase with Next.js 14 App Router, focusing on server-side rendering and cookie-based session management.
 
 ## File Structure
 
@@ -13,110 +13,203 @@ This document provides a comprehensive overview of Telloom's authentication, use
 │   │   │   └── page.tsx      # Login page component
 │   │   └── signup/
 │   │       └── page.tsx      # Signup page component
-│   └── page.tsx              # Home page with role-based routing
+│   ├── auth/
+│   │   ├── callback/
+│   │   │   └── route.ts      # Auth callback handler
+│   │   └── confirm/
+│   │       └── route.ts      # Email confirmation handler
 ├── components/
-│   ├── Login.tsx            # Login form component
-│   └── SupabaseListener.tsx # Auth state listener
+│   └── SupabaseListener.tsx  # Auth state listener
 ├── utils/
 │   └── supabase/
-│       ├── admin.ts         # Admin client
-│       ├── client.ts        # Client-side operations
-│       ├── middleware.ts    # Auth middleware
-│       ├── server.ts        # Server-side operations
-│       └── withRole.ts      # Role protection
-├── schemas/
-│   └── profileSchema.ts     # Profile validation schema
-└── types/
-    └── supabase.ts         # Supabase type definitions
+│       ├── admin.ts          # Admin client
+│       ├── client.ts         # Browser client
+│       ├── server.ts         # Server client
+│       ├── middleware.ts     # Auth middleware
+│       ├── route-handler.ts  # Route handler client
+│       └── withRole.ts       # Role protection
+└��─ types/
+    └── auth.ts              # Auth-related types
 ```
 
 ## Core Components
 
 ### 1. Authentication Clients
 
-#### Server-Side Client (`utils/supabase/server.ts`)
-```typescript
-// Key implementation
-export const createClient = (accessToken?: string) => {
-  const cookieStore = cookies();
-  accessToken = accessToken ?? cookieStore.get('supabase-access-token')?.value;
-  
-  return createSupabaseClient(supabaseUrl, supabaseKey, {
-    auth: {
-      persistSession: false,
-      detectSessionInUrl: false,
-    },
-    global: {
-      headers: {
-        Authorization: accessToken ? `Bearer ${accessToken}` : '',
-      },
-    },
-  });
-};
-```
+We maintain separate Supabase clients for different contexts:
 
-#### Client-Side Client (`utils/supabase/client.ts`)
+#### Browser Client (`utils/supabase/client.ts`)
 ```typescript
-// Basic client for auth
-export function createClient() {
-  return createSupabaseClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  });
-}
+import { createBrowserClient } from '@supabase/ssr'
 
-// Authenticated client for database operations
-export async function getAuthenticatedClient() {
-  const response = await fetch('/api/auth/user');
-  const { user, error } = await response.json();
-  // ... client creation with auth token
-}
-```
-
-#### Admin Client (`utils/supabase/admin.ts`)
-```typescript
-export function supabaseAdminClient() {
-  return createClient(
+export const createClient = () => {
+  return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
+```
+
+#### Server Client (`utils/supabase/server.ts`)
+```typescript
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+const createClient = () => {
+  const cookieStore = cookies()
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set(name, value, options)
+        },
+        remove(name: string) {
+          cookieStore.delete(name)
+        },
+      },
+    }
+  )
 }
 ```
 
 ### 2. Session Management
 
-#### Session Listener (`components/SupabaseListener.tsx`)
+#### Auth Listener (`components/SupabaseListener.tsx`)
 ```typescript
 export default function SupabaseListener() {
-  useEffect(() => {
-    const { subscription } = supabase.auth.onAuthStateChange(async (event, session) => {
-      await fetch('/api/auth/set', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event, session }),
-      });
-    });
+  const router = useRouter()
+  const supabase = createClient()
 
-    return () => subscription.unsubscribe();
-  }, []);
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          router.refresh()
+        }
+      }
+      if (event === 'SIGNED_OUT') {
+        router.refresh()
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [router, supabase])
+
+  return null
 }
 ```
 
-#### Middleware Implementation (`utils/supabase/middleware.ts`)
-Key features:
-- Runs on all non-static routes (configured in `matcher`)
-- Validates tokens on each request
-- Clears invalid sessions
-- Detailed logging for debugging
-
 ### 3. Role-Based Access Control (RBAC)
 
-#### Database Schema
+Role protection is implemented through the `withRole` utility:
+
+```typescript
+export async function withRole(
+  request: NextRequest,
+  response: NextResponse,
+  requiredRoles: string[]
+) {
+  const supabase = createServerClient(/*...*/)
+  
+  // Check authentication
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return redirectToLogin()
+
+  // Check roles
+  const { data: roles } = await supabase
+    .from('ProfileRole')
+    .select('role')
+    .eq('profileId', user.id)
+
+  const hasRequiredRole = requiredRoles.some(role => 
+    roles?.some(r => r.role === role)
+  )
+  
+  if (!hasRequiredRole) return redirectToUnauthorized()
+
+  return response
+}
+```
+
+### 4. Authentication Flow
+
+#### Login Page (`app/(auth)/login/page.tsx`)
+```typescript
+export default async function LoginPage() {
+  const { user, error } = await getUser()
+
+  if (user && !error) {
+    redirect('/')
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center py-2">
+      <Login />
+    </div>
+  )
+}
+```
+
+### 5. Middleware
+
+The middleware handles authentication checks and session management for all relevant routes:
+
+```typescript
+export async function middleware(request: NextRequest) {
+  const response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
+
+  const supabase = createServerClient(/*...*/)
+  await supabase.auth.getSession()
+
+  return response
+}
+
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
+}
+```
+
+## Security Best Practices
+
+1. **Cookie-Based Sessions**
+   - No localStorage usage
+   - HTTP-only cookies
+   - Secure session management
+
+2. **Server-Side Validation**
+   - All authenticated requests validated server-side
+   - Role checks performed server-side
+
+3. **Type Safety**
+```typescript
+interface AuthContextType {
+  user: Profile | null
+  isAuthenticated: boolean
+  roles: Role[]
+  login: (email: string, password: string) => Promise<void>
+  logout: () => void
+  refreshToken: () => Promise<void>
+}
+```
+
+## Database Schema
+
 ```sql
--- ProfileRole table structure
+-- Role management tables
 CREATE TABLE "ProfileRole" (
     "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     "profileId" UUID REFERENCES "Profile"(id),
@@ -124,191 +217,62 @@ CREATE TABLE "ProfileRole" (
     "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE("profileId", "role")
 );
+
+-- RLS Policies
+CREATE POLICY "Users can view own roles"
+ON "ProfileRole"
+FOR SELECT
+USING (auth.uid()::text = "profileId"::text);
+
+CREATE POLICY "Users can manage own roles"
+ON "ProfileRole"
+FOR ALL
+USING (auth.uid()::text = "profileId"::text);
 ```
 
-#### Role Protection Implementation (`utils/supabase/withRole.ts`)
+## Error Handling
+
 ```typescript
-export async function withRole(
-  request: NextRequest,
-  response: NextResponse,
-  requiredRoles: string[]
-) {
-  // 1. Auth check
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) return redirectToLogin();
-
-  // 2. Profile check
-  const { data: profile, error: profileError } = await supabase
-    .from('Profile')
-    .select('id')
-    .eq('id', user.id)
-    .single();
-  if (profileError || !profile) return redirectToLogin();
-
-  // 3. Role check
-  const { data: profileRoles, error: rolesError } = await supabase
-    .from('ProfileRole')
-    .select('role')
-    .eq('profileId', profile.id);
-  
-  const hasRole = requiredRoles.some(role => 
-    profileRoles?.some(pr => pr.role === role)
-  );
-  
-  if (!hasRole) return redirectToUnauthorized();
-}
-```
-
-### 4. Authentication Flow
-
-#### Login Implementation (`app/(auth)/login/page.tsx`)
-```typescript
-export default async function LoginPage() {
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (session) {
-    redirect('/');
-  }
-
-  return <Login />;
-}
-```
-
-#### Home Page Role Routing (`app/page.tsx`)
-```typescript
-export default async function HomePage() {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/login');
-  }
-
-  const { data: roleData } = await supabase
-    .from('ProfileRole')
-    .select('role')
-    .eq('profileId', user.id);
-
-  if (roleData?.some(r => r.role === 'SHARER')) {
-    redirect('/role-sharer');
-  }
-
-  if (roleData?.some(r => r.role === 'LISTENER')) {
-    redirect('/role-listener');
+const getUser = async () => {
+  const supabase = createClient()
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error) throw error
+    return { user, error: null }
+  } catch (error) {
+    console.error('Error getting user:', error)
+    return { user: null, error }
   }
 }
-```
-
-### 5. Profile Management
-
-#### Profile Schema (`schemas/profileSchema.ts`)
-```typescript
-export const profileSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email(),
-  firstName: z.string(),
-  lastName: z.string(),
-  phone: z.string(),
-  // ... additional fields
-});
-
-export type ProfileFormValues = z.infer<typeof profileSchema>;
-```
-
-## Security Best Practices
-
-### 1. Token Security
-- Tokens are never stored in localStorage
-- HTTP-only cookies prevent XSS attacks
-- Automatic token refresh handling
-- Server-side validation for all authenticated requests
-
-### 2. Role Security
-```typescript
-// Example of secure role check in API route
-export async function GET(request: Request) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    return new Response('Unauthorized', { status: 401 });
-  }
-  
-  const { data: roles } = await supabase
-    .from('ProfileRole')
-    .select('role')
-    .eq('profileId', user.id);
-    
-  if (!roles?.some(r => r.role === 'REQUIRED_ROLE')) {
-    return new Response('Forbidden', { status: 403 });
-  }
-}
-```
-
-## Debugging Guide
-
-### Session Issues
-1. Check middleware logs:
-```typescript
-console.log('Middleware - Tokens present:', { 
-  hasAccessToken: !!accessToken,
-  hasRefreshToken: !!refreshToken 
-});
-```
-
-2. Verify cookie presence:
-```typescript
-const cookieStore = cookies();
-const accessToken = cookieStore.get('supabase-access-token');
-const refreshToken = cookieStore.get('supabase-refresh-token');
-```
-
-### Role Issues
-1. Query role data directly:
-```typescript
-const { data, error } = await supabase
-  .from('ProfileRole')
-  .select('*')
-  .eq('profileId', userId);
-console.log('Role data:', data, 'Error:', error);
 ```
 
 ## Extending the System
 
 ### Adding New Roles
-1. Update database enum:
-```sql
-ALTER TYPE user_role ADD VALUE 'NEW_ROLE';
-```
-
-2. Add role check in middleware:
-```typescript
-if (requiredRoles.includes('NEW_ROLE')) {
-  // Additional validation logic
-}
-```
+1. Update database enum
+2. Add role check in middleware
+3. Update type definitions
 
 ### Protected Route Example
 ```typescript
-// app/protected/page.tsx
 export default async function ProtectedPage() {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user, error } = await getUser()
   
-  if (!user) {
-    redirect('/login');
+  if (!user || error) {
+    redirect('/login')
   }
   
+  // Fetch and check roles
+  const supabase = createClient()
   const { data: roles } = await supabase
     .from('ProfileRole')
     .select('role')
-    .eq('profileId', user.id);
+    .eq('profileId', user.id)
     
   if (!roles?.some(r => r.role === 'REQUIRED_ROLE')) {
-    redirect('/unauthorized');
+    redirect('/unauthorized')
   }
   
-  return <ProtectedContent />;
+  return <ProtectedContent />
 }
 ```

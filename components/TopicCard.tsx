@@ -192,10 +192,10 @@ export default function TopicCard({ promptCategory, onStateChange }: TopicCardPr
 
   return (
     <>
-      <Card className="hover:shadow-lg transition-shadow">
-        <CardHeader>
+      <Card className="hover:shadow-lg transition-shadow h-[150px] flex flex-col">
+        <CardHeader className="pb-3">
           <div className="flex justify-between items-start">
-            <CardTitle className="text-xl">{promptCategory.category}</CardTitle>
+            <CardTitle className="text-xl line-clamp-2 min-h-[3rem]">{promptCategory.category}</CardTitle>
             <div className="flex gap-2">
               <TooltipProvider>
                 <Tooltip>
@@ -270,7 +270,7 @@ export default function TopicCard({ promptCategory, onStateChange }: TopicCardPr
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-0 pb-4 flex-1 flex flex-col justify-end">
           <div className="flex justify-between items-center">
             <Badge variant={promptCategory.prompts.some(p => p.videos.length > 0) ? "default" : "secondary"}>
               {getCompletionStatus()}
