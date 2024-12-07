@@ -2,20 +2,12 @@
 // This component displays a card for a specific prompt category, showing its progress and allowing navigation to the topic's details page.
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PromptCategory } from '@/types/models';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { ChevronRight, Play, Star, ListPlus } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Badge } from '@/components/ui/badge';
 import {
   Tooltip,
   TooltipContent,
@@ -23,150 +15,52 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { createClient, getAuthenticatedClient } from '@/utils/supabase/client';
+import { createClient } from '@/utils/supabase/client';
+import PromptListPopup from './PromptListPopup';
 
-export default function TopicCard({ promptCategory }: { promptCategory: PromptCategory }) {
+interface TopicCardProps {
+  promptCategory: PromptCategory;
+  onStateChange?: (updates: { isFavorite?: boolean; isInQueue?: boolean }) => void;
+}
+
+export default function TopicCard({ promptCategory, onStateChange }: TopicCardProps) {
+  console.log('[CLIENT] TopicCard render:', {
+    categoryId: promptCategory.id,
+    category: promptCategory.category,
+    isFavorite: promptCategory.isFavorite,
+    isInQueue: promptCategory.isInQueue
+  });
+
   const router = useRouter();
+  const supabase = createClient();
   const [error, setError] = useState<string | null>(null);
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [isInQueue, setIsInQueue] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const checkAuthAndStatus = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        console.log('TopicCard - Starting auth and status check');
-        const supabase = await getAuthenticatedClient();
-        console.log('TopicCard - Got authenticated client');
-
-        // Get current user
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError) throw userError;
-        if (!user) throw new Error('No authenticated user');
-        
-        // Check if topic is favorited
-        console.log('TopicCard - Checking favorite status for topic:', promptCategory.id);
-        const { data: favorite, error: favoriteError } = await supabase
-          .from('TopicFavorite')
-          .select('id')
-          .eq('profileId', user.id)
-          .eq('promptCategoryId', promptCategory.id)
-          .maybeSingle();
-
-        console.log('TopicCard - Favorite check result:', {
-          hasFavorite: !!favorite,
-          error: favoriteError?.message,
-          errorCode: favoriteError?.code
-        });
-
-        if (favoriteError) {
-          console.error('TopicCard - Error checking favorite status:', favoriteError);
-          throw favoriteError;
-        }
-
-        // Check if topic is in queue
-        console.log('TopicCard - Checking queue status for topic:', promptCategory.id);
-        const { data: queueItem, error: queueError } = await supabase
-          .from('TopicQueueItem')
-          .select('id')
-          .eq('profileId', user.id)
-          .eq('promptCategoryId', promptCategory.id)
-          .maybeSingle();
-
-        console.log('TopicCard - Queue check result:', {
-          hasQueueItem: !!queueItem,
-          error: queueError?.message,
-          errorCode: queueError?.code
-        });
-
-        if (queueError) {
-          console.error('TopicCard - Error checking queue status:', queueError);
-          throw queueError;
-        }
-
-        if (mounted) {
-          setIsFavorite(!!favorite);
-          setIsInQueue(!!queueItem);
-          console.log('TopicCard - Updated state:', {
-            isFavorite: !!favorite,
-            isInQueue: !!queueItem
-          });
-        }
-      } catch (error: any) {
-        console.error('TopicCard - Error in checkAuthAndStatus:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-        });
-        if (mounted) {
-          setError('Error loading topic status');
-        }
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    checkAuthAndStatus();
-
-    return () => {
-      mounted = false;
-    };
-  }, [promptCategory.id]);
-
-  if (!promptCategory) {
-    return <div>Error: Topic data is missing</div>;
-  }
-
-  if (!promptCategory.prompts) {
-    return <div>Error: Prompt data is missing</div>;
-  }
-
-  if (isLoading) {
-    return (
-      <Card className="w-full hover:shadow-lg transition-all duration-300 border border-gray-200">
-        <CardHeader>
-          <div className="animate-pulse">
-            <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-          </div>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  const progress = Math.round((promptCategory.prompts.filter(p => p.promptResponses[0]).length / promptCategory.prompts.length) * 100);
-
-  const handleContinue = () => {
-    if (promptCategory.id) {
-      router.push(`/role-sharer/dashboard/topic/${promptCategory.id}`);
-    } else {
-      console.error('TopicCard - promptCategory.id is undefined');
-      setError('Unable to navigate: Topic ID is missing');
-    }
-  };
+  const [isPromptListOpen, setIsPromptListOpen] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(promptCategory.isFavorite);
+  const [isInQueue, setIsInQueue] = useState(promptCategory.isInQueue);
 
   const handleFavoriteToggle = async () => {
     try {
       setError(null);
-      console.log('TopicCard - Starting favorite toggle for topic:', promptCategory.id);
+      const newIsFavorite = !isFavorite;
       
-      const supabase = await getAuthenticatedClient();
-      console.log('TopicCard - Got authenticated client for favorite toggle');
+      console.log('[CLIENT] Starting favorite toggle:', {
+        categoryId: promptCategory.id,
+        currentIsFavorite: isFavorite,
+        newIsFavorite
+      });
 
-      // Get current user
+      // Update UI immediately
+      setIsFavorite(newIsFavorite);
+      if (onStateChange) {
+        onStateChange({ isFavorite: newIsFavorite });
+      }
+      
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
       if (!user) throw new Error('No authenticated user');
 
-      if (isFavorite) {
-        console.log('TopicCard - Removing from favorites');
+      if (!newIsFavorite) {
+        console.log('[CLIENT] Removing from favorites');
         const { error } = await supabase
           .from('TopicFavorite')
           .delete()
@@ -174,12 +68,16 @@ export default function TopicCard({ promptCategory }: { promptCategory: PromptCa
           .eq('promptCategoryId', promptCategory.id);
 
         if (error) {
-          console.error('TopicCard - Error removing favorite:', error);
+          console.error('[CLIENT] Error removing favorite:', error);
+          // Revert UI on error
+          setIsFavorite(!newIsFavorite);
+          if (onStateChange) {
+            onStateChange({ isFavorite: !newIsFavorite });
+          }
           throw error;
         }
-        console.log('TopicCard - Successfully removed from favorites');
       } else {
-        console.log('TopicCard - Adding to favorites');
+        console.log('[CLIENT] Adding to favorites');
         const { error } = await supabase
           .from('TopicFavorite')
           .insert({ 
@@ -188,17 +86,19 @@ export default function TopicCard({ promptCategory }: { promptCategory: PromptCa
           });
 
         if (error) {
-          console.error('TopicCard - Error adding favorite:', error);
+          console.error('[CLIENT] Error adding favorite:', error);
+          // Revert UI on error
+          setIsFavorite(!newIsFavorite);
+          if (onStateChange) {
+            onStateChange({ isFavorite: !newIsFavorite });
+          }
           throw error;
         }
-        console.log('TopicCard - Successfully added to favorites');
       }
 
-      setIsFavorite(!isFavorite);
-      // Force a hard refresh to update the favorites list
-      window.location.reload();
+      console.log('[CLIENT] Favorite toggle successful');
     } catch (error: any) {
-      console.error('TopicCard - Error in handleFavoriteToggle:', {
+      console.error('[CLIENT] Error in handleFavoriteToggle:', {
         message: error.message,
         code: error.code,
         details: error.details,
@@ -214,18 +114,26 @@ export default function TopicCard({ promptCategory }: { promptCategory: PromptCa
   const handleQueueToggle = async () => {
     try {
       setError(null);
-      console.log('TopicCard - Starting queue toggle for topic:', promptCategory.id);
-      
-      const supabase = await getAuthenticatedClient();
-      console.log('TopicCard - Got authenticated client for queue toggle');
+      const newIsInQueue = !isInQueue;
 
-      // Get current user
+      console.log('[CLIENT] Starting queue toggle:', {
+        categoryId: promptCategory.id,
+        currentIsInQueue: isInQueue,
+        newIsInQueue
+      });
+
+      // Update UI immediately
+      setIsInQueue(newIsInQueue);
+      if (onStateChange) {
+        onStateChange({ isInQueue: newIsInQueue });
+      }
+      
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
       if (!user) throw new Error('No authenticated user');
 
-      if (isInQueue) {
-        console.log('TopicCard - Removing from queue');
+      if (!newIsInQueue) {
+        console.log('[CLIENT] Removing from queue');
         const { error } = await supabase
           .from('TopicQueueItem')
           .delete()
@@ -233,12 +141,16 @@ export default function TopicCard({ promptCategory }: { promptCategory: PromptCa
           .eq('promptCategoryId', promptCategory.id);
 
         if (error) {
-          console.error('TopicCard - Error removing from queue:', error);
+          console.error('[CLIENT] Error removing from queue:', error);
+          // Revert UI on error
+          setIsInQueue(!newIsInQueue);
+          if (onStateChange) {
+            onStateChange({ isInQueue: !newIsInQueue });
+          }
           throw error;
         }
-        console.log('TopicCard - Successfully removed from queue');
       } else {
-        console.log('TopicCard - Adding to queue');
+        console.log('[CLIENT] Adding to queue');
         const { error } = await supabase
           .from('TopicQueueItem')
           .insert({ 
@@ -247,17 +159,19 @@ export default function TopicCard({ promptCategory }: { promptCategory: PromptCa
           });
 
         if (error) {
-          console.error('TopicCard - Error adding to queue:', error);
+          console.error('[CLIENT] Error adding to queue:', error);
+          // Revert UI on error
+          setIsInQueue(!newIsInQueue);
+          if (onStateChange) {
+            onStateChange({ isInQueue: !newIsInQueue });
+          }
           throw error;
         }
-        console.log('TopicCard - Successfully added to queue');
       }
 
-      setIsInQueue(!isInQueue);
-      // Force a hard refresh to update the queue list
-      window.location.reload();
+      console.log('[CLIENT] Queue toggle successful');
     } catch (error: any) {
-      console.error('TopicCard - Error in handleQueueToggle:', {
+      console.error('[CLIENT] Error in handleQueueToggle:', {
         message: error.message,
         code: error.code,
         details: error.details,
@@ -270,123 +184,124 @@ export default function TopicCard({ promptCategory }: { promptCategory: PromptCa
     }
   };
 
+  const getCompletionStatus = () => {
+    const totalPrompts = promptCategory.prompts.length;
+    const completedPrompts = promptCategory.prompts.filter(p => p.videos.length > 0).length;
+    return `${completedPrompts}/${totalPrompts}`;
+  };
+
   return (
-    <Card className="w-full hover:shadow-lg transition-all duration-300 border border-gray-200">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex justify-between items-center">
-          <span className="text-xl text-gray-800">{promptCategory.category || 'Untitled Category'}</span>
-          <div className="flex items-center gap-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleFavoriteToggle}
-                    className="h-8 w-8"
-                  >
-                    <Star className={cn(
-                      "h-5 w-5",
-                      isFavorite ? "fill-[#1B4332] text-[#1B4332]" : "text-gray-400"
-                    )} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{isFavorite ? 'Remove from favorites' : 'Add to favorites'}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleQueueToggle}
-                    className="h-8 w-8"
-                  >
-                    <ListPlus className={cn(
-                      "h-5 w-5",
-                      isInQueue ? "text-[#1B4332]" : "text-gray-400"
-                    )} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{isInQueue ? 'Remove from queue' : 'Add to queue'}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-gray-600">{progress}% complete</span>
-          <span className="text-sm font-medium text-gray-600">
-            {promptCategory.prompts.filter(p => p.promptResponses[0]).length}/{promptCategory.prompts.length} prompts
-          </span>
-        </div>
-        <Progress 
-          value={progress} 
-          className="h-2" 
-          style={{ '--progress-foreground': '#1B4332' } as React.CSSProperties}
-        />
-      </CardContent>
-      <CardFooter className="flex justify-between pt-4">
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="text-gray-600 hover:text-gray-800 border-[#1B4332] hover:bg-[#1B4332]/10">
-              View Prompts
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{promptCategory.category || 'Untitled Category'} Prompts</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              {promptCategory.prompts.map((prompt, index) => (
-                <div
-                  key={prompt.id || index}
-                  className={cn(
-                    "grid grid-cols-[auto,1fr,auto] items-center gap-4 p-3 rounded-md transition-colors",
-                    prompt.promptResponses[0] ? "text-gray-500 bg-gray-50" : "hover:bg-gray-100 cursor-pointer"
-                  )}
-                >
-                  <span className="text-sm font-medium text-gray-400">{index + 1}.</span>
-                  <p className="text-sm">{prompt.promptText || 'Untitled Prompt'}</p>
-                  {prompt.promptResponses[0] ? (
+    <>
+      <Card className="hover:shadow-lg transition-shadow">
+        <CardHeader>
+          <div className="flex justify-between items-start">
+            <CardTitle className="text-xl">{promptCategory.category}</CardTitle>
+            <div className="flex gap-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        if (prompt.promptResponses[0]?.id) {
-                          router.push(`/role-sharer/dashboard/prompt-response/${prompt.promptResponses[0].id}`);
-                        } else {
-                          console.error('TopicCard - prompt.promptResponses[0].id is undefined', prompt);
-                          setError('Unable to view response: Response ID is missing');
-                        }
-                      }}
+                      size="icon"
+                      onClick={handleFavoriteToggle}
+                      className="h-9 w-9 p-0 hover:bg-transparent"
                     >
-                      <Play className="h-4 w-4 text-[#1B4332]" />
+                      <svg 
+                        width="20" 
+                        height="20" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                        className={cn(
+                          "transition-colors",
+                          isFavorite 
+                            ? "fill-[#1B4332] text-[#1B4332]" 
+                            : "text-gray-400 hover:text-[#8fbc55] hover:fill-[#8fbc55]"
+                        )}
+                      >
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                      </svg>
                     </Button>
-                  ) : (
-                    <span className="text-[#1B4332]">Not Recorded</span>
-                  )}
-                </div>
-              ))}
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{isFavorite ? "Remove from favorites" : "Add to favorites"}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleQueueToggle}
+                      className="h-9 w-9 p-0 hover:bg-transparent"
+                    >
+                      <svg 
+                        width="20" 
+                        height="20" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="3" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                        className={cn(
+                          "transition-colors",
+                          isInQueue 
+                            ? "text-[#1B4332]" 
+                            : "text-gray-400 hover:text-[#8fbc55]"
+                        )}
+                      >
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{isInQueue ? "Remove from queue" : "Add to queue"}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
-          </DialogContent>
-        </Dialog>
-        <Button 
-          onClick={handleContinue}
-          className="bg-[#1B4332] hover:bg-[#1B4332]/90 text-white"
-        >
-          Continue
-          <ChevronRight className="ml-2 h-4 w-4" />
-        </Button>
-      </CardFooter>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-between items-center">
+            <Badge variant={promptCategory.prompts.some(p => p.videos.length > 0) ? "default" : "secondary"}>
+              {getCompletionStatus()}
+            </Badge>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsPromptListOpen(true)}
+              >
+                View Prompts
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => router.push(`/role-sharer/topics/${promptCategory.id}`)}
+              >
+                Start Recording →
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <PromptListPopup 
+        promptCategory={promptCategory}
+        isOpen={isPromptListOpen}
+        onClose={() => setIsPromptListOpen(false)}
+      />
       {error && <div className="text-red-500 mt-2 text-sm text-center">{error}</div>}
-    </Card>
+    </>
   );
 }
 

@@ -1,43 +1,65 @@
-// lib/data-fetching.ts
-/**
- * This module contains server-side functions for fetching data from Supabase.
- * It uses the Supabase server client configured for server-side operations.
- * 
- * As the app evolves, you can expand this module by adding more data fetching functions.
- */
+import { createClient } from '@/utils/supabase/server';
+import { PromptCategory, Prompt, Profile } from '@/types/models';
 
-import { createClient } from '@/utils/supabase/server'; // Updated import path
-import { PromptCategory, Prompt, Profile } from '@/types/models'; // Adjusted the import to use 'models'
-
-/**
- * Fetches prompt categories from Supabase, including related prompts and responses.
- * @returns {Promise<PromptCategory[]>} An array of prompt categories.
- */
 export async function fetchPromptCategories(): Promise<PromptCategory[]> {
+  console.log('\n[SERVER] ====== fetchPromptCategories START ======');
+  
   const supabase = createClient();
-
-  // Verify authentication
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  console.log('fetchPromptCategories - user:', user, 'error:', authError);
-
-  if (authError || !user) {
-    console.log('fetchPromptCategories - No authenticated user');
-    return []; // Return empty array instead of throwing
-  }
+  console.log('[SERVER] Created Supabase client');
 
   try {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    console.log('[SERVER] Auth check:', { 
+      hasSession: !!session, 
+      hasUser: !!session?.user,
+      userId: session?.user?.id,
+      error: sessionError 
+    });
+    
+    if (sessionError || !session?.user) {
+      console.log('[SERVER] No authenticated user');
+      return [];
+    }
+
+    console.log('[SERVER] Fetching categories for user:', session.user.id);
+
+    // First, get the user's favorites and queue items
+    const [{ data: favorites }, { data: queueItems }] = await Promise.all([
+      supabase
+        .from('TopicFavorite')
+        .select('promptCategoryId')
+        .eq('profileId', session.user.id),
+      supabase
+        .from('TopicQueueItem')
+        .select('promptCategoryId')
+        .eq('profileId', session.user.id)
+    ]);
+
+    console.log('[SERVER] User preferences:', {
+      favorites: favorites?.map(f => f.promptCategoryId),
+      queueItems: queueItems?.map(q => q.promptCategoryId)
+    });
+
+    // Then get all categories with their prompts
     const { data: categories, error } = await supabase
       .from('PromptCategory')
       .select(`
         id,
         category,
         description,
+        theme,
         prompts:Prompt (
           id,
           promptText,
           promptType,
           isContextEstablishing,
           promptCategoryId,
+          videos:Video (
+            id,
+            profileSharerId,
+            muxPlaybackId,
+            duration
+          ),
           promptResponses:PromptResponse (
             id,
             profileSharerId,
@@ -45,92 +67,78 @@ export async function fetchPromptCategories(): Promise<PromptCategory[]> {
             responseText,
             privacyLevel,
             createdAt,
-            updatedAt,
-            video:Video (
-              id,
-              profileSharerId,
-              muxPlaybackId,
-              duration
-            )
+            updatedAt
           )
-        ),
-        favorites:TopicFavorite!left (
-          id
-        ),
-        queueItems:TopicQueueItem!left (
-          id
         )
       `)
-      .eq('favorites.profileId', user.id)
-      .eq('queueItems.profileId', user.id);
+      .order('category');
 
     if (error) {
-      console.error('fetchPromptCategories - Supabase error:', error);
-      return []; // Return empty array instead of throwing
+      console.error('[SERVER] Supabase error:', error);
+      return [];
     }
 
-    return (categories || []).map(category => ({
-      id: category.id,
-      category: category.category,
-      description: category.description,
-      isFavorite: (category.favorites || []).length > 0,
-      isInQueue: (category.queueItems || []).length > 0,
-      prompts: (category.prompts || []).map(prompt => ({
-        id: prompt.id,
-        promptText: prompt.promptText,
-        promptType: prompt.promptType,
-        isContextEstablishing: prompt.isContextEstablishing,
-        promptCategoryId: prompt.promptCategoryId,
-        promptResponses: (prompt.promptResponses || []).map(response => ({
-          id: response.id,
-          profileSharerId: response.profileSharerId,
-          videoId: response.videoId,
-          responseText: response.responseText,
-          privacyLevel: response.privacyLevel,
-          createdAt: response.createdAt ? new Date(response.createdAt) : undefined,
-          updatedAt: response.updatedAt ? new Date(response.updatedAt) : undefined,
-          video: response.video && {
-            id: (response.video as any).id,
-            profileSharerId: (response.video as any).profileSharerId,
-            muxPlaybackId: (response.video as any).muxPlaybackId,
-            duration: (response.video as any).duration,
-            promptResponses: [],
-            profileSharer: null,
-            viewedBy: []
-          },
-        })),
-        videos: (prompt.promptResponses || [])
-          .map(r => r.video)
-          .filter((v): v is NonNullable<typeof v> => v != null)
-          .map(v => ({
-            id: (v as any).id,
-            profileSharerId: (v as any).profileSharerId,
-            muxPlaybackId: (v as any).muxPlaybackId,
-            duration: (v as any).duration,
-            promptResponses: [],
-            profileSharer: null,
-            viewedBy: []
-          }))
+    console.log('[SERVER] Raw categories data:', JSON.stringify(categories, null, 2));
+
+    // Create a Set of favorited and queued category IDs for faster lookup
+    const favoritedIds = new Set(favorites?.map(f => f.promptCategoryId) || []);
+    const queuedIds = new Set(queueItems?.map(q => q.promptCategoryId) || []);
+
+    const transformedCategories = categories.map(category => {
+      const isFavorite = favoritedIds.has(category.id);
+      const isInQueue = queuedIds.has(category.id);
+      
+      console.log(`[SERVER] Category ${category.id} - ${category.category}:`, {
+        isFavorite,
+        isInQueue,
+        promptCount: category.prompts?.length
+      });
+
+      return {
+        id: category.id,
+        category: category.category,
+        description: category.description,
+        theme: category.theme,
+        isFavorite,
+        isInQueue,
+        prompts: (category.prompts || []).map(prompt => ({
+          id: prompt.id,
+          promptText: prompt.promptText,
+          promptType: prompt.promptType,
+          isContextEstablishing: prompt.isContextEstablishing,
+          promptCategoryId: prompt.promptCategoryId,
+          videos: prompt.videos || [],
+          promptResponses: prompt.promptResponses || []
+        }))
+      };
+    });
+
+    console.log('[SERVER] Transformed categories:', 
+      transformedCategories.map(c => ({
+        id: c.id,
+        category: c.category,
+        isFavorite: c.isFavorite,
+        isInQueue: c.isInQueue,
+        promptCount: c.prompts.length
       }))
-    }));
+    );
+
+    console.log('[SERVER] ====== fetchPromptCategories END ======\n');
+    return transformedCategories;
   } catch (error) {
-    console.error('fetchPromptCategories - Unexpected error:', error);
+    console.error('[SERVER] Unexpected error:', error);
     return [];
   }
 }
 
-/**
- * Fetches the sharer (current authenticated user) information.
- * @returns {Promise<Profile | null>} The sharer's information or null if not authenticated.
- */
 export async function fetchSharer(): Promise<Profile | null> {
   const supabase = createClient();
 
   // Verify authentication
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  console.log('fetchSharer - user:', user, 'error:', authError);
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  console.log('fetchSharer - session:', session, 'error:', sessionError);
 
-  if (authError || !user) {
+  if (sessionError || !session?.user) {
     console.log('fetchSharer - No authenticated user');
     return null;
   }
@@ -151,7 +159,7 @@ export async function fetchSharer(): Promise<Profile | null> {
           role
         )
       `)
-      .eq('id', user.id)
+      .eq('id', session.user.id)
       .single();
 
     if (profileError) {
@@ -189,18 +197,14 @@ export async function fetchSharer(): Promise<Profile | null> {
   }
 }
 
-/**
- * Fetches a random prompt from the database that hasn't been answered by the user.
- * @returns {Promise<Prompt | null>} A random prompt or null if none are available.
- */
 export async function fetchRandomPrompt(): Promise<Prompt | null> {
   const supabase = createClient();
 
   // Verify authentication
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  console.log('fetchRandomPrompt - user:', user, 'error:', authError);
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  console.log('fetchRandomPrompt - session:', session, 'error:', sessionError);
 
-  if (authError || !user) {
+  if (sessionError || !session?.user) {
     console.log('fetchRandomPrompt - No authenticated user');
     return null;
   }
@@ -220,7 +224,7 @@ export async function fetchRandomPrompt(): Promise<Prompt | null> {
           profileSharerId
         )
       `)
-      .neq('promptResponses.profileSharerId', user.id)
+      .neq('promptResponses.profileSharerId', session.user.id)
       .limit(50);
 
     if (promptError) {
@@ -319,4 +323,4 @@ export async function fetchRandomPrompt(): Promise<Prompt | null> {
     console.error('fetchRandomPrompt - Unexpected error:', error);
     return null;
   }
-}
+} 

@@ -1,10 +1,7 @@
 // components/TopicsTableAll.tsx
-// This component displays all topics in a table format with their completion status, sorting, and filtering capabilities
-
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import { Prompt, PromptCategory } from "@/types/models";
+import { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -12,433 +9,259 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { CheckCircle2, Circle, MinusCircle, ChevronUp, ChevronDown, Search, Play, Star, ListPlus } from 'lucide-react';
-import Link from 'next/link';
-import { Input } from '@/components/ui/input';
+} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useRouter } from 'next/navigation';
-import { createClient, getAuthenticatedClient } from '@/utils/supabase/client';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { createClient } from '@/utils/supabase/client';
+import { Theme } from '@prisma/client';
 
 export interface TopicsTableAllProps {
   promptCategories: PromptCategory[];
-  categoryId?: string;
 }
 
-type SortField = 'category' | 'status';
-type SortDirection = 'asc' | 'desc';
-type Status = 'all' | 'completed' | 'in-progress' | 'not-started';
+interface PromptCategory {
+  id: string;
+  category: string | null;
+  description: string | null;
+  theme: Theme | null;
+  prompts: Prompt[];
+}
 
-export default function TopicsTableAll({ promptCategories, categoryId }: TopicsTableAllProps) {
+interface Prompt {
+  id: string;
+  promptText: string;
+  promptType: string | null;
+  isContextEstablishing: boolean | null;
+  promptCategoryId: string | null;
+  videos: { id: string }[];
+  promptResponses: { id: string }[];
+}
+
+export default function TopicsTableAll({ promptCategories }: TopicsTableAllProps) {
   const router = useRouter();
+  const supabase = createClient();
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<Status>('all');
-  const [sortField, setSortField] = useState<SortField>('category');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [error, setError] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [favorites, setFavorites] = useState<Record<string, boolean>>({});
-  const [queueItems, setQueueItems] = useState<Record<string, boolean>>({});
-  const [isLoading, setIsLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [viewFilter, setViewFilter] = useState('all');
+  const [themeFilter, setThemeFilter] = useState('all');
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [queued, setQueued] = useState<string[]>([]);
 
-  // Load favorites and queue items on mount
   useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        setIsLoading(true);
-        const supabase = await getAuthenticatedClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (user) {
-          // Load favorites
-          const { data: favoritesData } = await supabase
-            .from('TopicFavorite')
-            .select('promptCategoryId')
-            .eq('profileId', user.id);
-          
-          // Load queue items
-          const { data: queueData } = await supabase
-            .from('TopicQueueItem')
-            .select('promptCategoryId')
-            .eq('profileId', user.id);
+    const loadUserPreferences = async () => {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) return;
 
-          const favoritesMap: Record<string, boolean> = {};
-          const queueMap: Record<string, boolean> = {};
+      const [{ data: favoriteData }, { data: queuedData }] = await Promise.all([
+        supabase
+          .from('FavoritePromptCategory')
+          .select('promptCategoryId')
+          .eq('profileId', user.id),
+        supabase
+          .from('QueuedPromptCategory')
+          .select('promptCategoryId')
+          .eq('profileId', user.id),
+      ]);
 
-          favoritesData?.forEach(f => favoritesMap[f.promptCategoryId] = true);
-          queueData?.forEach(q => queueMap[q.promptCategoryId] = true);
-
-          setFavorites(favoritesMap);
-          setQueueItems(queueMap);
-        }
-      } catch (error) {
-        console.error('Error loading user data:', error);
-      } finally {
-        setIsLoading(false);
-      }
+      setFavorites(favoriteData?.map(f => f.promptCategoryId) || []);
+      setQueued(queuedData?.map(q => q.promptCategoryId) || []);
     };
 
-    loadUserData();
-  }, []);
+    loadUserPreferences();
+  }, [supabase]);
+
+  const toggleFavorite = async (promptCategoryId: string) => {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return;
+
+    if (favorites.includes(promptCategoryId)) {
+      await supabase
+        .from('FavoritePromptCategory')
+        .delete()
+        .eq('profileId', user.id)
+        .eq('promptCategoryId', promptCategoryId);
+      setFavorites(prev => prev.filter(id => id !== promptCategoryId));
+    } else {
+      await supabase
+        .from('FavoritePromptCategory')
+        .insert({
+          profileId: user.id,
+          promptCategoryId: promptCategoryId,
+        });
+      setFavorites(prev => [...prev, promptCategoryId]);
+    }
+  };
+
+  const toggleQueue = async (promptCategoryId: string) => {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return;
+
+    if (queued.includes(promptCategoryId)) {
+      await supabase
+        .from('QueuedPromptCategory')
+        .delete()
+        .eq('profileId', user.id)
+        .eq('promptCategoryId', promptCategoryId);
+      setQueued(prev => prev.filter(id => id !== promptCategoryId));
+    } else {
+      await supabase
+        .from('QueuedPromptCategory')
+        .insert({
+          profileId: user.id,
+          promptCategoryId: promptCategoryId,
+        });
+      setQueued(prev => [...prev, promptCategoryId]);
+    }
+  };
+
+  const filteredCategories = promptCategories.filter(category => {
+    const matchesSearch = category.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      category.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || 
+      (statusFilter === 'completed' && category.prompts.some(p => p.videos.length > 0)) ||
+      (statusFilter === 'incomplete' && category.prompts.every(p => p.videos.length === 0));
+    const matchesView = viewFilter === 'all' ||
+      (viewFilter === 'favorites' && favorites.includes(category.id)) ||
+      (viewFilter === 'queue' && queued.includes(category.id));
+    const matchesTheme = themeFilter === 'all' || category.theme === themeFilter;
+
+    return matchesSearch && matchesStatus && matchesView && matchesTheme;
+  });
 
   const getCompletionStatus = (category: PromptCategory) => {
-    if (!category.prompts || category.prompts.length === 0) return 'not-started';
-    
-    const hasResponses = category.prompts.some(prompt => prompt.promptResponses && prompt.promptResponses.length > 0);
-    const allCompleted = category.prompts.every(prompt => prompt.promptResponses && prompt.promptResponses.length > 0);
-    
-    if (allCompleted) return 'completed';
-    if (hasResponses) return 'in-progress';
-    return 'not-started';
+    const totalPrompts = category.prompts.length;
+    const completedPrompts = category.prompts.filter(p => p.videos.length > 0).length;
+    return `${completedPrompts}/${totalPrompts}`;
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle2 className="h-5 w-5 text-green-600" />;
-      case 'in-progress':
-        return <MinusCircle className="h-5 w-5 text-yellow-600" />;
-      default:
-        return <Circle className="h-5 w-5 text-gray-400" />;
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'Done';
-      case 'in-progress':
-        return 'Active';
-      default:
-        return 'New';
-    }
-  };
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-
-  const getSortIcon = (field: SortField) => {
-    if (sortField !== field) return null;
-    return sortDirection === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />;
-  };
-
-  const handleFavoriteToggle = async (categoryId: string) => {
-    try {
-      setError(null);
-      const supabase = await getAuthenticatedClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) throw new Error('No authenticated user');
-
-      if (favorites[categoryId]) {
-        await supabase
-          .from('TopicFavorite')
-          .delete()
-          .eq('profileId', user.id)
-          .eq('promptCategoryId', categoryId);
-        
-        setFavorites(prev => ({ ...prev, [categoryId]: false }));
-      } else {
-        await supabase
-          .from('TopicFavorite')
-          .insert({ profileId: user.id, promptCategoryId: categoryId });
-        
-        setFavorites(prev => ({ ...prev, [categoryId]: true }));
+  const getThemes = () => {
+    const themes = new Set<string>();
+    promptCategories?.forEach(category => {
+      if (category.theme) {
+        themes.add(category.theme);
       }
-    } catch (error: any) {
-      console.error('Error toggling favorite:', error);
-      setError('Failed to update favorite status');
-    }
+    });
+    return Array.from(themes).sort();
   };
 
-  const handleQueueToggle = async (categoryId: string) => {
-    try {
-      setError(null);
-      const supabase = await getAuthenticatedClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) throw new Error('No authenticated user');
-
-      if (queueItems[categoryId]) {
-        await supabase
-          .from('TopicQueueItem')
-          .delete()
-          .eq('profileId', user.id)
-          .eq('promptCategoryId', categoryId);
-        
-        setQueueItems(prev => ({ ...prev, [categoryId]: false }));
-      } else {
-        await supabase
-          .from('TopicQueueItem')
-          .insert({ profileId: user.id, promptCategoryId: categoryId });
-        
-        setQueueItems(prev => ({ ...prev, [categoryId]: true }));
-      }
-    } catch (error: any) {
-      console.error('Error toggling queue:', error);
-      setError('Failed to update queue status');
-    }
-  };
-
-  const filteredAndSortedCategories = useMemo(() => {
-    if (!promptCategories) return [];
-    
-    return promptCategories
-      .filter(category => {
-        const matchesSearch = category.category.toLowerCase().includes(searchQuery.toLowerCase());
-        const status = getCompletionStatus(category);
-        const matchesStatus = statusFilter === 'all' || status === statusFilter;
-        return matchesSearch && matchesStatus;
-      })
-      .sort((a, b) => {
-        if (sortField === 'category') {
-          const comparison = a.category.localeCompare(b.category);
-          return sortDirection === 'asc' ? comparison : -comparison;
-        } else {
-          const statusA = getCompletionStatus(a);
-          const statusB = getCompletionStatus(b);
-          const comparison = statusA.localeCompare(statusB);
-          return sortDirection === 'asc' ? comparison : -comparison;
-        }
-      });
-  }, [promptCategories, searchQuery, statusFilter, sortField, sortDirection]);
-
-  const getProgress = (category: PromptCategory) => {
-    if (!category.prompts || category.prompts.length === 0) return 0;
-    return Math.round((category.prompts.filter(p => p.promptResponses && p.promptResponses.length > 0).length / category.prompts.length) * 100);
+  const formatThemeName = (theme: string) => {
+    if (!theme) return '';
+    return theme
+      .split('_')
+      .map((word: string) => word.charAt(0) + word.slice(1).toLowerCase())
+      .join(' ');
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
-          <Input
-            placeholder="Search topics..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-        <Select
-          value={statusFilter}
-          onValueChange={(value: Status) => setStatusFilter(value)}
-        >
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Filter" />
+      <div className="flex flex-col sm:flex-row gap-4">
+        <Input
+          placeholder="Search topics..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="sm:w-1/3"
+        />
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="sm:w-1/6">
+            <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="completed">Done</SelectItem>
-            <SelectItem value="in-progress">Active</SelectItem>
-            <SelectItem value="not-started">New</SelectItem>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="incomplete">Incomplete</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={viewFilter} onValueChange={setViewFilter}>
+          <SelectTrigger className="sm:w-1/6">
+            <SelectValue placeholder="View" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Topics</SelectItem>
+            <SelectItem value="favorites">Favorites</SelectItem>
+            <SelectItem value="queue">Queue</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={themeFilter} onValueChange={setThemeFilter}>
+          <SelectTrigger className="sm:w-1/6">
+            <SelectValue placeholder="Theme" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Themes</SelectItem>
+            {getThemes().map((theme) => (
+              <SelectItem key={theme} value={theme}>
+                {formatThemeName(theme)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
 
-      <div className="rounded-md border overflow-x-auto">
+      <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead 
-                className="cursor-pointer"
-                onClick={() => handleSort('category')}
-              >
-                <div className="flex items-center gap-2">
-                  Topic
-                  {getSortIcon('category')}
-                </div>
-              </TableHead>
-              <TableHead className="w-[100px]">Progress</TableHead>
-              <TableHead 
-                className="w-[100px] cursor-pointer"
-                onClick={() => handleSort('status')}
-              >
-                <div className="flex items-center gap-2">
-                  Status
-                  {getSortIcon('status')}
-                </div>
-              </TableHead>
-              <TableHead className="w-[120px]">Actions</TableHead>
+              <TableHead>Topic</TableHead>
+              <TableHead>Theme</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredAndSortedCategories.map((category) => {
-              const status = getCompletionStatus(category);
-              const progress = getProgress(category);
-              const isFavorite = favorites[category.id];
-              const isInQueue = queueItems[category.id];
-              
-              return (
-                <TableRow 
-                  key={category.id}
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => setSelectedCategory(category.id)}
-                >
-                  <TableCell className="font-medium break-words">
-                    {category.category}
-                  </TableCell>
-                  <TableCell>
-                    <div className="hidden sm:flex items-center gap-4">
-                      <Progress 
-                        value={progress} 
-                        className="h-2 w-[100px]"
-                        style={{ '--progress-foreground': '#1B4332' } as React.CSSProperties}
-                      />
-                      <span className="text-sm text-gray-600 min-w-[40px]">
-                        {progress}%
-                      </span>
-                    </div>
-                    <div className="sm:hidden">
-                      <span className="text-sm text-gray-600">
-                        {progress}%
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(status)}
-                      <span className="text-sm">{getStatusText(status)}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-10 w-10"
-                              onClick={() => handleFavoriteToggle(category.id)}
-                            >
-                              <Star className={cn(
-                                "h-5 w-5",
-                                isFavorite ? "fill-[#1B4332] text-[#1B4332]" : "text-gray-400"
-                              )} />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{isFavorite ? 'Remove from favorites' : 'Add to favorites'}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-10 w-10"
-                              onClick={() => handleQueueToggle(category.id)}
-                            >
-                              <ListPlus className={cn(
-                                "h-5 w-5",
-                                isInQueue ? "text-[#1B4332]" : "text-gray-400"
-                              )} />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{isInQueue ? 'Remove from queue' : 'Add to queue'}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+            {filteredCategories.map((category) => (
+              <TableRow key={category.id}>
+                <TableCell>
+                  <div>
+                    <h3 className="font-medium">{category.category}</h3>
+                    <p className="text-sm text-gray-500">{category.description}</p>
+                  </div>
+                </TableCell>
+                <TableCell className="text-gray-500">
+                  {formatThemeName(category.theme || '')}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={category.prompts.some(p => p.videos.length > 0) ? "default" : "secondary"}>
+                    {getCompletionStatus(category)}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-4">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleFavorite(category.id)}
+                    >
+                      {favorites.includes(category.id) ? '★' : '☆'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleQueue(category.id)}
+                    >
+                      {queued.includes(category.id) ? '📋' : '➕'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => router.push(`/role-sharer/topics/${category.id}`)}
+                    >
+                      View
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </div>
-
-      <Dialog open={!!selectedCategory} onOpenChange={() => setSelectedCategory(null)}>
-        <DialogContent className="max-h-[90vh] flex flex-col [&>button]:z-50">
-          <div className="sticky top-0 bg-white border-b z-10">
-            <DialogHeader className="py-4">
-              <DialogTitle>
-                {promptCategories?.find(c => c.id === selectedCategory)?.category} Prompts
-              </DialogTitle>
-              <p className="text-sm text-gray-500 mt-2">
-                {promptCategories?.find(c => c.id === selectedCategory)?.description}
-              </p>
-            </DialogHeader>
-          </div>
-          <div className="overflow-y-auto flex-1">
-            <div className="grid gap-4 py-4">
-              {promptCategories
-                ?.find(c => c.id === selectedCategory)
-                ?.prompts
-                .sort((a, b) => {
-                  // Sort isContextEstablishing=true prompts first
-                  if (a.isContextEstablishing && !b.isContextEstablishing) return -1;
-                  if (!a.isContextEstablishing && b.isContextEstablishing) return 1;
-                  return 0;
-                })
-                .map((prompt, index) => (
-                  <div
-                    key={prompt.id || index}
-                    className={cn(
-                      "grid grid-cols-[auto,1fr,auto] items-center gap-4 p-3 rounded-md transition-colors",
-                      prompt.promptResponses[0] ? "text-gray-500 bg-gray-50" : "hover:bg-gray-100 cursor-pointer"
-                    )}
-                  >
-                    <span className="text-sm font-medium text-gray-400">{index + 1}.</span>
-                    <p className="text-sm">{prompt.promptText || 'Untitled Prompt'}</p>
-                    {prompt.promptResponses[0] ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-10 w-10"
-                        onClick={() => {
-                          if (prompt.promptResponses[0]?.id) {
-                            router.push(`/role-sharer/dashboard/prompt-response/${prompt.promptResponses[0].id}`);
-                          } else {
-                            setError('Unable to view response: Response ID is missing');
-                          }
-                        }}
-                      >
-                        <Play className="h-5 w-5 text-[#1B4332]" />
-                      </Button>
-                    ) : (
-                      <span className="text-[#1B4332]">New</span>
-                    )}
-                  </div>
-                ))}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {error && <div className="text-red-500 mt-2 text-sm text-center">{error}</div>}
     </div>
   );
 }

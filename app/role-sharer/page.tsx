@@ -1,27 +1,132 @@
 // app/role-sharer/page.tsx
-// This component fetches and displays prompt categories, a random prompt, and sharer information on the dashboard.
-
-import Header from '@/components/Header';
-import { fetchPromptCategories, fetchRandomPrompt, fetchSharer } from '@/lib/data-fetching';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/utils/supabase/server';
 import TopicsList from '@/components/TopicsList';
 import RandomPrompt from '@/components/RandomPrompt';
 import TopicsAllButton from '@/components/TopicsAllButton';
+import { PromptCategory } from '@/types/models';
 
 export default async function SharerPage() {
+  const supabase = createClient();
+  
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !user) {
+    redirect('/login');
+  }
+
+  // Verify user has SHARER role
+  const { data: roles } = await supabase
+    .from('ProfileRole')
+    .select('role')
+    .eq('profileId', user.id);
+
+  if (!roles?.some(r => r.role === 'SHARER')) {
+    redirect('/select-role');
+  }
+
   try {
-    const [
-      promptCategoriesResult,
-      sharerResult,
-      randomPromptResult
-    ] = await Promise.allSettled([
-      fetchPromptCategories(),
-      fetchSharer(),
-      fetchRandomPrompt()
+    console.log('[SERVER] Fetching data for user:', user.id);
+
+    // First, get the user's favorites and queue items
+    const [{ data: favorites }, { data: queueItems }] = await Promise.all([
+      supabase
+        .from('TopicFavorite')
+        .select('promptCategoryId')
+        .eq('profileId', user.id),
+      supabase
+        .from('TopicQueueItem')
+        .select('promptCategoryId')
+        .eq('profileId', user.id)
     ]);
 
-    const promptCategories = promptCategoriesResult.status === 'fulfilled' ? promptCategoriesResult.value : [];
-    const sharer = sharerResult.status === 'fulfilled' ? sharerResult.value : null;
-    const randomPrompt = randomPromptResult.status === 'fulfilled' ? randomPromptResult.value : null;
+    console.log('[SERVER] User preferences:', {
+      favorites: favorites?.map(f => f.promptCategoryId),
+      queueItems: queueItems?.map(q => q.promptCategoryId)
+    });
+
+    // Create Sets for efficient lookup
+    const favoritedIds = new Set(favorites?.map(f => f.promptCategoryId) || []);
+    const queuedIds = new Set(queueItems?.map(q => q.promptCategoryId) || []);
+
+    // Fetch prompt categories with proper data transformation
+    const { data: promptCategories, error: categoriesError } = await supabase
+      .from('PromptCategory')
+      .select(`
+        id,
+        category,
+        description,
+        theme,
+        Prompt:Prompt (
+          id,
+          promptText,
+          promptType,
+          isContextEstablishing,
+          promptCategoryId,
+          Video:Video (
+            id
+          ),
+          PromptResponse:PromptResponse (
+            id
+          )
+        )
+      `)
+      .order('category');
+
+    if (categoriesError) throw categoriesError;
+
+    console.log('[SERVER] Raw categories:', promptCategories);
+
+    // Transform the data to match the PromptCategory type
+    const transformedCategories: PromptCategory[] = promptCategories.map(category => ({
+      id: category.id,
+      category: category.category,
+      description: category.description,
+      theme: category.theme,
+      isFavorite: favoritedIds.has(category.id),
+      isInQueue: queuedIds.has(category.id),
+      prompts: category.Prompt.map(prompt => ({
+        id: prompt.id,
+        promptText: prompt.promptText,
+        promptType: prompt.promptType,
+        isContextEstablishing: prompt.isContextEstablishing,
+        promptCategoryId: prompt.promptCategoryId,
+        videos: (prompt.Video || []).map(video => ({
+          id: video.id,
+          profileSharerId: '',
+          muxPlaybackId: '',
+          duration: 0,
+          promptResponses: [],
+          profileSharer: null,
+          viewedBy: []
+        })),
+        promptResponses: (prompt.PromptResponse || []).map(response => ({
+          id: response.id,
+          profileSharerId: '',
+          videoId: '',
+          responseText: '',
+          privacyLevel: ''
+        }))
+      }))
+    }));
+
+    console.log('[SERVER] Transformed categories:', transformedCategories.map(c => ({
+      id: c.id,
+      category: c.category,
+      isFavorite: c.isFavorite,
+      isInQueue: c.isInQueue
+    })));
+
+    // Fetch random prompt
+    const { data: randomPrompt, error: promptError } = await supabase
+      .from('Prompt')
+      .select('*')
+      .limit(1)
+      .single();
+
+    if (promptError && promptError.code !== 'PGRST116') {
+      throw promptError;
+    }
 
     return (
       <div className="container mx-auto px-4 py-8">
@@ -30,7 +135,7 @@ export default async function SharerPage() {
           <TopicsAllButton />
         </div>
         
-        {promptCategories.length === 0 && !randomPrompt && (
+        {(!transformedCategories || transformedCategories.length === 0) && !randomPrompt && (
           <div className="text-center py-8">
             <p className="text-lg text-gray-600">
               No data available at the moment. Please try again later.
@@ -38,9 +143,9 @@ export default async function SharerPage() {
           </div>
         )}
 
-        {promptCategories.length > 0 && (
+        {transformedCategories && transformedCategories.length > 0 && (
           <div className="mb-8">
-            <TopicsList promptCategories={promptCategories} />
+            <TopicsList promptCategories={transformedCategories} />
           </div>
         )}
 
@@ -52,7 +157,7 @@ export default async function SharerPage() {
       </div>
     );
   } catch (error) {
-    console.error('Dashboard - Unexpected error:', error);
+    console.error('[SERVER] Dashboard - Unexpected error:', error);
     return (
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">Sharer Dashboard</h1>

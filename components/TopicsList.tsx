@@ -17,10 +17,11 @@ import 'swiper/css/mousewheel';
 import 'swiper/css/bundle';
 import { useWindowSize } from '@/hooks/useWindowSize';
 
-export default function TopicsList({ promptCategories }: { promptCategories: PromptCategory[] }) {
+export default function TopicsList({ promptCategories: initialPromptCategories }: { promptCategories: PromptCategory[] }) {
   const { width } = useWindowSize();
   const [slidesPerView, setSlidesPerView] = useState(3);
   const [randomSuggestedTopics, setRandomSuggestedTopics] = useState<PromptCategory[]>([]);
+  const [promptCategories, setPromptCategories] = useState(initialPromptCategories);
 
   useEffect(() => {
     // Update slides per view based on screen width
@@ -43,7 +44,27 @@ export default function TopicsList({ promptCategories }: { promptCategories: Pro
     // Shuffle array and take 9 items
     const shuffled = [...unrespondedTopics].sort(() => Math.random() - 0.5);
     setRandomSuggestedTopics(shuffled.slice(0, 9));
-  }, [promptCategories]);
+  }, []);  // Only run once on mount, don't re-shuffle when categories update
+
+  // Function to update a category's favorite/queue status
+  const updateCategoryStatus = (categoryId: string, updates: { isFavorite?: boolean; isInQueue?: boolean }) => {
+    setPromptCategories(prevCategories => 
+      prevCategories.map(category => 
+        category.id === categoryId
+          ? { ...category, ...updates }
+          : category
+      )
+    );
+
+    // Also update the status in randomSuggestedTopics if the category exists there
+    setRandomSuggestedTopics(prevTopics =>
+      prevTopics.map(category =>
+        category.id === categoryId
+          ? { ...category, ...updates }
+          : category
+      )
+    );
+  };
 
   const renderTopicSection = (title: string, filteredCategories: PromptCategory[]) => (
     <section className="space-y-4">
@@ -74,8 +95,14 @@ export default function TopicsList({ promptCategories }: { promptCategories: Pro
           className="!overflow-visible"
         >
           {filteredCategories.map((category) => (
-            <SwiperSlide key={category.id || category.category}>
-              <TopicCard promptCategory={category} />
+            <SwiperSlide key={category.id}>
+              <TopicCard 
+                promptCategory={category} 
+                onStateChange={(updates) => {
+                  console.log('TopicsList - State change received:', { categoryId: category.id, updates });
+                  updateCategoryStatus(category.id, updates);
+                }}
+              />
             </SwiperSlide>
           ))}
           <div className="swiper-button-prev"></div>

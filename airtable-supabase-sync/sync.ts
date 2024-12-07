@@ -32,6 +32,28 @@ async function fetchAirtableRecords(tableName: string): Promise<AirtableRecord[]
   }
 }
 
+function mapAirtableThemeToEnum(airtableTheme: string | null): string | null {
+  if (!airtableTheme) return null;
+  
+  const themeMap: { [key: string]: string } = {
+    'Life Experiences': 'LIFE_EXPERIENCES',
+    'Health and Well-being': 'HEALTH_AND_WELLBEING',
+    'Wellbeing': 'WELLBEING',
+    'Business': 'BUSINESS',
+    'Food': 'FOOD',
+    'Custom': 'CUSTOM',
+    'Values and Beliefs': 'VALUES_AND_BELIEFS',
+    'Personal History': 'PERSONAL_HISTORY',
+    'Career and Education': 'CAREER_AND_EDUCATION',
+    'Challenges and Resilience': 'CHALLENGES_AND_RESILIENCE',
+    'Relationships and Community': 'RELATIONSHIPS_AND_COMMUNITY',
+    'Hobbies and Interests': 'HOBBIES_AND_INTERESTS',
+    'Cultural and Heritage': 'CULTURAL_AND_HERITAGE'
+  };
+
+  return themeMap[airtableTheme] || null;
+}
+
 async function syncPromptCategories() {
   const airtableRecords = await fetchAirtableRecords('Prompt Categories');
 
@@ -40,10 +62,14 @@ async function syncPromptCategories() {
       where: { airtableId: record.id },
     });
 
+    const airtableTheme = record.fields.Themes_Enum || null;
+    const mappedTheme = mapAirtableThemeToEnum(airtableTheme);
+
     const categoryData = {
       airtableId: record.id,
       category: record.fields.Category || 'Uncategorized',
       description: record.fields.Description || null,
+      theme: mappedTheme,
       updatedAt: new Date(),
     };
 

@@ -1,7 +1,27 @@
 import React from 'react';
 import Header from '@/components/Header';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/utils/supabase/server';
 
-export default function ExecutorProfilePage() {
+export default async function ExecutorProfilePage() {
+  const supabase = createClient();
+  
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !user) {
+    redirect('/login');
+  }
+
+  // Verify user has EXECUTOR role
+  const { data: roles } = await supabase
+    .from('ProfileRole')
+    .select('role')
+    .eq('profileId', user.id);
+
+  if (!roles?.some(r => r.role === 'EXECUTOR')) {
+    redirect('/select-role');
+  }
+
   return (
     <>
       <Header />
