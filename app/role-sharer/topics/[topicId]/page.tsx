@@ -1,8 +1,5 @@
-import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getPromptCategory } from "@/lib/api/prompts";
+import { createClient } from '@/utils/supabase/server';
+import { notFound, redirect } from "next/navigation";
 import TopicsTableAll from "@/components/TopicsTableAll";
 
 interface TopicPageProps {
@@ -12,40 +9,70 @@ interface TopicPageProps {
 }
 
 export default async function TopicPage({ params }: TopicPageProps) {
-  const category = await getPromptCategory(params.topicId);
+  const supabase = createClient();
 
-  if (!category) {
+  // Check authentication and role
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !user) {
+    redirect('/login');
+  }
+
+  // Verify user has SHARER role
+  const { data: roles } = await supabase
+    .from('ProfileRole')
+    .select('role')
+    .eq('profileId', user.id);
+
+  if (!roles?.some(r => r.role === 'SHARER')) {
+    redirect('/select-role');
+  }
+
+  // Fetch topic details
+  const { data: promptCategory, error: fetchError } = await supabase
+    .from('PromptCategory')
+    .select(`
+      id,
+      category,
+      description,
+      theme,
+      Prompt:Prompt (
+        id,
+        promptText,
+        promptType,
+        isContextEstablishing,
+        promptCategoryId,
+        Video:Video (
+          id
+        ),
+        PromptResponse:PromptResponse (
+          id
+        )
+      )
+    `)
+    .eq('id', params.topicId)
+    .single();
+
+  if (fetchError) {
+    console.error('Error fetching topic:', fetchError);
     notFound();
   }
 
-  return (
-    <div className="min-h-screen bg-white">
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mb-4"
-            asChild
-          >
-            <Link href="/role-sharer">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Topics
-            </Link>
-          </Button>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {category.category}
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {category.description}
-          </p>
-        </div>
+  // Transform the data to match the expected format
+  const transformedCategory = {
+    ...promptCategory,
+    prompts: promptCategory.Prompt.map(prompt => ({
+      ...prompt,
+      videos: prompt.Video || [],
+      promptResponses: prompt.PromptResponse || []
+    }))
+  };
 
-        <TopicsTableAll 
-          prompts={category.prompts} 
-          categoryId={category.id}
-        />
-      </main>
+  return (
+    <div className="container mx-auto py-8">
+      <h1 className="text-3xl font-bold mb-6">{transformedCategory.category}</h1>
+      <p className="text-gray-600 mb-8">{transformedCategory.description}</p>
+      <TopicsTableAll promptCategories={[transformedCategory]} />
     </div>
   );
 }

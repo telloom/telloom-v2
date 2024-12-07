@@ -26,7 +26,18 @@ const nextConfig = {
     MUX_WEBHOOK_SIGNING_SECRET: process.env.MUX_WEBHOOK_SIGNING_SECRET,
   },
   images: {
-    domains: ['via.placeholder.com'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: `${process.env.NEXT_PUBLIC_SUPABASE_URL}`.replace('https://', ''),
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.mux.com',
+        pathname: '/**',
+      },
+    ],
   },
 };
 

@@ -88,14 +88,51 @@ ALTER TABLE "ProfileSharer" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "TopicFavorite" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "TopicQueueItem" ENABLE ROW LEVEL SECURITY;
 
--- Create basic policies for authenticated users
-CREATE POLICY "authenticated_access" ON "Profile" FOR ALL TO authenticated USING (true);
-CREATE POLICY "authenticated_access" ON "ProfileRole" FOR ALL TO authenticated USING (true);
-CREATE POLICY "authenticated_access" ON "Prompt" FOR ALL TO authenticated USING (true);
-CREATE POLICY "authenticated_access" ON "PromptCategory" FOR ALL TO authenticated USING (true);
-CREATE POLICY "authenticated_access" ON "PromptResponse" FOR ALL TO authenticated USING (true);
-CREATE POLICY "authenticated_access" ON "Video" FOR ALL TO authenticated USING (true);
-CREATE POLICY "authenticated_access" ON "ProfileSharer" FOR ALL TO authenticated USING (true);
+-- Drop existing policies
+DROP POLICY IF EXISTS "authenticated_access" ON "Profile";
+DROP POLICY IF EXISTS "authenticated_access" ON "ProfileRole";
+DROP POLICY IF EXISTS "authenticated_access" ON "PromptCategory";
+DROP POLICY IF EXISTS "authenticated_access" ON "Prompt";
+DROP POLICY IF EXISTS "authenticated_access" ON "PromptResponse";
+DROP POLICY IF EXISTS "authenticated_access" ON "Video";
+DROP POLICY IF EXISTS "authenticated_access" ON "ProfileSharer";
+
+-- Create proper policies for Profile
+CREATE POLICY "Users can view own profile"
+ON "Profile"
+FOR SELECT
+USING (auth.uid() = id);
+
+CREATE POLICY "Users can update own profile"
+ON "Profile" 
+FOR UPDATE
+USING (auth.uid() = id);
+
+CREATE POLICY "Users can insert own profile"
+ON "Profile"
+FOR INSERT
+WITH CHECK (auth.uid() = id);
+
+-- Create proper policies for ProfileRole
+CREATE POLICY "Users can view own roles"
+ON "ProfileRole"
+FOR SELECT
+USING (auth.uid()::text = "profileId"::text);
+
+CREATE POLICY "Users can insert own roles"
+ON "ProfileRole"
+FOR INSERT
+WITH CHECK (auth.uid()::text = "profileId"::text);
+
+CREATE POLICY "Users can update own roles"
+ON "ProfileRole"
+FOR UPDATE
+USING (auth.uid()::text = "profileId"::text);
+
+CREATE POLICY "Users can delete own roles"
+ON "ProfileRole"
+FOR DELETE
+USING (auth.uid()::text = "profileId"::text);
 
 -- Create policies for favorites
 CREATE POLICY "users_can_read_own_favorites" ON "TopicFavorite"
@@ -142,4 +179,214 @@ AND tablename IN (
     'TopicFavorite',
     'TopicQueueItem'
 );
+
+-- Grant usage on schema
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT USAGE ON SCHEMA public TO anon;
+
+-- Grant table permissions
+GRANT ALL ON "Profile" TO authenticated;
+GRANT ALL ON "ProfileRole" TO authenticated;
+GRANT SELECT ON "PromptCategory" TO authenticated;
+GRANT SELECT ON "Prompt" TO authenticated;
+GRANT ALL ON "PromptResponse" TO authenticated;
+GRANT ALL ON "Video" TO authenticated;
+GRANT ALL ON "ProfileSharer" TO authenticated;
+GRANT ALL ON "TopicFavorite" TO authenticated;
+GRANT ALL ON "TopicQueueItem" TO authenticated;
+
+-- Enable RLS
+ALTER TABLE "Profile" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "ProfileRole" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "PromptCategory" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Prompt" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "PromptResponse" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Video" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "ProfileSharer" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "TopicFavorite" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "TopicQueueItem" ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies
+DROP POLICY IF EXISTS "authenticated_access" ON "Profile";
+DROP POLICY IF EXISTS "authenticated_access" ON "ProfileRole";
+DROP POLICY IF EXISTS "authenticated_access" ON "PromptCategory";
+DROP POLICY IF EXISTS "authenticated_access" ON "Prompt";
+DROP POLICY IF EXISTS "authenticated_access" ON "PromptResponse";
+DROP POLICY IF EXISTS "authenticated_access" ON "Video";
+DROP POLICY IF EXISTS "authenticated_access" ON "ProfileSharer";
+
+-- Create proper policies for Profile
+CREATE POLICY "Users can view own profile"
+ON "Profile"
+FOR SELECT
+USING (auth.uid() = id);
+
+CREATE POLICY "Users can update own profile"
+ON "Profile" 
+FOR UPDATE
+USING (auth.uid() = id);
+
+CREATE POLICY "Users can insert own profile"
+ON "Profile"
+FOR INSERT
+WITH CHECK (auth.uid() = id);
+
+-- Create proper policies for ProfileRole
+CREATE POLICY "Users can view own roles"
+ON "ProfileRole"
+FOR SELECT
+USING (auth.uid()::text = "profileId"::text);
+
+CREATE POLICY "Users can insert own roles"
+ON "ProfileRole"
+FOR INSERT
+WITH CHECK (auth.uid()::text = "profileId"::text);
+
+CREATE POLICY "Users can update own roles"
+ON "ProfileRole"
+FOR UPDATE
+USING (auth.uid()::text = "profileId"::text);
+
+CREATE POLICY "Users can delete own roles"
+ON "ProfileRole"
+FOR DELETE
+USING (auth.uid()::text = "profileId"::text);
+
+-- Create policies for PromptCategory
+CREATE POLICY "Anyone can view prompt categories"
+ON "PromptCategory"
+FOR SELECT
+TO authenticated
+USING (true);
+
+-- Create policies for Prompt
+CREATE POLICY "Anyone can view prompts"
+ON "Prompt"
+FOR SELECT
+TO authenticated
+USING (true);
+
+-- Create policies for PromptResponse
+CREATE POLICY "Users can manage own prompt responses"
+ON "PromptResponse"
+FOR ALL
+USING (auth.uid()::text = "profileId"::text);
+
+-- Create policies for Video
+CREATE POLICY "Users can manage own videos"
+ON "Video"
+FOR ALL
+USING (auth.uid()::text = "profileId"::text);
+
+-- Create policies for ProfileSharer
+CREATE POLICY "Users can manage own sharer profile"
+ON "ProfileSharer"
+FOR ALL
+USING (auth.uid()::text = "profileId"::text);
+
+-- Enable RLS
+ALTER TABLE "public"."TopicFavorite" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."TopicQueueItem" ENABLE ROW LEVEL SECURITY;
+
+-- First drop all duplicate policies
+DROP POLICY IF EXISTS "Users can view their own favorites" ON "TopicFavorite";
+DROP POLICY IF EXISTS "Users can create their own favorites" ON "TopicFavorite";
+DROP POLICY IF EXISTS "Users can delete their own favorites" ON "TopicFavorite";
+DROP POLICY IF EXISTS "users_can_read_own_favorites" ON "TopicFavorite";
+DROP POLICY IF EXISTS "users_can_insert_own_favorites" ON "TopicFavorite";
+DROP POLICY IF EXISTS "users_can_delete_own_favorites" ON "TopicFavorite";
+
+DROP POLICY IF EXISTS "Users can view their own queue items" ON "TopicQueueItem";
+DROP POLICY IF EXISTS "Users can create their own queue items" ON "TopicQueueItem";
+DROP POLICY IF EXISTS "Users can delete their own queue items" ON "TopicQueueItem";
+DROP POLICY IF EXISTS "users_can_read_own_queue_items" ON "TopicQueueItem";
+DROP POLICY IF EXISTS "users_can_insert_own_queue_items" ON "TopicQueueItem";
+DROP POLICY IF EXISTS "users_can_delete_own_queue_items" ON "TopicQueueItem";
+
+-- Then create fresh policies with unique names
+-- TopicFavorite Policies
+CREATE POLICY "enable_select_for_favorites"
+ON "public"."TopicFavorite"
+FOR SELECT
+TO authenticated
+USING (auth.uid() = "profileId");
+
+CREATE POLICY "enable_insert_for_favorites"
+ON "public"."TopicFavorite"
+FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = "profileId");
+
+CREATE POLICY "enable_delete_for_favorites"
+ON "public"."TopicFavorite"
+FOR DELETE
+TO authenticated
+USING (auth.uid() = "profileId");
+
+-- TopicQueueItem Policies
+CREATE POLICY "enable_select_for_queue"
+ON "public"."TopicQueueItem"
+FOR SELECT
+TO authenticated
+USING (auth.uid() = "profileId");
+
+CREATE POLICY "enable_insert_for_queue"
+ON "public"."TopicQueueItem"
+FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = "profileId");
+
+CREATE POLICY "enable_delete_for_queue"
+ON "public"."TopicQueueItem"
+FOR DELETE
+TO authenticated
+USING (auth.uid() = "profileId");
+
+-- First, ensure the tables have the correct permissions
+GRANT ALL ON "TopicFavorite" TO authenticated;
+GRANT ALL ON "TopicQueueItem" TO authenticated;
+
+-- Then verify RLS is enabled
+ALTER TABLE "public"."TopicFavorite" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."TopicQueueItem" ENABLE ROW LEVEL SECURITY;
+
+-- Drop and recreate policies with simpler conditions
+DROP POLICY IF EXISTS "enable_select_for_favorites" ON "TopicFavorite";
+DROP POLICY IF EXISTS "enable_insert_for_favorites" ON "TopicFavorite";
+DROP POLICY IF EXISTS "enable_delete_for_favorites" ON "TopicFavorite";
+
+CREATE POLICY "enable_select_for_favorites"
+ON "public"."TopicFavorite"
+FOR SELECT TO authenticated
+USING (true);
+
+CREATE POLICY "enable_insert_for_favorites"
+ON "public"."TopicFavorite"
+FOR INSERT TO authenticated
+WITH CHECK (auth.uid()::text = "profileId"::text);
+
+CREATE POLICY "enable_delete_for_favorites"
+ON "public"."TopicFavorite"
+FOR DELETE TO authenticated
+USING (auth.uid()::text = "profileId"::text);
+
+-- Same for queue items
+DROP POLICY IF EXISTS "enable_select_for_queue" ON "TopicQueueItem";
+DROP POLICY IF EXISTS "enable_insert_for_queue" ON "TopicQueueItem";
+DROP POLICY IF EXISTS "enable_delete_for_queue" ON "TopicQueueItem";
+
+CREATE POLICY "enable_select_for_queue"
+ON "public"."TopicQueueItem"
+FOR SELECT TO authenticated
+USING (true);
+
+CREATE POLICY "enable_insert_for_queue"
+ON "public"."TopicQueueItem"
+FOR INSERT TO authenticated
+WITH CHECK (auth.uid()::text = "profileId"::text);
+
+CREATE POLICY "enable_delete_for_queue"
+ON "public"."TopicQueueItem"
+FOR DELETE TO authenticated
+USING (auth.uid()::text = "profileId"::text);
   

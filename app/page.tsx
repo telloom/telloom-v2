@@ -1,73 +1,38 @@
 // app/page.tsx
-import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
-import RoleSelection from '@/components/RoleSelection';
-import Header from '@/components/Header';
+import { createClient } from '@/utils/supabase/server';
 
 export default async function HomePage() {
   const supabase = createClient();
   
-  // Check authentication
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  // Use getUser instead of getSession for better security
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !user) {
     redirect('/login');
   }
 
-  try {
-    // Check user roles
-    const { data: roleData, error: roleError } = await supabase
-      .from('ProfileRole')
-      .select('role')
-      .eq('profileId', user.id);
+  // Check user's role to determine where to redirect them
+  const { data: roles } = await supabase
+    .from('ProfileRole')
+    .select('role')
+    .eq('profileId', user.id);
 
-    if (roleError) {
-      console.error('Role check failed:', roleError);
-      return (
-        <>
-          <Header />
-          <RoleSelection />
-        </>
-      );
-    }
-
-    // If user has no roles, show role selection
-    if (!roleData || roleData.length === 0) {
-      return (
-        <>
-          <Header />
-          <RoleSelection />
-        </>
-      );
-    }
-
-    // If user has SHARER role, redirect to sharer dashboard
-    if (roleData.some(r => r.role === 'SHARER')) {
-      redirect('/role-sharer');
-    }
-
-    // If user has LISTENER role, redirect to listener dashboard
-    if (roleData.some(r => r.role === 'LISTENER')) {
-      redirect('/role-listener');
-    }
-
-    // Default to role selection if no specific role is found
-    return (
-      <>
-        <Header />
-        <RoleSelection />
-      </>
-    );
-  } catch (error) {
-    console.error('Unexpected error:', error);
-    return (
-      <>
-        <Header />
-        <RoleSelection />
-      </>
-    );
+  if (!roles || roles.length === 0) {
+    redirect('/select-role');
   }
+
+  // Redirect based on role
+  if (roles.some(r => r.role === 'SHARER')) {
+    redirect('/role-sharer');
+  } else if (roles.some(r => r.role === 'LISTENER')) {
+    redirect('/role-listener');
+  } else if (roles.some(r => r.role === 'EXECUTOR')) {
+    redirect('/role-executor');
+  } else if (roles.some(r => r.role === 'ADMIN')) {
+    redirect('/role-admin');
+  }
+
+  // If no matching role, redirect to role selection
+  redirect('/select-role');
 }

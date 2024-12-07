@@ -1,5 +1,5 @@
 // app/sharer/dashboard/page.tsx
-import { withRole } from '@/app/_utils/withRole'
+import { withRole } from '@/utils/supabase/withRole'
 
 export default async function SharerDashboardPage() {
   return await withRole(['Sharer'], async (supabase, user) => {

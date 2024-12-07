@@ -1,26 +1,19 @@
 // app/(auth)/login/page.tsx
 
-import { createClient } from '@/utils/supabase/server';
+import { getUser } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import Login from '@/components/Login';
-import { Suspense } from 'react';
 
 export default async function LoginPage() {
-  const supabase = createClient();
+  const { user, error } = await getUser();
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (session) {
+  if (user && !error) {
     redirect('/');
   }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center py-2">
-      <Suspense fallback={<div>Loading...</div>}>
-        <Login />
-      </Suspense>
+      <Login />
     </div>
   );
 }

@@ -1,9 +1,9 @@
 // app/role-sharer/layout.tsx
 // This layout component ensures that the user is authenticated and has the SHARER role before rendering the children components.
 
-import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import Header from '@/components/Header';
+import { createClient } from '@/utils/supabase/server';
 
 export default async function SharerLayout({
   children,
@@ -11,23 +11,16 @@ export default async function SharerLayout({
   children: React.ReactNode;
 }) {
   const supabase = createClient();
+  
+  // Use getUser instead of getSession for better security
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !user) {
+    console.log('No authenticated user found, redirecting to login');
+    redirect('/login');
+  }
 
   try {
-    // Check authentication
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    console.log('SharerLayout - auth check:', { 
-      userId: user?.id,
-      error: authError 
-    });
-
-    if (authError || !user) {
-      redirect('/login');
-    }
-
     // Check if user has SHARER role
     const { data: roleData, error: roleError } = await supabase
       .from('ProfileRole')
@@ -36,37 +29,17 @@ export default async function SharerLayout({
       .eq('role', 'SHARER')
       .single();
 
-    console.log('SharerLayout - role check:', {
-      roleData,
-      roleError
-    });
+    if (roleError) {
+      console.error('Error checking SHARER role:', roleError);
+      redirect('/select-role');
+    }
 
-    // For now, allow access even without the role
-    // if (!roleData || roleError) {
-    //   redirect('/');
-    // }
+    if (!roleData) {
+      console.log('User does not have SHARER role');
+      redirect('/select-role');
+    }
 
-    // Debug queries
-    const promptQuery = await supabase
-      .from('Prompt')
-      .select('*')
-      .limit(1);
-
-    const categoryQuery = await supabase
-      .from('PromptCategory')
-      .select('*')
-      .limit(1);
-
-    console.log('SharerLayout - debug queries:', {
-      prompt: {
-        data: promptQuery.data,
-        error: promptQuery.error
-      },
-      category: {
-        data: categoryQuery.data,
-        error: categoryQuery.error
-      }
-    });
+    console.log('SHARER role verified for user');
 
     return (
       <>
@@ -76,6 +49,6 @@ export default async function SharerLayout({
     );
   } catch (error) {
     console.error('Unexpected error in SharerLayout:', error);
-    redirect('/');
+    redirect('/login');
   }
 }
