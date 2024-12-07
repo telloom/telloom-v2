@@ -24,7 +24,7 @@ export default function PromptListPopup({ promptCategory, isOpen, onClose }: Pro
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl h-[80vh] flex flex-col p-0 gap-0">
-        <div className="sticky top-0 bg-background border-b z-20 px-6 py-4">
+        <div className="sticky top-0 bg-background rounded-t-lg border-b z-20 px-6 py-4">
           <div className="flex items-start justify-between">
             <div className="space-y-1.5">
               <DialogTitle>{promptCategory.category}</DialogTitle>

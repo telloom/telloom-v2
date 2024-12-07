@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import TopicsTableAll from '@/components/TopicsTableAll';
+import BackButton from '@/components/BackButton';
 
 export default async function SharerTopicsPage() {
   const supabase = createClient();
@@ -63,6 +64,7 @@ export default async function SharerTopicsPage() {
 
     return (
       <div className="container mx-auto px-4 py-8">
+        <BackButton href="/role-sharer" />
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">All Topics</h1>
         </div>

@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 export default function ViewAllTopicsButton() {
   return (
-    <Link href="/role-sharer/all-topics">
+    <Link href="/role-sharer/topics">
       <Button className="bg-[#1B4332] hover:bg-[#1B4332]/90 text-white">
         View All Topics
       </Button>
