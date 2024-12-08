@@ -192,7 +192,15 @@ export default function TopicCard({ promptCategory, onStateChange }: TopicCardPr
 
   return (
     <>
-      <Card className="hover:shadow-lg transition-shadow h-[150px] flex flex-col">
+      <Card 
+        className="w-full h-[150px] border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 relative flex flex-col rounded-2xl"
+        onClick={(e) => {
+          // Only show prompts if not clicking on the action buttons
+          if (!(e.target as HTMLElement).closest('button')) {
+            setIsPromptListOpen(true);
+          }
+        }}
+      >
         <CardHeader className="pb-3">
           <div className="flex justify-between items-start">
             <CardTitle className="text-xl line-clamp-2 min-h-[3rem]">{promptCategory.category}</CardTitle>
@@ -204,7 +212,7 @@ export default function TopicCard({ promptCategory, onStateChange }: TopicCardPr
                       variant="ghost"
                       size="icon"
                       onClick={handleFavoriteToggle}
-                      className="h-9 w-9 p-0 hover:bg-transparent"
+                      className="h-9 w-9 p-0 hover:bg-transparent rounded-full"
                     >
                       <svg 
                         width="20" 
@@ -239,7 +247,7 @@ export default function TopicCard({ promptCategory, onStateChange }: TopicCardPr
                       variant="ghost"
                       size="icon"
                       onClick={handleQueueToggle}
-                      className="h-9 w-9 p-0 hover:bg-transparent"
+                      className="h-9 w-9 p-0 hover:bg-transparent rounded-full"
                     >
                       <svg 
                         width="20" 
@@ -277,16 +285,15 @@ export default function TopicCard({ promptCategory, onStateChange }: TopicCardPr
             </Badge>
             <div className="flex gap-2">
               <Button
-                variant="outline"
-                size="sm"
+                variant="ghost"
                 onClick={() => setIsPromptListOpen(true)}
+                className="text-gray-500 hover:text-[#1B4332] hover:bg-transparent rounded-full"
               >
                 View Prompts
               </Button>
               <Button
-                variant="default"
-                size="sm"
                 onClick={() => router.push(`/role-sharer/topics/${promptCategory.id}`)}
+                className="bg-[#1B4332] hover:bg-[#1B4332]/90 text-white rounded-full font-medium"
               >
                 Start Recording →
               </Button>

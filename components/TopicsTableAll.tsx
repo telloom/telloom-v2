@@ -23,18 +23,15 @@ import { Badge } from "@/components/ui/badge";
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { Theme } from '@prisma/client';
-
-export interface TopicsTableAllProps {
-  promptCategories: PromptCategory[];
-}
-
-interface PromptCategory {
-  id: string;
-  category: string | null;
-  description: string | null;
-  theme: Theme | null;
-  prompts: Prompt[];
-}
+import PromptListPopup from './PromptListPopup';
+import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { ArrowRight } from 'lucide-react';
 
 interface Prompt {
   id: string;
@@ -46,15 +43,31 @@ interface Prompt {
   promptResponses: { id: string }[];
 }
 
-export default function TopicsTableAll({ promptCategories }: TopicsTableAllProps) {
+interface PromptCategory {
+  id: string;
+  category: string;
+  description: string | null;
+  theme: Theme | null;
+  prompts: Prompt[];
+  isFavorite?: boolean;
+  isInQueue?: boolean;
+}
+
+interface TopicsTableAllProps {
+  promptCategories: PromptCategory[];
+}
+
+export default function TopicsTableAll({ promptCategories: initialPromptCategories }: TopicsTableAllProps) {
   const router = useRouter();
   const supabase = createClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [viewFilter, setViewFilter] = useState('all');
   const [themeFilter, setThemeFilter] = useState('all');
-  const [favorites, setFavorites] = useState<string[]>([]);
-  const [queued, setQueued] = useState<string[]>([]);
+  const [promptCategories, setPromptCategories] = useState<PromptCategory[]>(initialPromptCategories);
+  const [selectedCategory, setSelectedCategory] = useState<PromptCategory | null>(null);
+  const [isPromptListOpen, setIsPromptListOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadUserPreferences = async () => {
@@ -63,63 +76,149 @@ export default function TopicsTableAll({ promptCategories }: TopicsTableAllProps
 
       const [{ data: favoriteData }, { data: queuedData }] = await Promise.all([
         supabase
-          .from('FavoritePromptCategory')
+          .from('TopicFavorite')
           .select('promptCategoryId')
           .eq('profileId', user.id),
         supabase
-          .from('QueuedPromptCategory')
+          .from('TopicQueueItem')
           .select('promptCategoryId')
           .eq('profileId', user.id),
       ]);
 
-      setFavorites(favoriteData?.map(f => f.promptCategoryId) || []);
-      setQueued(queuedData?.map(q => q.promptCategoryId) || []);
+      const favoriteIds = favoriteData?.map(f => f.promptCategoryId) || [];
+      const queueIds = queuedData?.map(q => q.promptCategoryId) || [];
+
+      setPromptCategories(prev => prev.map(category => ({
+        ...category,
+        isFavorite: favoriteIds.includes(category.id),
+        isInQueue: queueIds.includes(category.id)
+      })));
     };
 
     loadUserPreferences();
-  }, [supabase]);
+  }, [supabase, initialPromptCategories]);
 
   const toggleFavorite = async (promptCategoryId: string) => {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return;
+    try {
+      setError(null);
+      const category = promptCategories.find(c => c.id === promptCategoryId);
+      if (!category) return;
 
-    if (favorites.includes(promptCategoryId)) {
-      await supabase
-        .from('FavoritePromptCategory')
-        .delete()
-        .eq('profileId', user.id)
-        .eq('promptCategoryId', promptCategoryId);
-      setFavorites(prev => prev.filter(id => id !== promptCategoryId));
-    } else {
-      await supabase
-        .from('FavoritePromptCategory')
-        .insert({
-          profileId: user.id,
-          promptCategoryId: promptCategoryId,
-        });
-      setFavorites(prev => [...prev, promptCategoryId]);
+      const newIsFavorite = !category.isFavorite;
+      
+      // Update UI immediately
+      setPromptCategories(prev => prev.map(cat => 
+        cat.id === promptCategoryId 
+          ? { ...cat, isFavorite: newIsFavorite }
+          : cat
+      ));
+      
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error('No authenticated user');
+
+      if (!newIsFavorite) {
+        const { error } = await supabase
+          .from('TopicFavorite')
+          .delete()
+          .eq('profileId', user.id)
+          .eq('promptCategoryId', promptCategoryId);
+
+        if (error) {
+          // Revert UI on error
+          setPromptCategories(prev => prev.map(cat => 
+            cat.id === promptCategoryId 
+              ? { ...cat, isFavorite: !newIsFavorite }
+              : cat
+          ));
+          throw error;
+        }
+      } else {
+        const { error } = await supabase
+          .from('TopicFavorite')
+          .insert({ 
+            profileId: user.id,
+            promptCategoryId 
+          });
+
+        if (error) {
+          // Revert UI on error
+          setPromptCategories(prev => prev.map(cat => 
+            cat.id === promptCategoryId 
+              ? { ...cat, isFavorite: !newIsFavorite }
+              : cat
+          ));
+          throw error;
+        }
+      }
+    } catch (error: any) {
+      if (error.message.includes('auth')) {
+        setError('Please log in to favorite topics');
+      } else {
+        setError('Failed to update favorite status');
+      }
     }
   };
 
   const toggleQueue = async (promptCategoryId: string) => {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return;
+    try {
+      setError(null);
+      const category = promptCategories.find(c => c.id === promptCategoryId);
+      if (!category) return;
 
-    if (queued.includes(promptCategoryId)) {
-      await supabase
-        .from('QueuedPromptCategory')
-        .delete()
-        .eq('profileId', user.id)
-        .eq('promptCategoryId', promptCategoryId);
-      setQueued(prev => prev.filter(id => id !== promptCategoryId));
-    } else {
-      await supabase
-        .from('QueuedPromptCategory')
-        .insert({
-          profileId: user.id,
-          promptCategoryId: promptCategoryId,
-        });
-      setQueued(prev => [...prev, promptCategoryId]);
+      const newIsInQueue = !category.isInQueue;
+
+      // Update UI immediately
+      setPromptCategories(prev => prev.map(cat => 
+        cat.id === promptCategoryId 
+          ? { ...cat, isInQueue: newIsInQueue }
+          : cat
+      ));
+      
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error('No authenticated user');
+
+      if (!newIsInQueue) {
+        const { error } = await supabase
+          .from('TopicQueueItem')
+          .delete()
+          .eq('profileId', user.id)
+          .eq('promptCategoryId', promptCategoryId);
+
+        if (error) {
+          // Revert UI on error
+          setPromptCategories(prev => prev.map(cat => 
+            cat.id === promptCategoryId 
+              ? { ...cat, isInQueue: !newIsInQueue }
+              : cat
+          ));
+          throw error;
+        }
+      } else {
+        const { error } = await supabase
+          .from('TopicQueueItem')
+          .insert({ 
+            profileId: user.id,
+            promptCategoryId 
+          });
+
+        if (error) {
+          // Revert UI on error
+          setPromptCategories(prev => prev.map(cat => 
+            cat.id === promptCategoryId 
+              ? { ...cat, isInQueue: !newIsInQueue }
+              : cat
+          ));
+          throw error;
+        }
+      }
+    } catch (error: any) {
+      if (error.message.includes('auth')) {
+        setError('Please log in to add topics to queue');
+      } else {
+        setError('Failed to update queue status');
+      }
     }
   };
 
@@ -130,8 +229,8 @@ export default function TopicsTableAll({ promptCategories }: TopicsTableAllProps
       (statusFilter === 'completed' && category.prompts.some(p => p.videos.length > 0)) ||
       (statusFilter === 'incomplete' && category.prompts.every(p => p.videos.length === 0));
     const matchesView = viewFilter === 'all' ||
-      (viewFilter === 'favorites' && favorites.includes(category.id)) ||
-      (viewFilter === 'queue' && queued.includes(category.id));
+      (viewFilter === 'favorites' && category.isFavorite) ||
+      (viewFilter === 'queue' && category.isInQueue);
     const matchesTheme = themeFilter === 'all' || category.theme === themeFilter;
 
     return matchesSearch && matchesStatus && matchesView && matchesTheme;
@@ -145,7 +244,7 @@ export default function TopicsTableAll({ promptCategories }: TopicsTableAllProps
 
   const getThemes = () => {
     const themes = new Set<string>();
-    promptCategories?.forEach(category => {
+    promptCategories.forEach(category => {
       if (category.theme) {
         themes.add(category.theme);
       }
@@ -162,16 +261,16 @@ export default function TopicsTableAll({ promptCategories }: TopicsTableAllProps
   };
 
   return (
-    <div className="space-y-4">
+    <div className="w-full space-y-6">
       <div className="flex flex-col sm:flex-row gap-4">
         <Input
           placeholder="Search topics..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="sm:w-1/3"
+          className="sm:w-1/3 border-2 border-[#1B4332] rounded-lg focus-visible:ring-[#8fbc55]"
         />
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="sm:w-1/6">
+          <SelectTrigger className="sm:w-1/6 border-2 border-[#1B4332] rounded-lg focus:ring-[#8fbc55]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -181,7 +280,7 @@ export default function TopicsTableAll({ promptCategories }: TopicsTableAllProps
           </SelectContent>
         </Select>
         <Select value={viewFilter} onValueChange={setViewFilter}>
-          <SelectTrigger className="sm:w-1/6">
+          <SelectTrigger className="sm:w-1/6 border-2 border-[#1B4332] rounded-lg focus:ring-[#8fbc55]">
             <SelectValue placeholder="View" />
           </SelectTrigger>
           <SelectContent>
@@ -191,7 +290,7 @@ export default function TopicsTableAll({ promptCategories }: TopicsTableAllProps
           </SelectContent>
         </Select>
         <Select value={themeFilter} onValueChange={setThemeFilter}>
-          <SelectTrigger className="sm:w-1/6">
+          <SelectTrigger className="sm:w-1/6 border-2 border-[#1B4332] rounded-lg focus:ring-[#8fbc55]">
             <SelectValue placeholder="Theme" />
           </SelectTrigger>
           <SelectContent>
@@ -205,23 +304,29 @@ export default function TopicsTableAll({ promptCategories }: TopicsTableAllProps
         </Select>
       </div>
 
-      <div className="rounded-md border">
+      <div className="border-2 border-[#1B4332] rounded-xl shadow-[6px_6px_0_0_#8fbc55] bg-white">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Topic</TableHead>
-              <TableHead>Theme</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
+            <TableRow className="hover:bg-transparent border-b border-[#1B4332]">
+              <TableHead className="font-semibold">Topic</TableHead>
+              <TableHead className="font-semibold">Theme</TableHead>
+              <TableHead className="font-semibold">Status</TableHead>
+              <TableHead className="text-center font-semibold">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredCategories.map((category) => (
-              <TableRow key={category.id}>
+              <TableRow 
+                key={category.id}
+                className="hover:bg-gray-50/50 cursor-pointer transition-colors"
+                onClick={() => {
+                  setSelectedCategory(category);
+                  setIsPromptListOpen(true);
+                }}
+              >
                 <TableCell>
                   <div>
                     <h3 className="font-medium">{category.category}</h3>
-                    <p className="text-sm text-gray-500">{category.description}</p>
                   </div>
                 </TableCell>
                 <TableCell className="text-gray-500">
@@ -232,29 +337,99 @@ export default function TopicsTableAll({ promptCategories }: TopicsTableAllProps
                     {getCompletionStatus(category)}
                   </Badge>
                 </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-4">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleFavorite(category.id)}
-                    >
-                      {favorites.includes(category.id) ? '★' : '☆'}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleQueue(category.id)}
-                    >
-                      {queued.includes(category.id) ? '📋' : '➕'}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => router.push(`/role-sharer/topics/${category.id}`)}
-                    >
-                      View
-                    </Button>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-center gap-2">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => toggleFavorite(category.id)}
+                            className="h-9 w-9 p-0 hover:bg-transparent"
+                          >
+                            <svg 
+                              width="20" 
+                              height="20" 
+                              viewBox="0 0 24 24" 
+                              fill="none" 
+                              stroke="currentColor" 
+                              strokeWidth="2" 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round"
+                              className={cn(
+                                "transition-colors",
+                                category.isFavorite 
+                                  ? "fill-[#1B4332] text-[#1B4332]" 
+                                  : "text-gray-400 hover:text-[#8fbc55] hover:fill-[#8fbc55]"
+                              )}
+                            >
+                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                            </svg>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{category.isFavorite ? "Remove from favorites" : "Add to favorites"}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => toggleQueue(category.id)}
+                            className="h-9 w-9 p-0 hover:bg-transparent"
+                          >
+                            <svg 
+                              width="20" 
+                              height="20" 
+                              viewBox="0 0 24 24" 
+                              fill="none" 
+                              stroke="currentColor" 
+                              strokeWidth="3" 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round"
+                              className={cn(
+                                "transition-colors",
+                                category.isInQueue 
+                                  ? "text-[#1B4332]" 
+                                  : "text-gray-400 hover:text-[#8fbc55]"
+                              )}
+                            >
+                              <line x1="12" y1="5" x2="12" y2="19" />
+                              <line x1="5" y1="12" x2="19" y2="12" />
+                            </svg>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{category.isInQueue ? "Remove from queue" : "Add to queue"}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => router.push(`/role-sharer/topics/${category.id}`)}
+                            className="h-9 w-9 p-0 hover:bg-[#8fbc55] rounded-full"
+                          >
+                            <ArrowRight className={cn(
+                              "h-6 w-6 transition-colors stroke-[3]",
+                              "text-[#1B4332]"
+                            )} />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Start recording</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 </TableCell>
               </TableRow>
@@ -262,6 +437,18 @@ export default function TopicsTableAll({ promptCategories }: TopicsTableAllProps
           </TableBody>
         </Table>
       </div>
+
+      {selectedCategory && (
+        <PromptListPopup
+          promptCategory={selectedCategory}
+          isOpen={isPromptListOpen}
+          onClose={() => {
+            setIsPromptListOpen(false);
+            setSelectedCategory(null);
+          }}
+        />
+      )}
+      {error && <div className="text-red-500 mt-2 text-sm text-center">{error}</div>}
     </div>
   );
 }
