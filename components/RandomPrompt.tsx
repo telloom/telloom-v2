@@ -24,7 +24,7 @@ export default function RandomPrompt({ prompt }: RandomPromptProps) {
       <CardFooter className="flex justify-center pb-6">
         <Link href={`/role-sharer/prompts/${prompt.id}/record`}>
           <Button 
-            className="bg-[#1B4332] hover:bg-[#1B4332]/90 text-white"
+            className="bg-[#1B4332] hover:bg-[#1B4332]/90 text-white h-10 px-6 rounded-full"
           >
             {prompt.promptResponses?.length > 0 ? 'Record Another Response' : 'Record Your Response'}
           </Button>

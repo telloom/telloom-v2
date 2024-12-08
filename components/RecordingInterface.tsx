@@ -338,9 +338,9 @@ export function RecordingInterface({ prompt, onClose, onSave }: RecordingInterfa
             <Upload className="mr-2 h-4 w-4" />
             Upload Recording
           </Button>
-          {!isRecording && !previewUrl && !uploadedFile && ( // Updated condition
-            <Button onClick={startCountdown} className="bg-[#1B4332] hover:bg-[#1B4332]/90 text-white">
-              <Play className="mr-2 h-4 w-4" />
+          {!isRecording && !previewUrl && !uploadedFile && (
+            <Button onClick={startCountdown} className="bg-[#1B4332] hover:bg-[#1B4332]/90 text-white h-10 px-6 rounded-full">
+              <Mic className="mr-2 h-4 w-4" />
               Start Recording
             </Button>
           )}
@@ -362,8 +362,8 @@ export function RecordingInterface({ prompt, onClose, onSave }: RecordingInterfa
               Stop
             </Button>
           )}
-          {(previewUrl || uploadedFile) && ( // Updated condition
-            <Button onClick={handleSave} className="bg-[#1B4332] hover:bg-[#1B4332]/90 text-white">
+          {(previewUrl || uploadedFile) && (
+            <Button onClick={handleSave} className="bg-[#1B4332] hover:bg-[#1B4332]/90 text-white h-10 px-6 rounded-full">
               <Save className="mr-2 h-4 w-4" />
               Save
             </Button>
