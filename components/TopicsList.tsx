@@ -66,6 +66,28 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
     );
   };
 
+  const handleFavoriteClick = async (e: React.MouseEvent, category: PromptCategory) => {
+    e.stopPropagation();
+    const newValue = !category.isFavorite;
+    updateCategoryStatus(category.id, { isFavorite: newValue });
+  };
+
+  const handleQueueClick = async (e: React.MouseEvent, category: PromptCategory) => {
+    e.stopPropagation();
+    const newValue = !category.isInQueue;
+    updateCategoryStatus(category.id, { isInQueue: newValue });
+  };
+
+  const renderTopicCard = (category: PromptCategory) => (
+    <SwiperSlide key={category.id}>
+      <TopicCard 
+        promptCategory={category} 
+        onFavoriteClick={(e) => handleFavoriteClick(e, category)}
+        onQueueClick={(e) => handleQueueClick(e, category)}
+      />
+    </SwiperSlide>
+  );
+
   const renderTopicSection = (title: string, filteredCategories: PromptCategory[]) => (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
@@ -94,17 +116,7 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
           }}
           className="!overflow-visible"
         >
-          {filteredCategories.map((category) => (
-            <SwiperSlide key={category.id}>
-              <TopicCard 
-                promptCategory={category} 
-                onStateChange={(updates) => {
-                  console.log('TopicsList - State change received:', { categoryId: category.id, updates });
-                  updateCategoryStatus(category.id, updates);
-                }}
-              />
-            </SwiperSlide>
-          ))}
+          {filteredCategories.map(renderTopicCard)}
           <div className="swiper-button-prev"></div>
           <div className="swiper-button-next"></div>
         </Swiper>
