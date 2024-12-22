@@ -1,7 +1,9 @@
 import { createClient } from '@/utils/supabase/server';
+import { cookies } from 'next/headers';
 
 export async function getPrompts() {
-  const supabase = createClient();
+  const cookieStore = cookies();
+  const supabase = createClient(cookieStore);
   
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   
@@ -9,5 +11,26 @@ export async function getPrompts() {
     throw new Error('Not authenticated');
   }
 
-  // Rest of your code...
+  const { data, error } = await supabase
+    .from('Prompt')
+    .select(`
+      id,
+      promptText,
+      promptType,
+      isContextEstablishing,
+      promptCategoryId,
+      videos (
+        id,
+        profileSharerId,
+        muxPlaybackId
+      ),
+      promptResponses (
+        id,
+        profileSharerId,
+        responseText
+      )
+    `);
+
+  if (error) throw error;
+  return data;
 } 

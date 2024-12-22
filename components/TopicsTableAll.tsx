@@ -21,8 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/utils/supabase/client';
-import { Theme } from '@prisma/client';
+import { createBrowserClient } from '@supabase/ssr'
 import PromptListPopup from './PromptListPopup';
 import { cn } from "@/lib/utils";
 import {
@@ -31,35 +30,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ArrowRight, ArrowUpDown, ArrowUp, ArrowDown, Search, LayoutGrid, Table as TableIcon, Star, Plus } from 'lucide-react';
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ArrowRight, ArrowUpDown, ArrowUp, ArrowDown, Search, LayoutGrid, Table as TableIcon } from 'lucide-react';
 import TopicCard from "@/components/TopicCard";
-import { type PromptCategory as PrismaPromptCategory } from '@prisma/client';
+import { PromptCategory as BasePromptCategory } from '@/types/models';
 
-interface Prompt {
-  id: string;
-  promptText: string;
-  promptType: string | null;
-  isContextEstablishing: boolean | null;
-  promptCategoryId: string | null;
-  videos: { id: string }[];
-  promptResponses: { id: string }[];
-}
-
-interface PromptCategory {
-  id: string;
-  category: string;
-  description: string | null;
-  theme: Theme | null;
-  prompts: Prompt[];
+interface ExtendedPromptCategory extends BasePromptCategory {
+  theme?: string;
   isFavorite?: boolean;
   isInQueue?: boolean;
 }
 
 interface TopicsTableAllProps {
-  promptCategories: PrismaPromptCategory[];
+  promptCategories: ExtendedPromptCategory[];
 }
 
 type SortField = 'topic' | 'theme';
@@ -67,15 +49,17 @@ type SortDirection = 'asc' | 'desc';
 
 export default function TopicsTableAll({ promptCategories: initialPromptCategories }: TopicsTableAllProps) {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [viewFilters, setViewFilters] = useState<string[]>([]);
   const [themeFilter, setThemeFilter] = useState('all');
-  const [promptCategories, setPromptCategories] = useState<PromptCategory[]>(initialPromptCategories);
-  const [selectedCategory, setSelectedCategory] = useState<PromptCategory | null>(null);
+  const [promptCategories, setPromptCategories] = useState<ExtendedPromptCategory[]>(initialPromptCategories);
+  const [selectedCategory, setSelectedCategory] = useState<ExtendedPromptCategory | null>(null);
   const [isPromptListOpen, setIsPromptListOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>('topic');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
@@ -109,17 +93,17 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
     loadUserPreferences();
   }, [supabase, initialPromptCategories]);
 
-  const handleFavoriteClick = async (e: React.MouseEvent, category: PromptCategory) => {
+  const handleFavoriteClick = async (e: React.MouseEvent, category: ExtendedPromptCategory) => {
     e.stopPropagation();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return;
+
     const newValue = !category.isFavorite;
 
     // Immediately update local state
     setPromptCategories(prev => prev.map(cat => 
       cat.id === category.id ? { ...cat, isFavorite: newValue } : cat
     ));
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
 
     if (newValue) {
       // Add to favorites
@@ -152,17 +136,17 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
     }
   };
 
-  const handleQueueClick = async (e: React.MouseEvent, category: PromptCategory) => {
+  const handleQueueClick = async (e: React.MouseEvent, category: ExtendedPromptCategory) => {
     e.stopPropagation();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return;
+
     const newValue = !category.isInQueue;
 
     // Immediately update local state
     setPromptCategories(prev => prev.map(cat => 
       cat.id === category.id ? { ...cat, isInQueue: newValue } : cat
     ));
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
 
     if (newValue) {
       // Add to queue
@@ -206,15 +190,14 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
     }
   };
 
-  const getCompletionStatus = (category: PromptCategory) => {
+  const getCompletionStatus = (category: ExtendedPromptCategory) => {
     const totalPrompts = category.prompts.length;
-    const completedPrompts = category.prompts.filter(p => p.videos.length > 0).length;
-    const hasStartedResponses = category.prompts.some(p => p.promptResponses.length > 0);
+    const completedPrompts = category.prompts.filter(p => p.promptResponses.length > 0 || p.videos.length > 0).length;
     
     let status;
-    if (completedPrompts > 0) {
+    if (completedPrompts === totalPrompts) {
       status = "Completed";
-    } else if (hasStartedResponses) {
+    } else if (completedPrompts > 0) {
       status = "In Progress";
     } else {
       status = "Not Started";
@@ -305,15 +288,15 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
     });
   }, [promptCategories, searchQuery, statusFilter, viewFilters, themeFilter, sortField, sortDirection]);
 
-  const getThemes = () => {
-    const themes = new Set<string>();
+  const themes = useMemo(() => {
+    const themeSet = new Set<string>();
     promptCategories.forEach(category => {
       if (category.theme) {
-        themes.add(category.theme);
+        themeSet.add(category.theme);
       }
     });
-    return Array.from(themes).sort();
-  };
+    return Array.from(themeSet).sort();
+  }, [promptCategories]);
 
   const formatThemeName = (theme: string) => {
     if (!theme) return '';
@@ -357,6 +340,29 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
               </SelectContent>
             </Select>
 
+            <Select value={themeFilter} onValueChange={setThemeFilter}>
+              <SelectTrigger 
+                className={cn(
+                  'w-[200px] border-0 rounded-lg whitespace-normal text-left h-auto min-h-[40px] py-2',
+                  themeFilter !== 'all'
+                    ? 'bg-[#8fbc55] text-[#1B4332] font-medium'
+                    : 'bg-gray-200/50 text-gray-600 hover:bg-[#8fbc55] hover:text-[#1B4332]'
+                )}
+              >
+                <SelectValue placeholder="Theme">
+                  {themeFilter === 'all' ? 'All Themes' : formatThemeName(themeFilter)}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="max-w-[300px]">
+                <SelectItem value="all">All Themes</SelectItem>
+                {themes.map((theme) => (
+                  <SelectItem key={theme} value={theme} className="whitespace-normal">
+                    {formatThemeName(theme)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <div className="flex flex-wrap gap-2">
               {[
                 { id: 'favorites', label: 'Favorites' },
@@ -378,22 +384,6 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
                 </Button>
               ))}
             </div>
-
-            {themeFilter !== 'all' && (
-              <Select value={themeFilter} onValueChange={setThemeFilter}>
-                <SelectTrigger className="w-[160px] border-2 border-[#1B4332] rounded-lg focus:ring-[#8fbc55] bg-white">
-                  <SelectValue placeholder="Theme" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Themes</SelectItem>
-                  {getThemes().map((theme) => (
-                    <SelectItem key={theme} value={theme}>
-                      {formatThemeName(theme)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
 
             <Button
               variant="outline"
@@ -438,7 +428,7 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
               <TableRow>
                 <TableHead 
                   onClick={() => handleSort('topic')}
-                  className="w-[40%] cursor-pointer hover:text-[#1B4332]"
+                  className="w-[50%] md:w-[40%] cursor-pointer hover:text-[#1B4332]"
                 >
                   <div className="flex items-center gap-2">
                     Topic
@@ -455,7 +445,7 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
                 </TableHead>
                 <TableHead 
                   onClick={() => handleSort('theme')}
-                  className="w-[30%] cursor-pointer hover:text-[#1B4332]"
+                  className="hidden md:table-cell w-[30%] cursor-pointer hover:text-[#1B4332]"
                 >
                   <div className="flex items-center gap-2">
                     Theme
@@ -470,12 +460,13 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
                     )}
                   </div>
                 </TableHead>
-                <TableHead className="w-[20%] text-center">
+                <TableHead className="w-[30%] md:w-[20%] text-center">
                   <div className="flex items-center justify-center">
-                    Status
+                    <span className="hidden md:inline">Status</span>
+                    <span className="md:hidden">Progress</span>
                   </div>
                 </TableHead>
-                <TableHead className="w-[10%] text-center">Actions</TableHead>
+                <TableHead className="w-[20%] md:w-[10%] text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -483,17 +474,20 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
                 <TableRow
                   key={category.id}
                   className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => setIsPromptListOpen(true)}
+                  onClick={() => {
+                    setSelectedCategory(category);
+                    setIsPromptListOpen(true);
+                  }}
                 >
-                  <TableCell className="w-[40%] font-medium">{category.category}</TableCell>
-                  <TableCell className="w-[30%]">
+                  <TableCell className="w-[50%] md:w-[40%] font-medium">{category.category}</TableCell>
+                  <TableCell className="hidden md:table-cell w-[30%]">
                     <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-bold">
                       {formatThemeName(category.theme || '')}
                     </span>
                   </TableCell>
-                  <TableCell className="w-[20%]">
+                  <TableCell className="w-[30%] md:w-[20%]">
                     <div className="flex items-center justify-center gap-2">
-                      <Badge variant={getStatusBadgeVariant(getCompletionStatus(category).status)}>
+                      <Badge variant={getStatusBadgeVariant(getCompletionStatus(category).status)} className="hidden md:inline-flex">
                         {getCompletionStatus(category).status}
                       </Badge>
                       <span className="text-sm text-gray-500">
@@ -501,8 +495,8 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="w-[10%]" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-center gap-2">
+                  <TableCell className="w-[20%] md:w-[10%]" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1 md:gap-2">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -510,23 +504,21 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
                               variant="ghost"
                               size="icon"
                               onClick={(e) => handleFavoriteClick(e, category)}
-                              className="h-9 w-9 p-0 hover:bg-transparent"
+                              className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
                             >
                               <svg 
-                                width="20" 
-                                height="20" 
+                                className={cn(
+                                  "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
+                                  category.isFavorite 
+                                    ? "fill-[#1B4332] text-[#1B4332]" 
+                                    : "text-gray-400 hover:text-[#8fbc55] hover:fill-[#8fbc55]"
+                                )}
                                 viewBox="0 0 24 24" 
                                 fill="none" 
                                 stroke="currentColor" 
                                 strokeWidth="2" 
                                 strokeLinecap="round" 
                                 strokeLinejoin="round"
-                                className={cn(
-                                  "transition-colors",
-                                  category.isFavorite 
-                                    ? "fill-[#1B4332] text-[#1B4332]" 
-                                    : "text-gray-400 hover:text-[#8fbc55] hover:fill-[#8fbc55]"
-                                )}
                               >
                                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                               </svg>
@@ -545,23 +537,21 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
                               variant="ghost"
                               size="icon"
                               onClick={(e) => handleQueueClick(e, category)}
-                              className="h-9 w-9 p-0 hover:bg-transparent"
+                              className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
                             >
                               <svg 
-                                width="20" 
-                                height="20" 
+                                className={cn(
+                                  "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
+                                  category.isInQueue 
+                                    ? "text-[#1B4332]" 
+                                    : "text-gray-400 hover:text-[#8fbc55]"
+                                )}
                                 viewBox="0 0 24 24" 
                                 fill="none" 
                                 stroke="currentColor" 
                                 strokeWidth="3" 
                                 strokeLinecap="round" 
                                 strokeLinejoin="round"
-                                className={cn(
-                                  "transition-colors",
-                                  category.isInQueue 
-                                    ? "text-[#1B4332]" 
-                                    : "text-gray-400 hover:text-[#8fbc55]"
-                                )}
                               >
                                 <line x1="12" y1="5" x2="12" y2="19" />
                                 <line x1="5" y1="12" x2="19" y2="12" />
@@ -581,10 +571,10 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
                               variant="ghost"
                               size="icon"
                               onClick={() => router.push(`/role-sharer/topics/${category.id}`)}
-                              className="h-9 w-9 p-0 hover:bg-[#8fbc55] rounded-full"
+                              className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-[#8fbc55] rounded-full"
                             >
                               <ArrowRight className={cn(
-                                "h-6 w-6 transition-colors stroke-[3]",
+                                "h-5 w-5 md:h-6 md:w-6 transition-colors stroke-[3]",
                                 "text-[#1B4332]"
                               )} />
                             </Button>
@@ -606,7 +596,7 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
           {sortedPromptCategories.map((category) => (
             <div key={category.id} className="min-w-[280px] max-w-full">
               <TopicCard
-                promptCategory={category as any}
+                promptCategory={category}
                 onClick={() => {
                   setSelectedCategory(category);
                   setIsPromptListOpen(true);
@@ -629,7 +619,6 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
           }}
         />
       )}
-      {error && <div className="text-red-500 mt-2 text-sm text-center">{error}</div>}
     </div>
   );
 }

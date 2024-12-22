@@ -44,13 +44,13 @@ Telloom is a platform where users can assume multiple roles—Listener, Sharer, 
   - Initially, users have no roles assigned.
   - After sign-up, prompt users to select their role(s).
 
-## 2. Role Selection: Listener or Sharer (Listener and Sharer)
+## 2. Role Selection: Listener or Sharer or Executor (Listener and Sharer and Executor)
 
 ### UI/Design:
 
 - Role Selection Page:
   - Elements:
-    - Two large buttons for "Listener" and "Sharer."
+    - three large buttons for "Listener" and "Sharer."
     - Explanation of each role.
     - Option to select both roles.
   - Design: Clean layout with clear distinctions between roles.

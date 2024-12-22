@@ -1,54 +1,38 @@
 // app/role-sharer/layout.tsx
 // This layout component ensures that the user is authenticated and has the SHARER role before rendering the children components.
 
+import { getAuthenticatedUser, getUserRole } from '@/utils/auth';
 import { redirect } from 'next/navigation';
 import Header from '@/components/Header';
-import { createClient } from '@/utils/supabase/server';
+import SupabaseListener from '@/components/SupabaseListener';
 
-export default async function SharerLayout({
+export default async function RoleSharerLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = createClient();
-  
-  // Use getUser instead of getSession for better security
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
-  if (userError || !user) {
-    console.log('No authenticated user found, redirecting to login');
-    redirect('/login');
-  }
-
   try {
-    // Check if user has SHARER role
-    const { data: roleData, error: roleError } = await supabase
-      .from('ProfileRole')
-      .select('role')
-      .eq('profileId', user.id)
-      .eq('role', 'SHARER')
-      .single();
-
-    if (roleError) {
-      console.error('Error checking SHARER role:', roleError);
-      redirect('/select-role');
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      redirect('/login');
     }
 
-    if (!roleData) {
-      console.log('User does not have SHARER role');
-      redirect('/select-role');
+    const role = await getUserRole();
+    if (role !== 'SHARER') {
+      redirect('/unauthorized');
     }
-
-    console.log('SHARER role verified for user');
 
     return (
-      <>
+      <div className="min-h-screen flex flex-col">
+        <SupabaseListener />
         <Header />
-        {children}
-      </>
+        <main className="flex-1">
+          {children}
+        </main>
+      </div>
     );
   } catch (error) {
-    console.error('Unexpected error in SharerLayout:', error);
+    console.error('Error in RoleSharerLayout:', error);
     redirect('/login');
   }
 }

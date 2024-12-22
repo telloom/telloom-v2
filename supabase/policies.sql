@@ -266,17 +266,70 @@ FOR SELECT
 TO authenticated
 USING (true);
 
--- Create policies for PromptResponse
+-- Drop existing policies for PromptResponse
+DROP POLICY IF EXISTS "Users can view own prompt responses" ON "PromptResponse";
+DROP POLICY IF EXISTS "Users can insert own prompt responses" ON "PromptResponse";
+DROP POLICY IF EXISTS "Users can update own prompt responses" ON "PromptResponse";
+DROP POLICY IF EXISTS "Users can delete own prompt responses" ON "PromptResponse";
+DROP POLICY IF EXISTS "Service role can manage all prompt responses" ON "PromptResponse";
+
+-- Create simplified policy for PromptResponse
 CREATE POLICY "Users can manage own prompt responses"
 ON "PromptResponse"
 FOR ALL
-USING (auth.uid()::text = "profileId"::text);
+USING (
+  EXISTS (
+    SELECT 1 FROM "ProfileSharer" ps
+    WHERE ps.id = "PromptResponse"."profileSharerId"
+    AND ps."profileId" = auth.uid()
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM "ProfileSharer" ps
+    WHERE ps.id = "PromptResponse"."profileSharerId"
+    AND ps."profileId" = auth.uid()
+  )
+);
+
+-- Allow service role to manage all prompt responses
+CREATE POLICY "Service role can manage all prompt responses"
+ON "PromptResponse"
+FOR ALL
+TO service_role
+USING (true)
+WITH CHECK (true);
+
+-- Ensure proper grants
+GRANT ALL ON "PromptResponse" TO authenticated;
+GRANT ALL ON "PromptResponse" TO service_role;
 
 -- Create policies for Video
 CREATE POLICY "Users can manage own videos"
 ON "Video"
 FOR ALL
-USING (auth.uid()::text = "profileId"::text);
+USING (
+  EXISTS (
+    SELECT 1 FROM "ProfileSharer" ps
+    WHERE ps.id = "Video"."profileSharerId"
+    AND ps."profileId" = auth.uid()
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM "ProfileSharer" ps
+    WHERE ps.id = "Video"."profileSharerId"
+    AND ps."profileId" = auth.uid()
+  )
+);
+
+-- Allow service role to manage all videos (for webhooks)
+CREATE POLICY "Service role can manage all videos"
+ON "Video"
+FOR ALL
+TO service_role
+USING (true)
+WITH CHECK (true);
 
 -- Create policies for ProfileSharer
 CREATE POLICY "Users can manage own sharer profile"
@@ -389,4 +442,143 @@ CREATE POLICY "enable_delete_for_queue"
 ON "public"."TopicQueueItem"
 FOR DELETE TO authenticated
 USING (auth.uid()::text = "profileId"::text);
+
+-- Drop existing policies for Video and PromptResponse tables
+DROP POLICY IF EXISTS "Users can manage own videos" ON "Video";
+DROP POLICY IF EXISTS "Service role can manage all videos" ON "Video";
+DROP POLICY IF EXISTS "Users can manage own prompt responses" ON "PromptResponse";
+DROP POLICY IF EXISTS "Service role can manage all prompt responses" ON "PromptResponse";
+
+-- Create policies for Video table
+CREATE POLICY "Users can manage own videos"
+ON "Video"
+FOR ALL
+USING (
+  EXISTS (
+    SELECT 1 FROM "ProfileSharer" ps
+    WHERE ps.id = "Video"."profileSharerId"
+    AND ps."profileId" = auth.uid()
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM "ProfileSharer" ps
+    WHERE ps.id = "Video"."profileSharerId"
+    AND ps."profileId" = auth.uid()
+  )
+);
+
+-- Allow service role to manage all videos (for webhooks)
+CREATE POLICY "Service role can manage all videos"
+ON "Video"
+FOR ALL
+TO service_role
+USING (true)
+WITH CHECK (true);
+
+-- Create policies for PromptResponse table
+CREATE POLICY "Users can view own prompt responses"
+ON "PromptResponse"
+FOR SELECT
+TO authenticated
+USING (EXISTS (
+  SELECT 1 FROM "ProfileSharer" ps
+  WHERE ps.id = "PromptResponse"."profileSharerId"
+  AND ps."profileId" = auth.uid()
+));
+
+CREATE POLICY "Users can insert own prompt responses"
+ON "PromptResponse"
+FOR INSERT
+TO authenticated
+WITH CHECK (EXISTS (
+  SELECT 1 FROM "ProfileSharer" ps
+  WHERE ps.id = "PromptResponse"."profileSharerId"
+  AND ps."profileId" = auth.uid()
+));
+
+CREATE POLICY "Users can update own prompt responses"
+ON "PromptResponse"
+FOR UPDATE
+TO authenticated
+USING (EXISTS (
+  SELECT 1 FROM "ProfileSharer" ps
+  WHERE ps.id = "PromptResponse"."profileSharerId"
+  AND ps."profileId" = auth.uid()
+));
+
+CREATE POLICY "Users can delete own prompt responses"
+ON "PromptResponse"
+FOR DELETE
+TO authenticated
+USING (EXISTS (
+  SELECT 1 FROM "ProfileSharer" ps
+  WHERE ps.id = "PromptResponse"."profileSharerId"
+  AND ps."profileId" = auth.uid()
+));
+
+-- Allow service role to manage all prompt responses
+CREATE POLICY "Service role can manage all prompt responses"
+ON "PromptResponse"
+FOR ALL
+TO service_role
+USING (true)
+WITH CHECK (true);
+
+-- Ensure proper grants
+GRANT ALL ON "Video" TO authenticated;
+GRANT ALL ON "Video" TO service_role;
+GRANT ALL ON "PromptResponse" TO authenticated;
+GRANT ALL ON "PromptResponse" TO service_role;
+
+-- Grant schema-level permissions to service role
+GRANT USAGE ON SCHEMA public TO service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO service_role;
+
+-- Enable RLS
+ALTER TABLE "ProfileRole" ENABLE ROW LEVEL SECURITY;
+
+-- Allow authenticated users to read their own roles
+CREATE POLICY "Users can read their own roles"
+ON "ProfileRole"
+FOR SELECT
+TO authenticated
+USING (
+  auth.uid() = "profileId"
+);
+
+-- Allow system to read roles for auth checks
+CREATE POLICY "System can read all roles"
+ON "ProfileRole"
+FOR SELECT
+TO service_role
+USING (true);
+
+-- Add policies for Video access
+CREATE POLICY "Users can view videos"
+ON "Video"
+FOR SELECT
+TO authenticated
+USING (true);
+
+CREATE POLICY "Users can manage own videos"
+ON "Video"
+FOR ALL
+TO authenticated
+USING (auth.uid()::text = "profileSharerId"::text);
+
+-- Add policies for PromptResponse access
+CREATE POLICY "Users can view prompt responses"
+ON "PromptResponse"
+FOR SELECT
+TO authenticated
+USING (true);
+
+CREATE POLICY "Users can manage own prompt responses"
+ON "PromptResponse"
+FOR ALL
+TO authenticated
+USING (auth.uid()::text = "profileSharerId"::text);
   

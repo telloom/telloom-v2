@@ -15,8 +15,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { createClient } from '@/utils/supabase/client';
-import { ArrowRight } from 'lucide-react';
+import { Video, ListOrdered } from 'lucide-react';
 import PromptListPopup from './PromptListPopup';
 
 interface TopicCardProps {
@@ -34,17 +33,21 @@ export default function TopicCard({
 }: TopicCardProps) {
   const router = useRouter();
   const [isPromptListOpen, setIsPromptListOpen] = useState(false);
+  const completedCount = promptCategory.prompts.filter(p => p.videos.length > 0).length;
+  const totalCount = promptCategory.prompts.length;
 
   return (
     <>
       <Card 
-        className="w-full h-[150px] border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 relative flex flex-col rounded-2xl"
+        className="w-full min-h-[150px] border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 relative flex flex-col rounded-2xl"
         onClick={onClick}
       >
-        <CardHeader className="pb-3">
-          <div className="flex justify-between items-start">
-            <CardTitle className="text-xl line-clamp-2 min-h-[3rem]">{promptCategory.category}</CardTitle>
-            <div className="flex gap-2">
+        <CardHeader className="pb-2">
+          <div className="flex justify-between items-start gap-2">
+            <CardTitle className="text-lg sm:text-xl line-clamp-2 min-h-[2.5rem] sm:min-h-[3rem] flex-grow pr-2">
+              {promptCategory.category}
+            </CardTitle>
+            <div className="flex gap-1 sm:gap-2 flex-shrink-0">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -52,11 +55,11 @@ export default function TopicCard({
                       variant="ghost"
                       size="icon"
                       onClick={onFavoriteClick}
-                      className="h-9 w-9 p-0 hover:bg-transparent rounded-full"
+                      className="h-8 w-8 sm:h-9 sm:w-9 p-0 hover:bg-transparent rounded-full"
                     >
                       <svg 
-                        width="20" 
-                        height="20" 
+                        width="18" 
+                        height="18" 
                         viewBox="0 0 24 24" 
                         fill="none" 
                         stroke="currentColor" 
@@ -75,7 +78,7 @@ export default function TopicCard({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>{promptCategory.isFavorite ? "Remove from favorites" : "Add to favorites"}</p>
+                    <p>Favorite</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -87,11 +90,11 @@ export default function TopicCard({
                       variant="ghost"
                       size="icon"
                       onClick={onQueueClick}
-                      className="h-9 w-9 p-0 hover:bg-transparent rounded-full"
+                      className="h-8 w-8 sm:h-9 sm:w-9 p-0 hover:bg-transparent rounded-full"
                     >
                       <svg 
-                        width="20" 
-                        height="20" 
+                        width="18" 
+                        height="18" 
                         viewBox="0 0 24 24" 
                         fill="none" 
                         stroke="currentColor" 
@@ -111,37 +114,42 @@ export default function TopicCard({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>{promptCategory.isInQueue ? "Remove from queue" : "Add to queue"}</p>
+                    <p>Queue</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-0 pb-4 flex-1 flex flex-col justify-end">
-          <div className="flex justify-between items-center">
-            <Badge variant={promptCategory.prompts.some(p => p.videos.length > 0) ? "default" : "secondary"}>
-              {`${promptCategory.prompts.filter(p => p.videos.length > 0).length}/${promptCategory.prompts.length}`}
+        <CardContent className="pt-0 pb-3 flex-1 flex flex-col justify-end">
+          <div className="flex items-center justify-between gap-3">
+            <Badge 
+              variant={completedCount > 0 ? "default" : "secondary"} 
+              className="text-xs flex-shrink-0"
+            >
+              {`${completedCount}/${totalCount}`}
             </Badge>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <Button
                 variant="ghost"
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsPromptListOpen(true);
                 }}
-                className="text-gray-500 hover:text-[#1B4332] hover:bg-transparent rounded-full"
+                className="text-sm text-gray-500 hover:text-[#1B4332] hover:bg-transparent rounded-full px-3 py-1 h-auto flex items-center gap-1.5"
               >
-                View Prompts
+                <ListOrdered className="h-4 w-4" />
+                Prompts
               </Button>
               <Button
                 onClick={(e) => {
                   e.stopPropagation();
                   router.push(`/role-sharer/topics/${promptCategory.id}`);
                 }}
-                className="bg-[#1B4332] hover:bg-[#1B4332]/90 text-white rounded-full font-medium"
+                className="text-sm bg-[#1B4332] hover:bg-[#1B4332]/90 text-white rounded-full font-medium px-4 py-1.5 h-auto whitespace-nowrap flex items-center gap-1.5"
               >
-                Start Recording →
+                <Video className="h-4 w-4" />
+                Record
               </Button>
             </div>
           </div>

@@ -2,34 +2,33 @@
 
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { createClient } from '@/utils/supabase/client';
+import { useRouter } from 'next/navigation';
+import { createBrowserClient } from '@supabase/ssr';
 
 export default function SupabaseListener() {
   const router = useRouter();
-  const supabase = createClient();
 
   useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        // Verify the user with getUser instead of relying on session
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (user && !userError) {
-          router.refresh();
-        }
-      }
       if (event === 'SIGNED_OUT') {
-        router.refresh();
+        router.push('/login');
       }
+
+      router.refresh();
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [router, supabase]);
+  }, [router]);
 
   return null;
 }

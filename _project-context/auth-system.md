@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines Telloom's authentication, user management, and session handling system. The implementation uses Supabase with Next.js 14 App Router, focusing on server-side rendering and cookie-based session management.
+This document outlines Telloom's authentication, user management, and session handling system. The implementation uses Supabase with Next.js 14 App Router, focusing on server-side rendering and secure authentication using `getUser()`.
 
 ## File Structure
 
@@ -12,7 +12,9 @@ This document outlines Telloom's authentication, user management, and session ha
 │   │   ├── login/
 │   │   │   └── page.tsx      # Login page component
 │   │   └── signup/
-│   │       └── page.tsx      # Signup page component
+│   │   │   └── page.tsx      # Signup page component
+│   │   └── unauthorized/
+│   │       └── page.tsx      # Unauthorized access page
 │   ├── auth/
 │   │   ├── callback/
 │   │   │   └── route.ts      # Auth callback handler
@@ -28,8 +30,8 @@ This document outlines Telloom's authentication, user management, and session ha
 │       ├── middleware.ts     # Auth middleware
 │       ├── route-handler.ts  # Route handler client
 │       └── withRole.ts       # Role protection
-└��─ types/
-    └── auth.ts              # Auth-related types
+└── types/
+    └── models.ts            # Type definitions including Role enum
 ```
 
 ## Core Components
@@ -52,11 +54,12 @@ export const createClient = () => {
 
 #### Server Client (`utils/supabase/server.ts`)
 ```typescript
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 const createClient = () => {
   const cookieStore = cookies()
+
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -66,10 +69,32 @@ const createClient = () => {
           return cookieStore.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set(name, value, options)
+          try {
+            cookieStore.set({
+              name,
+              value,
+              ...options,
+              secure: process.env.NODE_ENV === 'production',
+              sameSite: 'lax',
+              httpOnly: true,
+            })
+          } catch (error) {
+            // Cookie operations in Server Components are restricted
+            console.debug('Cookie set error (safe to ignore in middleware):', error)
+          }
         },
-        remove(name: string) {
-          cookieStore.delete(name)
+        remove(name: string, options: CookieOptions) {
+          try {
+            cookieStore.delete({
+              name,
+              ...options,
+              secure: process.env.NODE_ENV === 'production',
+              sameSite: 'lax',
+              httpOnly: true,
+            })
+          } catch (error) {
+            console.debug('Cookie remove error (safe to ignore in middleware):', error)
+          }
         },
       },
     }
@@ -77,60 +102,78 @@ const createClient = () => {
 }
 ```
 
-### 2. Session Management
+### 2. User Authentication
 
-#### Auth Listener (`components/SupabaseListener.tsx`)
+#### Auth Utility (`utils/auth.ts`)
 ```typescript
-export default function SupabaseListener() {
-  const router = useRouter()
+import { createClient } from '@/utils/supabase/server'
+
+export async function getAuthenticatedUser() {
   const supabase = createClient()
-
-  useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          router.refresh()
-        }
-      }
-      if (event === 'SIGNED_OUT') {
-        router.refresh()
-      }
-    })
-
-    return () => subscription.unsubscribe()
-  }, [router, supabase])
-
-  return null
+  
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) return null
+  
+  return user
 }
 ```
 
 ### 3. Role-Based Access Control (RBAC)
 
-Role protection is implemented through the `withRole` utility:
+Role protection is implemented through middleware and the withRole utility. Users can have multiple roles (SHARER, LISTENER, EXECUTOR, ADMIN), and ADMIN role has access to all protected routes.
 
+#### Role Protection Middleware (`middleware.ts`)
+```typescript
+export async function middleware(request: NextRequest) {
+  // ... supabase client setup ...
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (!user || error) return redirectToLogin()
+
+  const isProtectedRoute = request.nextUrl.pathname.match(
+    /^\/role-(sharer|listener|executor|admin)/
+  )
+
+  if (isProtectedRoute) {
+    const requiredRole = isProtectedRoute[1].toUpperCase() as Role
+    
+    const { data: userRoles } = await supabase
+      .from('ProfileRole')
+      .select('role')
+      .eq('profileId', user.id)
+
+    // Check if user has required role or is admin
+    const hasRequiredRole = userRoles?.some(
+      ({ role }) => role === requiredRole || role === Role.ADMIN
+    )
+    
+    if (!hasRequiredRole) return redirectToUnauthorized()
+  }
+
+  return response
+}
+```
+
+#### withRole Utility (`utils/supabase/withRole.ts`)
 ```typescript
 export async function withRole(
   request: NextRequest,
   response: NextResponse,
-  requiredRoles: string[]
+  requiredRoles: Role[]
 ) {
-  const supabase = createServerClient(/*...*/)
-  
-  // Check authentication
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return redirectToLogin()
+  // ... supabase client setup ...
 
-  // Check roles
-  const { data: roles } = await supabase
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (!user || error) return redirectToLogin()
+
+  const { data: userRoles } = await supabase
     .from('ProfileRole')
     .select('role')
     .eq('profileId', user.id)
 
-  const hasRequiredRole = requiredRoles.some(role => 
-    roles?.some(r => r.role === role)
+  // Check if user has any required role or is admin
+  const hasRequiredRole = userRoles?.some(
+    ({ role }) => requiredRoles.includes(role as Role) || role === Role.ADMIN
   )
   
   if (!hasRequiredRole) return redirectToUnauthorized()
@@ -139,72 +182,56 @@ export async function withRole(
 }
 ```
 
-### 4. Authentication Flow
+### 4. Protected Routes
 
-#### Login Page (`app/(auth)/login/page.tsx`)
+Example of a protected route with role checking:
+
 ```typescript
-export default async function LoginPage() {
-  const { user, error } = await getUser()
-
-  if (user && !error) {
-    redirect('/')
+export default async function ProtectedPage() {
+  const supabase = createClient()
+  
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (!user || error) {
+    redirect('/login')
   }
-
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center py-2">
-      <Login />
-    </div>
+  
+  // Fetch and check roles
+  const { data: userRoles } = await supabase
+    .from('ProfileRole')
+    .select('role')
+    .eq('profileId', user.id)
+    
+  const hasRequiredRole = userRoles?.some(
+    ({ role }) => role === 'REQUIRED_ROLE' || role === 'ADMIN'
   )
-}
-```
-
-### 5. Middleware
-
-The middleware handles authentication checks and session management for all relevant routes:
-
-```typescript
-export async function middleware(request: NextRequest) {
-  const response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
-
-  const supabase = createServerClient(/*...*/)
-  await supabase.auth.getSession()
-
-  return response
-}
-
-export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+  
+  if (!hasRequiredRole) {
+    redirect('/unauthorized')
+  }
+  
+  return <ProtectedContent />
 }
 ```
 
 ## Security Best Practices
 
-1. **Cookie-Based Sessions**
-   - No localStorage usage
-   - HTTP-only cookies
-   - Secure session management
+1. **Server-Side Authentication**
+   - Always use `getUser()` instead of `getSession()`
+   - Validate user authentication server-side
+   - Use cookie-based auth with HTTP-only cookies
+   - Set secure cookie options in production
 
-2. **Server-Side Validation**
-   - All authenticated requests validated server-side
-   - Role checks performed server-side
+2. **Role Validation**
+   - Always check roles server-side
+   - Allow users to have multiple roles
+   - Admin role has access to all protected routes
+   - Use typed role enums for type safety
 
-3. **Type Safety**
-```typescript
-interface AuthContextType {
-  user: Profile | null
-  isAuthenticated: boolean
-  roles: Role[]
-  login: (email: string, password: string) => Promise<void>
-  logout: () => void
-  refreshToken: () => Promise<void>
-}
-```
+3. **Error Handling**
+   - Proper error handling in cookie operations
+   - Graceful handling of missing roles
+   - Detailed debug logging for troubleshooting
+   - Secure error responses
 
 ## Database Schema
 
@@ -230,49 +257,42 @@ FOR ALL
 USING (auth.uid()::text = "profileId"::text);
 ```
 
-## Error Handling
+## Type Definitions
 
 ```typescript
-const getUser = async () => {
-  const supabase = createClient()
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser()
-    if (error) throw error
-    return { user, error: null }
-  } catch (error) {
-    console.error('Error getting user:', error)
-    return { user: null, error }
-  }
+export enum Role {
+  LISTENER = 'LISTENER',
+  SHARER = 'SHARER',
+  EXECUTOR = 'EXECUTOR',
+  ADMIN = 'ADMIN',
 }
-```
 
-## Extending the System
-
-### Adding New Roles
-1. Update database enum
-2. Add role check in middleware
-3. Update type definitions
-
-### Protected Route Example
-```typescript
-export default async function ProtectedPage() {
-  const { user, error } = await getUser()
-  
-  if (!user || error) {
-    redirect('/login')
+interface User {
+  id: string
+  email?: string
+  app_metadata: {
+    provider?: string
+    [key: string]: any
   }
-  
-  // Fetch and check roles
-  const supabase = createClient()
-  const { data: roles } = await supabase
-    .from('ProfileRole')
-    .select('role')
-    .eq('profileId', user.id)
-    
-  if (!roles?.some(r => r.role === 'REQUIRED_ROLE')) {
-    redirect('/unauthorized')
+  user_metadata: {
+    [key: string]: any
   }
-  
-  return <ProtectedContent />
+  aud: string
+}
+
+interface AuthResponse {
+  user: User | null
+  error: Error | null
+}
+
+interface Profile {
+  id: string
+  firstName: string | null
+  lastName: string | null
+  email: string | null
+  avatarUrl: string | null
+  roles: { profileId: string; role: Role }[]
+  createdAt: Date
+  updatedAt: Date
 }
 ```

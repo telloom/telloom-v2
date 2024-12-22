@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { Role } from '@/types/models';
 
 export async function middleware(request: NextRequest) {
-  const res = NextResponse.next();
+  // Create a response object that we can modify
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
 
   // Create a Supabase client configured to use cookies
   const supabase = createServerClient(
@@ -15,15 +20,17 @@ export async function middleware(request: NextRequest) {
         get(name: string) {
           return request.cookies.get(name)?.value;
         },
-        set(name: string, value: string, options: any) {
-          res.cookies.set({
+        set(name: string, value: string, options: CookieOptions) {
+          // If the cookie is being set, update the response
+          response.cookies.set({
             name,
             value,
             ...options,
           });
         },
-        remove(name: string, options: any) {
-          res.cookies.delete({
+        remove(name: string, options: CookieOptions) {
+          // If the cookie is being removed, update the response
+          response.cookies.delete({
             name,
             ...options,
           });
@@ -32,17 +39,61 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Use getUser for secure authentication
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  try {
+    // Get authenticated user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-  // Handle authentication
-  if (userError || !user) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    // Handle authentication for protected routes
+    const isProtectedRoute = request.nextUrl.pathname.match(
+      /^\/role-(sharer|listener|executor|admin)/
+    );
+
+    if (isProtectedRoute) {
+      if (userError || !user) {
+        // Redirect to login if there's no authenticated user
+        const redirectUrl = new URL('/login', request.url);
+        redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname);
+        return NextResponse.redirect(redirectUrl);
+      }
+
+      // If it's a role-specific route, verify the role
+      const requiredRole = isProtectedRoute[1].toUpperCase() as Role;
+      
+      // Get all roles for the user
+      const { data: userRoles } = await supabase
+        .from('ProfileRole')
+        .select('role')
+        .eq('profileId', user.id);
+
+      if (!userRoles?.length) {
+        return NextResponse.redirect(new URL('/unauthorized', request.url));
+      }
+
+      // Check if user has either the required role or is an admin
+      const hasRequiredRole = userRoles.some(
+        ({ role }) => role === requiredRole || role === Role.ADMIN
+      );
+
+      if (!hasRequiredRole) {
+        // Redirect to unauthorized if the user doesn't have the required role or admin
+        return NextResponse.redirect(new URL('/unauthorized', request.url));
+      }
+    }
+
+    return response;
+  } catch (error) {
+    console.error('Middleware error:', error);
+    // Return the response even if there's an error to maintain the session
+    return response;
   }
-
-  return res;
 }
 
+// Update config to include all protected routes
 export const config = {
-  matcher: ['/role-sharer/:path*', '/role-listener/:path*', '/role-executor/:path*', '/role-admin/:path*'],
+  matcher: [
+    '/role-sharer/:path*',
+    '/role-listener/:path*',
+    '/role-executor/:path*',
+    '/role-admin/:path*',
+  ],
 }; 

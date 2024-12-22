@@ -7,9 +7,9 @@ export default async function SharerTopicsPage() {
   const supabase = createClient();
   
   // Check authentication and role
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
   
-  if (!session || sessionError) {
+  if (userError || !user) {
     redirect('/login');
   }
 
@@ -17,7 +17,7 @@ export default async function SharerTopicsPage() {
   const { data: roles } = await supabase
     .from('ProfileRole')
     .select('role')
-    .eq('profileId', session.user.id);
+    .eq('profileId', user.id);
 
   if (!roles?.some(r => r.role === 'SHARER')) {
     redirect('/select-role');
