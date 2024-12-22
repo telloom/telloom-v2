@@ -2,7 +2,27 @@
 // Server-side data fetching functions
 
 import { createClient } from '@/utils/supabase/server';
-import { PromptCategory, Prompt, Profile } from '@/types/models';
+import { cookies } from 'next/headers';
+import { getAuthenticatedUser } from '@/utils/auth';
+
+export async function fetchUserData() {
+  const user = await getAuthenticatedUser();
+  if (!user) {
+    throw new Error('Not authenticated');
+  }
+
+  const cookieStore = cookies();
+  const supabase = createClient(cookieStore);
+
+  // Now use the verified user.id for queries
+  const { data, error } = await supabase
+    .from('your_table')
+    .select('*')
+    .eq('user_id', user.id);
+
+  if (error) throw error;
+  return data;
+}
 
 export async function fetchPromptCategories(): Promise<PromptCategory[]> {
   console.log('\n[SERVER] ====== fetchPromptCategories START ======');
@@ -11,31 +31,30 @@ export async function fetchPromptCategories(): Promise<PromptCategory[]> {
   console.log('[SERVER] Created Supabase client');
 
   try {
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
     console.log('[SERVER] Auth check:', { 
-      hasSession: !!session, 
-      hasUser: !!session?.user,
-      userId: session?.user?.id,
-      error: sessionError 
+      hasUser: !!user,
+      userId: user?.id,
+      error: userError 
     });
     
-    if (sessionError || !session?.user) {
+    if (userError || !user) {
       console.log('[SERVER] No authenticated user');
       return [];
     }
 
-    console.log('[SERVER] Fetching categories for user:', session.user.id);
+    console.log('[SERVER] Fetching categories for user:', user.id);
 
     // First, get the user's favorites and queue items
     const [{ data: favorites }, { data: queueItems }] = await Promise.all([
       supabase
         .from('TopicFavorite')
         .select('promptCategoryId')
-        .eq('profileId', session.user.id),
+        .eq('profileId', user.id),
       supabase
         .from('TopicQueueItem')
         .select('promptCategoryId')
-        .eq('profileId', session.user.id)
+        .eq('profileId', user.id)
     ]);
 
     console.log('[SERVER] User preferences:', {
@@ -126,10 +145,10 @@ export async function fetchSharer(): Promise<Profile | null> {
   const supabase = createClient();
 
   // Verify authentication
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  console.log('fetchSharer - session:', session, 'error:', sessionError);
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  console.log('fetchSharer - user:', user, 'error:', userError);
 
-  if (sessionError || !session?.user) {
+  if (userError || !user) {
     console.log('fetchSharer - No authenticated user');
     return null;
   }
@@ -150,7 +169,7 @@ export async function fetchSharer(): Promise<Profile | null> {
           role
         )
       `)
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single();
 
     if (profileError) {
@@ -192,10 +211,10 @@ export async function fetchRandomPrompt(): Promise<Prompt | null> {
   const supabase = createClient();
 
   // Verify authentication
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  console.log('fetchRandomPrompt - session:', session, 'error:', sessionError);
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  console.log('fetchRandomPrompt - user:', user, 'error:', userError);
 
-  if (sessionError || !session?.user) {
+  if (userError || !user) {
     console.log('fetchRandomPrompt - No authenticated user');
     return null;
   }
@@ -215,7 +234,7 @@ export async function fetchRandomPrompt(): Promise<Prompt | null> {
           profileSharerId
         )
       `)
-      .neq('promptResponses.profileSharerId', session.user.id)
+      .neq('promptResponses.profileSharerId', user.id)
       .limit(50);
 
     if (promptError) {
@@ -314,4 +333,51 @@ export async function fetchRandomPrompt(): Promise<Prompt | null> {
     console.error('fetchRandomPrompt - Unexpected error:', error);
     return null;
   }
+}
+
+export async function getTopicFavorites() {
+  const supabase = createClient(cookies());
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) return { favorites: [], queueItems: [] };
+
+  const { data: favorites } = await supabase
+    .from('TopicFavorite')
+    .select('promptCategoryId')
+    .eq('profileId', user.id);
+
+  const { data: queueItems } = await supabase
+    .from('TopicQueueItem')
+    .select('promptCategoryId')
+    .eq('profileId', user.id);
+
+  return {
+    favorites: favorites?.map(f => f.promptCategoryId),
+    queueItems: queueItems?.map(q => q.promptCategoryId)
+  };
+}
+
+export async function getPromptResponses() {
+  const supabase = createClient(cookies());
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) return [];
+
+  const { data: responses } = await supabase
+    .from('PromptResponse')
+    .select('*')
+    .eq('profileId', user.id);
+
+  return responses || [];
+}
+
+export async function getVideos() {
+  const supabase = createClient(cookies());
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) return [];
+
+  const { data: videos } = await supabase
+    .from('Video')
+    .select('*')
+    .eq('profileId', user.id);
+
+  return videos || [];
 } 

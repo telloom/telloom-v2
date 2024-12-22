@@ -55,12 +55,17 @@ export default function Header() {
   return (
     <header className="flex items-center justify-between px-6 py-3 shadow-md">
       <div>
-        <Image
-          src="/images/Telloom Logo V1-Horizontal Green.png"
-          alt="Telloom Logo"
-          width={120}
-          height={32}
-        />
+        <Link href="/">
+          <Image
+            src="/images/Telloom Logo V1-Horizontal Green.png"
+            alt="Telloom Logo"
+            width={120}
+            height={27}
+            style={{ width: 'auto', height: 'auto' }}
+            priority
+            className="w-[120px]"
+          />
+        </Link>
       </div>
       {user ? (
         <div className="flex items-center space-x-3">

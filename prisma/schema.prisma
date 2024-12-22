@@ -193,10 +193,10 @@ model PromptCategory {
   id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   category    String?
   description String?
-  theme       Theme?
   airtableId  String?
   createdAt   DateTime?        @default(now()) @db.Timestamptz(6)
   updatedAt   DateTime?        @default(now()) @db.Timestamptz(6)
+  theme       Theme?
   prompts     Prompt[]
   favorites   TopicFavorite[]
   queueItems  TopicQueueItem[]
@@ -254,7 +254,7 @@ model PromptResponse {
   objects          Object[]
   profileSharer    ProfileSharer                   @relation(fields: [profileSharerId], references: [id], onDelete: Cascade)
   prompt           Prompt?                         @relation(fields: [promptId], references: [id], onDelete: NoAction)
-  video            Video?                          @relation(fields: [videoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  video            Video?                          @relation(fields: [videoId], references: [id], onUpdate: NoAction)
   attachments      PromptResponseAttachment[]
   favorites        PromptResponseFavorite[]
   recentlyWatched  PromptResponseRecentlyWatched[]

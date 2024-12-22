@@ -1,0 +1,1 @@
+ALTER TABLE "PromptResponse" DROP CONSTRAINT "PromptResponse_videoId_fkey"; ALTER TABLE "PromptResponse" ADD CONSTRAINT "PromptResponse_videoId_fkey" FOREIGN KEY ("videoId") REFERENCES "Video"(id) ON DELETE SET NULL ON UPDATE NO ACTION;

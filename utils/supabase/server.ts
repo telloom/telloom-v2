@@ -16,10 +16,35 @@ const createClient = () => {
           return cookieStore.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set(name, value, options);
+          try {
+            cookieStore.set({
+              name,
+              value,
+              ...options,
+              secure: process.env.NODE_ENV === 'production',
+              sameSite: 'lax',
+              httpOnly: true,
+            });
+          } catch (error) {
+            // Cookie operations in Server Components are restricted
+            // This can be safely ignored if you have middleware handling auth
+            console.debug('Cookie set error (safe to ignore in middleware):', error);
+          }
         },
         remove(name: string, options: CookieOptions) {
-          cookieStore.delete(name);
+          try {
+            cookieStore.delete({
+              name,
+              ...options,
+              secure: process.env.NODE_ENV === 'production',
+              sameSite: 'lax',
+              httpOnly: true,
+            });
+          } catch (error) {
+            // Cookie operations in Server Components are restricted
+            // This can be safely ignored if you have middleware handling auth
+            console.debug('Cookie remove error (safe to ignore in middleware):', error);
+          }
         },
       },
     }
