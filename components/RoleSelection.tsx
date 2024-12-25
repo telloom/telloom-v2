@@ -3,57 +3,106 @@
 
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Ear, Share2, Briefcase } from 'lucide-react'
 import { cn } from "@/lib/utils"
+import { Role } from '@/types/models'
 
 interface RoleCardProps {
-  role: 'LISTENER' | 'SHARER' | 'EXECUTOR';
+  role: Role;
   title: string;
   description: string;
   icon: React.ElementType;
   disabled?: boolean;
+  available?: boolean;
 }
 
 export default function RoleSelection() {
-  const [selectedRole, setSelectedRole] = useState<string | null>(null)
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null)
+  const [availableRoles, setAvailableRoles] = useState<Role[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
 
-  const handleRoleSelect = async (role: 'LISTENER' | 'SHARER' | 'EXECUTOR') => {
-    if (role === 'EXECUTOR') return; // Executor is disabled
+  // Fetch available roles and current active role on mount
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        // Get user's roles from ProfileRole
+        const rolesResponse = await fetch('/api/auth/user');
+        const userData = await rolesResponse.json();
+        
+        if (userData.user?.profile?.roles) {
+          setAvailableRoles(userData.user.profile.roles);
+        }
 
-    setSelectedRole(role);
+        // Get active role if exists
+        const activeRoleResponse = await fetch('/api/select-role');
+        const { role: activeRole } = await activeRoleResponse.json();
+        
+        if (activeRole) {
+          setSelectedRole(activeRole as Role);
+        }
+      } catch (error) {
+        console.error('Error fetching roles:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRoles();
+  }, []);
+
+  const handleRoleSelect = async (role: Role) => {
+    if (!availableRoles.includes(role)) return;
 
     try {
+      const response = await fetch('/api/select-role', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ role }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to set role');
+      }
+
+      setSelectedRole(role);
+
       // Navigate to the correct root page for each role
       switch (role) {
-        case 'LISTENER':
+        case Role.LISTENER:
           router.push('/role-listener');
           break;
-        case 'SHARER':
+        case Role.SHARER:
           router.push('/role-sharer');
+          break;
+        case Role.EXECUTOR:
+          router.push('/role-executor');
           break;
         default:
           throw new Error('Invalid role selected');
       }
     } catch (error) {
-      console.error('Error navigating:', error);
+      console.error('Error setting role:', error);
       setSelectedRole(null);
     }
   };
 
-  const RoleCard = ({ role, title, description, icon: Icon, disabled = false }: RoleCardProps) => (
+  const RoleCard = ({ role, title, description, icon: Icon, disabled = false, available = false }: RoleCardProps) => (
     <Card 
       className={cn(
         "relative cursor-pointer transition-all duration-300",
         selectedRole === role 
           ? "bg-primary text-primary-foreground shadow-lg" 
           : "hover:bg-secondary",
-        disabled && "opacity-50 cursor-not-allowed hover:bg-background"
+        (disabled || !available) && "opacity-50 cursor-not-allowed hover:bg-background"
       )}
-      onClick={() => !disabled && handleRoleSelect(role)}
+      onClick={() => !disabled && available && handleRoleSelect(role)}
     >
       <CardHeader>
         <CardTitle className={cn(
@@ -78,36 +127,53 @@ export default function RoleSelection() {
           selectedRole === role 
             ? "bg-primary-foreground text-primary" 
             : "bg-secondary text-secondary-foreground",
-          disabled && "bg-muted text-muted-foreground"
+          (disabled || !available) && "bg-muted text-muted-foreground"
         )}>
-          {disabled ? "Invitation Only" : (selectedRole === role ? "Selected" : "Select")}
+          {disabled 
+            ? "Invitation Only" 
+            : !available 
+              ? "Not Available"
+              : selectedRole === role 
+                ? "Selected" 
+                : "Select"}
         </span>
       </CardFooter>
     </Card>
   )
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold text-center mb-8">Loading...</h1>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-center mb-8">Select Your Role</h1>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <RoleCard
-          role="LISTENER"
+          role={Role.LISTENER}
           title="Listener"
           description="Listen and provide support to others in the community."
           icon={Ear}
+          available={availableRoles.includes(Role.LISTENER)}
         />
         <RoleCard
-          role="SHARER"
+          role={Role.SHARER}
           title="Sharer"
           description="Share your experiences and seek support from the community."
           icon={Share2}
+          available={availableRoles.includes(Role.SHARER)}
         />
         <RoleCard
-          role="EXECUTOR"
+          role={Role.EXECUTOR}
           title="Executor"
           description="Execute tasks and manage community projects."
           icon={Briefcase}
-          disabled
+          available={availableRoles.includes(Role.EXECUTOR)}
+          disabled={!availableRoles.includes(Role.EXECUTOR)}
         />
       </div>
     </div>

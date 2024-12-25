@@ -43,9 +43,8 @@ export enum Role {
     id: string;
     category: string;
     description: string;
+    theme: string | null;
     prompts: Prompt[];
-    isFavorite?: boolean;
-    isInQueue?: boolean;
   }
   
   export interface Prompt {
@@ -54,8 +53,8 @@ export enum Role {
     promptType: string;
     isContextEstablishing: boolean;
     promptCategoryId: string;
-    promptResponses: PromptResponse[];
     videos: Video[];
+    promptResponses: PromptResponse[];
   }
   
   export interface PromptResponseAttachment {
@@ -101,23 +100,14 @@ export enum Role {
   
   export interface PromptResponse {
     id: string;
-    profileSharerId: string;
-    videoId: string;
-    responseText: string;
-    privacyLevel: string;
-    createdAt?: Date;
-    updatedAt?: Date;
-    video?: Video;
+    summary: string;
+    transcription: string;
+    videos: Video[];
   }
   
   export interface Video {
     id: string;
-    profileSharerId: string;
-    muxPlaybackId: string;
-    duration: number;
-    promptResponses: PromptResponse[];
-    profileSharer: Profile | null;
-    viewedBy: string[];
+    muxPlaybackId: string | null;
   }
   
   export interface VideoTranscript {

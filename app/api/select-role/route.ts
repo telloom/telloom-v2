@@ -4,9 +4,10 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { cookies } from 'next/headers';
 
 const roleSchema = z.object({
-  role: z.enum(['LISTENER', 'SHARER']),
+  role: z.enum(['LISTENER', 'SHARER', 'EXECUTOR']),
 });
 
 export async function POST(request: Request) {
@@ -35,51 +36,55 @@ export async function POST(request: Request) {
 
     const { role } = parseResult.data;
 
-    // Upsert the role (insert if not exists, update if exists)
-    const { error: roleError } = await supabase
+    // Verify user has the requested role
+    const { data: userRoles, error: roleCheckError } = await supabase
       .from('ProfileRole')
-      .upsert(
-        { profileId: user.id, role },
-        { 
-          onConflict: 'profileId',
-          ignoreDuplicates: false 
-        }
-      );
+      .select('role')
+      .eq('profileId', user.id);
 
-    if (roleError) {
-      console.error('Role operation error:', roleError);
+    if (roleCheckError) {
+      console.error('Error checking roles:', roleCheckError);
       return NextResponse.json(
-        { error: 'Failed to set role. Please try again.' },
+        { error: 'Failed to verify roles' },
         { status: 500 }
       );
     }
 
-    // For SHARER role, ensure ProfileSharer record exists
-    if (role === 'SHARER') {
-      const { error: sharerError } = await supabase
-        .from('ProfileSharer')
-        .upsert(
-          { 
-            profileId: user.id,
-            subscriptionStatus: false 
-          },
-          { 
-            onConflict: 'profileId',
-            ignoreDuplicates: true 
-          }
-        );
-
-      if (sharerError) {
-        console.error('Error creating ProfileSharer record:', sharerError);
-      }
+    // Check if user has the requested role
+    const hasRole = userRoles?.some(r => r.role === role);
+    if (!hasRole) {
+      return NextResponse.json(
+        { error: 'You do not have access to this role' },
+        { status: 403 }
+      );
     }
 
-    return NextResponse.json({ success: true });
+    // Set the active role in a cookie
+    const cookieStore = cookies();
+    cookieStore.set('activeRole', role, {
+      path: '/',
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+    });
+
+    return NextResponse.json({ success: true, role });
   } catch (error) {
-    console.error('Error updating role:', error);
+    console.error('Error setting active role:', error);
     return NextResponse.json(
       { error: 'An unexpected error occurred' },
       { status: 500 }
     );
   }
+}
+
+export async function GET() {
+  const cookieStore = cookies();
+  const activeRole = cookieStore.get('activeRole')?.value;
+
+  if (!activeRole) {
+    return NextResponse.json({ role: null });
+  }
+
+  return NextResponse.json({ role: activeRole });
 }

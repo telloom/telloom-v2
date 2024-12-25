@@ -21,7 +21,6 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          // If the cookie is being set, update the response
           response.cookies.set({
             name,
             value,
@@ -29,7 +28,6 @@ export async function middleware(request: NextRequest) {
           });
         },
         remove(name: string, options: CookieOptions) {
-          // If the cookie is being removed, update the response
           response.cookies.delete({
             name,
             ...options,
@@ -50,41 +48,57 @@ export async function middleware(request: NextRequest) {
 
     if (isProtectedRoute) {
       if (userError || !user) {
-        // Redirect to login if there's no authenticated user
+        // Store the URL they were trying to visit
         const redirectUrl = new URL('/login', request.url);
         redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname);
         return NextResponse.redirect(redirectUrl);
       }
 
-      // If it's a role-specific route, verify the role
+      // Get the required role from the URL
       const requiredRole = isProtectedRoute[1].toUpperCase() as Role;
       
       // Get all roles for the user
-      const { data: userRoles } = await supabase
+      const { data: userRoles, error: roleError } = await supabase
         .from('ProfileRole')
         .select('role')
         .eq('profileId', user.id);
 
-      if (!userRoles?.length) {
-        return NextResponse.redirect(new URL('/unauthorized', request.url));
+      if (roleError || !userRoles?.length) {
+        console.error('Role fetch error:', roleError);
+        return NextResponse.redirect(new URL('/select-role', request.url));
       }
 
-      // Check if user has either the required role or is an admin
+      // Check if user has the required role or is admin
       const hasRequiredRole = userRoles.some(
         ({ role }) => role === requiredRole || role === Role.ADMIN
       );
 
       if (!hasRequiredRole) {
-        // Redirect to unauthorized if the user doesn't have the required role or admin
-        return NextResponse.redirect(new URL('/unauthorized', request.url));
+        console.debug('User lacks required role. Has:', userRoles.map(r => r.role), 'Needs:', requiredRole);
+        return NextResponse.redirect(new URL('/select-role', request.url));
+      }
+
+      // Get active role from cookie
+      const activeRole = request.cookies.get('activeRole')?.value;
+
+      // If no active role or different role, set it to the required role
+      if (!activeRole || activeRole !== requiredRole) {
+        response.cookies.set({
+          name: 'activeRole',
+          value: requiredRole,
+          path: '/',
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 60 * 60 * 24 * 30, // 30 days
+        });
       }
     }
 
     return response;
   } catch (error) {
     console.error('Middleware error:', error);
-    // Return the response even if there's an error to maintain the session
-    return response;
+    // On error, redirect to login
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 }
 

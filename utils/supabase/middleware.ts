@@ -6,6 +6,8 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+type Role = 'LISTENER' | 'SHARER' | 'EXECUTOR' | 'ADMIN'
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -53,7 +55,7 @@ export async function middleware(request: NextRequest) {
     // Check if user has SHARER role
     const { data: roleData, error: roleError } = await supabase
       .from('ProfileRole')
-      .select('*')  // Select all fields to see what we're getting back
+      .select('role')
       .eq('profileId', user.id)
       
     console.log('Role check:', { 
@@ -62,7 +64,7 @@ export async function middleware(request: NextRequest) {
       userId: user.id 
     })
 
-    const hasSharerRole = roleData?.some(role => role.role === 'SHARER')
+    const hasSharerRole = roleData?.some(role => role.role === 'SHARER' as Role)
     if (!hasSharerRole) {
       console.log('No SHARER role found, redirecting to unauthorized')
       return NextResponse.redirect(new URL('/unauthorized', request.url))
