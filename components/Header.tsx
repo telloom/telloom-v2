@@ -22,14 +22,25 @@ export default function Header() {
   // Fetch the authenticated user's data
   useEffect(() => {
     const fetchUser = async () => {
-      const res = await fetch('/api/auth/user', {
-        credentials: 'include', // Include credentials (cookies) in the request
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
-        setProfile(data.profile);
-      } else {
+      try {
+        console.log('Fetching user data...');
+        const res = await fetch('/api/auth/user', {
+          credentials: 'include', // Include credentials (cookies) in the request
+        });
+        console.log('User API response status:', res.status);
+        
+        if (res.ok) {
+          const data = await res.json();
+          console.log('User data:', data);
+          setUser(data.user);
+          setProfile(data.profile);
+        } else {
+          console.log('Failed to fetch user data:', await res.text());
+          setUser(null);
+          setProfile(null);
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
         setUser(null);
         setProfile(null);
       }
@@ -39,16 +50,23 @@ export default function Header() {
   }, []);
 
   const handleSignOut = async () => {
-    const res = await fetch('/api/auth/logout', {
-      method: 'POST',
-    });
+    try {
+      console.log('Signing out...');
+      const res = await fetch('/api/auth/logout', {
+        method: 'POST',
+      });
 
-    if (res.ok) {
-      setUser(null);
-      setProfile(null);
-      router.replace('/login');
-    } else {
-      console.error('Error signing out');
+      console.log('Logout response:', res.status);
+
+      if (res.ok) {
+        setUser(null);
+        setProfile(null);
+        router.replace('/login');
+      } else {
+        console.error('Error signing out:', await res.text());
+      }
+    } catch (error) {
+      console.error('Error during sign out:', error);
     }
   };
 

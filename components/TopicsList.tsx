@@ -2,7 +2,7 @@
 // This component renders a list of topic categories, filtering them into in-progress, completed, and suggested sections.
 "use client";
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { PromptCategory } from '@/types/models';
 import TopicCard from './TopicCard';
 import Link from 'next/link';
@@ -16,16 +16,21 @@ import 'swiper/css/navigation';
 import 'swiper/css/mousewheel';
 import 'swiper/css/bundle';
 import { useWindowSize } from '@/hooks/useWindowSize';
+import { createBrowserClient } from '@supabase/ssr'
 
 export default function TopicsList({ promptCategories: initialPromptCategories }: { promptCategories: PromptCategory[] }) {
   const { width } = useWindowSize();
   const [slidesPerView, setSlidesPerView] = useState(3);
   const [randomSuggestedTopics, setRandomSuggestedTopics] = useState<PromptCategory[]>([]);
   const [promptCategories, setPromptCategories] = useState(initialPromptCategories);
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 
   useEffect(() => {
     // Update slides per view based on screen width
-    if (width < 640) { // mobile
+    if (width < 768) { // Changed from 640 to 768 to switch to single column earlier
       setSlidesPerView(1);
     } else if (width < 1024) { // tablet
       setSlidesPerView(2);
@@ -68,14 +73,76 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
 
   const handleFavoriteClick = async (e: React.MouseEvent, category: PromptCategory) => {
     e.stopPropagation();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return;
+
     const newValue = !category.isFavorite;
+
+    // Immediately update local state
     updateCategoryStatus(category.id, { isFavorite: newValue });
+
+    if (newValue) {
+      // Add to favorites
+      const { error } = await supabase
+        .from('TopicFavorite')
+        .insert({ profileId: user.id, promptCategoryId: category.id });
+
+      if (error) {
+        console.error('Error adding to favorites:', error);
+        // Revert on error
+        updateCategoryStatus(category.id, { isFavorite: !newValue });
+      }
+    } else {
+      // Remove from favorites
+      const { error } = await supabase
+        .from('TopicFavorite')
+        .delete()
+        .eq('profileId', user.id)
+        .eq('promptCategoryId', category.id);
+
+      if (error) {
+        console.error('Error removing from favorites:', error);
+        // Revert on error
+        updateCategoryStatus(category.id, { isFavorite: !newValue });
+      }
+    }
   };
 
   const handleQueueClick = async (e: React.MouseEvent, category: PromptCategory) => {
     e.stopPropagation();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return;
+
     const newValue = !category.isInQueue;
+
+    // Immediately update local state
     updateCategoryStatus(category.id, { isInQueue: newValue });
+
+    if (newValue) {
+      // Add to queue
+      const { error } = await supabase
+        .from('TopicQueueItem')
+        .insert({ profileId: user.id, promptCategoryId: category.id });
+
+      if (error) {
+        console.error('Error adding to queue:', error);
+        // Revert on error
+        updateCategoryStatus(category.id, { isInQueue: !newValue });
+      }
+    } else {
+      // Remove from queue
+      const { error } = await supabase
+        .from('TopicQueueItem')
+        .delete()
+        .eq('profileId', user.id)
+        .eq('promptCategoryId', category.id);
+
+      if (error) {
+        console.error('Error removing from queue:', error);
+        // Revert on error
+        updateCategoryStatus(category.id, { isInQueue: !newValue });
+      }
+    }
   };
 
   const renderTopicCard = (category: PromptCategory) => (
