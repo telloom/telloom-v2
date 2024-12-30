@@ -2,42 +2,22 @@ const path = require('path');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
-  swcMinify: true,
-  webpack: (config) => {
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@': path.resolve(process.cwd()),
-      '@/components': path.resolve(process.cwd(), 'components'),
-      '@/hooks': path.resolve(process.cwd(), 'hooks'),
-      '@/lib': path.resolve(process.cwd(), 'lib'),
-      '@/styles': path.resolve(process.cwd(), 'app/styles'),
-      '@/utils': path.resolve(process.cwd(), 'utils'),
-      '@/app': path.resolve(process.cwd(), 'app'),
-    };
-    return config;
-  },
-  eslint: {
-    ignoreDuringBuilds: false,
-  },
-  env: {
-    MUX_ACCESS_TOKEN_ID: process.env.MUX_ACCESS_TOKEN_ID,
-    MUX_SECRET_KEY: process.env.MUX_SECRET_KEY,
-    MUX_WEBHOOK_SIGNING_SECRET: process.env.MUX_WEBHOOK_SIGNING_SECRET,
+  experimental: {
+    serverActions: {
+      allowedOrigins: ['localhost:3000'],
+    },
   },
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: `${process.env.NEXT_PUBLIC_SUPABASE_URL}`.replace('https://', ''),
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: '*.mux.com',
-        pathname: '/**',
+        hostname: 'image.mux.com',
       },
     ],
+  },
+  webpack: (config) => {
+    config.externals = [...config.externals, { canvas: 'canvas' }];  // required by mux-player
+    return config;
   },
 };
 

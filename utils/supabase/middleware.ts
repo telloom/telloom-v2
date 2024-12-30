@@ -6,12 +6,11 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-type Role = 'LISTENER' | 'SHARER' | 'EXECUTOR' | 'ADMIN'
-
-export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
+export const updateSession = async (request: NextRequest) => {
+  const requestHeaders = new Headers(request.headers)
+  const response = NextResponse.next({
     request: {
-      headers: request.headers,
+      headers: requestHeaders,
     },
   })
 
@@ -19,6 +18,12 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      auth: {
+        flowType: 'pkce',
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        persistSession: true,
+      },
       cookies: {
         get(name: string) {
           return request.cookies.get(name)?.value
@@ -28,46 +33,34 @@ export async function middleware(request: NextRequest) {
             name,
             value,
             ...options,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            httpOnly: true,
           })
         },
         remove(name: string, options: CookieOptions) {
           response.cookies.delete({
             name,
             ...options,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            httpOnly: true,
           })
         },
       },
     }
   )
 
-  // Verify authentication and role for protected routes
-  if (request.nextUrl.pathname.startsWith('/role-sharer')) {
-    console.log('Checking auth for protected route:', request.nextUrl.pathname)
-    
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    console.log('Auth check:', { userId: user?.id, error: authError })
-    
-    if (authError || !user) {
-      console.log('Auth failed, redirecting to login')
-      return NextResponse.redirect(new URL('/login', request.url))
-    }
+  // Check if we have a session
+  const { data: { user }, error } = await supabase.auth.getUser()
 
-    // Check if user has SHARER role
-    const { data: roleData, error: roleError } = await supabase
-      .from('ProfileRole')
-      .select('role')
-      .eq('profileId', user.id)
-      
-    console.log('Role check:', { 
-      roleData,
-      error: roleError,
-      userId: user.id 
-    })
-
-    const hasSharerRole = roleData?.some(role => role.role === 'SHARER' as Role)
-    if (!hasSharerRole) {
-      console.log('No SHARER role found, redirecting to unauthorized')
-      return NextResponse.redirect(new URL('/unauthorized', request.url))
+  if (error || !user) {
+    // If there's no session and we're not on a public route, redirect to login
+    const isPublicRoute = request.nextUrl.pathname.match(/^\/($|login|signup|forgot-password)/)
+    if (!isPublicRoute) {
+      const redirectUrl = new URL('/login', request.url)
+      redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname)
+      return NextResponse.redirect(redirectUrl)
     }
   }
 

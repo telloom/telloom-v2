@@ -1,77 +1,126 @@
-import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
-import Mux from '@mux/mux-node';
 import { headers } from 'next/headers';
+import Mux from '@mux/mux-node';
+import { supabaseAdmin } from '@/utils/supabase/service-role';
+import { getProfile } from '@/lib/auth/profile';
 
-// Add GET handler to return 405 for non-POST requests
-export async function GET() {
-  return new NextResponse('Method not allowed', { status: 405 });
-}
+const { Video } = new Mux({
+  tokenId: process.env.MUX_TOKEN_ID!,
+  tokenSecret: process.env.MUX_TOKEN_SECRET!,
+});
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
-    // Check authentication
-    const supabase = createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Get headers for auth and CORS
+    const headersList = headers();
+    const authHeader = await headersList.get('authorization');
+    const origin = await headersList.get('origin');
+    const corsOrigin = origin || process.env.NEXT_PUBLIC_APP_URL || '*';
     
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Validate Mux credentials
-    const muxTokenId = process.env.MUX_TOKEN_ID;
-    const muxTokenSecret = process.env.MUX_TOKEN_SECRET;
-
-    if (!muxTokenId || !muxTokenSecret) {
-      console.error('Missing Mux credentials');
+    if (!authHeader) {
       return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
+        { error: 'Missing authorization header' },
+        { status: 401 }
       );
     }
 
-    // Get origin for CORS
-    const headersList = headers();
-    const origin = headersList.get('origin') || process.env.NEXT_PUBLIC_APP_URL || '*';
+    // Get the profile with sharer data
+    const profile = await getProfile(authHeader);
+    if (!profile || !profile.sharerId) {
+      return NextResponse.json(
+        { error: 'User is not a sharer' },
+        { status: 403 }
+      );
+    }
 
-    // Initialize Mux client
-    const muxClient = new Mux({
-      tokenId: muxTokenId,
-      tokenSecret: muxTokenSecret,
-    });
+    // Get request body
+    const { promptId } = await request.json();
+    if (!promptId) {
+      return NextResponse.json(
+        { error: 'Missing promptId' },
+        { status: 400 }
+      );
+    }
 
-    // Create upload URL with proper CORS and test mode settings
-    const upload = await muxClient.video.uploads.create({
+    // Check if a video already exists for this prompt using admin client
+    const { data: existingVideos, error: existingError } = await supabaseAdmin
+      .from('Video')
+      .select('id')
+      .eq('promptId', promptId)
+      .not('status', 'eq', 'ERRORED');
+
+    if (existingError) {
+      console.error('Error checking for existing videos:', existingError);
+      throw existingError;
+    }
+
+    if (existingVideos && existingVideos.length > 0) {
+      return NextResponse.json(
+        { error: 'A video already exists for this prompt' },
+        { status: 409 }
+      );
+    }
+
+    // Create a new video record first using admin client
+    const { data: video, error: insertError } = await supabaseAdmin
+      .from('Video')
+      .insert({
+        promptId,
+        profileSharerId: profile.sharerId,
+        status: 'WAITING'
+      })
+      .select('id')
+      .single();
+
+    if (insertError) {
+      console.error('Error creating video record:', insertError);
+      throw insertError;
+    }
+
+    console.log('Created video record:', video);
+
+    // Create a new direct upload
+    const upload = await Video.Uploads.create({
+      cors_origin: corsOrigin,
       new_asset_settings: {
         playback_policy: ['public'],
-        test: process.env.NODE_ENV !== 'production',
-      },
-      cors_origin: origin,
+        passthrough: JSON.stringify({
+          videoId: video.id,
+          promptId,
+          profileSharerId: profile.sharerId
+        })
+      }
     });
 
-    if (!upload?.url || !upload?.id) {
-      console.error('Invalid Mux upload response:', upload);
-      return NextResponse.json(
-        { error: 'Failed to create upload URL' },
-        { status: 500 }
-      );
+    console.log('Created Mux upload:', upload);
+
+    // Update video record with upload ID using admin client
+    const { error: updateError } = await supabaseAdmin
+      .from('Video')
+      .update({
+        muxUploadId: upload.id
+      })
+      .eq('id', video.id);
+
+    if (updateError) {
+      console.error('Error updating video record:', updateError);
+      throw updateError;
     }
 
-    // Return the upload URL and ID
+    // Return the response in the format expected by the frontend
     return NextResponse.json({
       uploadUrl: upload.url,
       uploadId: upload.id,
+      videoId: video.id
+    }, {
+      headers: {
+        'Access-Control-Allow-Origin': corsOrigin
+      }
     });
   } catch (error) {
-    // Enhanced error logging
-    console.error('Mux upload URL error:', {
-      name: error instanceof Error ? error.name : 'Unknown',
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-    });
-
+    console.error('Error creating upload:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create upload URL' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

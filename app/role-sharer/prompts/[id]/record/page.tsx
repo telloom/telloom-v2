@@ -8,9 +8,10 @@ import { RecordingInterface } from '@/components/RecordingInterface';
 import { VideoPopup } from '@/components/VideoPopup';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, ArrowRight, Image as ImageIcon, Edit, Play } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Image as ImageIcon, Edit, Play, Camera, Upload } from 'lucide-react';
 import { Video, PromptResponse, Prompt, PromptCategory } from '@/types/models';
 import { supabase } from '@/utils/supabase/client';
+import { UploadPopup } from '@/components/UploadPopup';
 
 // Add interface for the database response types
 interface DatabasePromptResponse {
@@ -61,6 +62,7 @@ export default function TopicPage({ params }: { params: { id: string } }) {
   const [promptCategory, setPromptCategory] = useState<PromptCategory | null>(null);
   const [currentPromptIndex, setCurrentPromptIndex] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [isVideoPopupOpen, setIsVideoPopupOpen] = useState(false);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [summary, setSummary] = useState('');
@@ -352,10 +354,6 @@ export default function TopicPage({ params }: { params: { id: string } }) {
         return;
       }
 
-      // Create a FormData object for the video
-      const formData = new FormData();
-      formData.append('video', videoBlob, 'recording.webm');
-
       // Get the current user
       const {
         data: { user },
@@ -366,12 +364,12 @@ export default function TopicPage({ params }: { params: { id: string } }) {
         return;
       }
 
-      // Create a new prompt response (if your DB expects `profileId` or `profileSharerId`, adjust as needed)
+      // Create a new prompt response
       const { data: promptResponse, error: responseError } = await supabase
         .from('PromptResponse')
         .insert({
           promptId: currentPrompt.id,
-          profileId: user.id, // or profileSharerId, depending on your schema
+          profileId: user.id,
           summary: '',
           transcription: '',
         })
@@ -425,6 +423,10 @@ export default function TopicPage({ params }: { params: { id: string } }) {
     } catch (error) {
       console.error('Error handling video upload:', error);
     }
+  };
+
+  const handleVideoSave = async (videoBlob: Blob) => {
+    // This is handled in handleVideoComplete
   };
 
   //
@@ -489,6 +491,10 @@ export default function TopicPage({ params }: { params: { id: string } }) {
     }
   };
 
+  const handleStartUpload = () => {
+    setIsUploading(true);
+  };
+
   //
   // ------ Rendering ------
   //
@@ -547,7 +553,7 @@ export default function TopicPage({ params }: { params: { id: string } }) {
 
   // We already have hasResponse & currentResponse
   return (
-    <div className="container mx-auto py-8 space-y-8">
+    <div className="container max-w-5xl py-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -587,23 +593,35 @@ export default function TopicPage({ params }: { params: { id: string } }) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Recording Interface */}
+          {/* Recording/Upload Interface */}
           {isRecording ? (
             <RecordingInterface
-              prompt={currentPrompt}
               onComplete={handleVideoComplete}
               onCancel={() => setIsRecording(false)}
               onClose={() => setIsRecording(false)}
               onSave={handleVideoComplete}
             />
           ) : (
-            <div className="flex justify-center">
+            <div className="flex justify-center gap-4">
               <Button onClick={handleStartRecording} size="lg">
-                <Play className="mr-2 h-5 w-5" />
-                Start Recording
+                <Camera className="mr-2 h-5 w-5" />
+                Record Video
+              </Button>
+              <Button onClick={handleStartUpload} size="lg" variant="outline">
+                <Upload className="mr-2 h-5 w-5" />
+                Upload Video
               </Button>
             </div>
           )}
+
+          {/* Upload Popup */}
+          <UploadPopup
+            isOpen={isUploading}
+            onClose={() => setIsUploading(false)}
+            promptText={currentPrompt.promptText}
+            onComplete={handleVideoComplete}
+            onSave={handleVideoComplete}
+          />
 
           {/* Existing Response */}
           {currentResponse && (

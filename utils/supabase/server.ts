@@ -4,46 +4,31 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-const createClient = () => {
-  const cookieStore = cookies();
-
+export const createClient = () => {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
+        async get(name: string) {
+          const cookieStore = await cookies();
+          const cookie = cookieStore.get(name);
+          return cookie?.value;
         },
-        set(name: string, value: string, options: CookieOptions) {
+        async set(name: string, value: string, options: CookieOptions) {
+          const cookieStore = await cookies();
           try {
-            cookieStore.set({
-              name,
-              value,
-              ...options,
-              secure: process.env.NODE_ENV === 'production',
-              sameSite: 'lax',
-              httpOnly: true,
-            });
-          } catch (error) {
-            // Cookie operations in Server Components are restricted
-            // This can be safely ignored if you have middleware handling auth
-            console.debug('Cookie set error (safe to ignore in middleware):', error);
+            cookieStore.set({ name, value, ...options });
+          } catch {
+            // Handle cookies in edge functions
           }
         },
-        remove(name: string, options: CookieOptions) {
+        async remove(name: string, options: CookieOptions) {
+          const cookieStore = await cookies();
           try {
-            cookieStore.delete({
-              name,
-              ...options,
-              secure: process.env.NODE_ENV === 'production',
-              sameSite: 'lax',
-              httpOnly: true,
-            });
-          } catch (error) {
-            // Cookie operations in Server Components are restricted
-            // This can be safely ignored if you have middleware handling auth
-            console.debug('Cookie remove error (safe to ignore in middleware):', error);
+            cookieStore.delete({ name, ...options });
+          } catch {
+            // Handle cookies in edge functions
           }
         },
       },
@@ -51,19 +36,41 @@ const createClient = () => {
   );
 };
 
-const getUser = async () => {
+export async function getUser() {
   const supabase = createClient();
   try {
     const { data: { user }, error } = await supabase.auth.getUser();
-    if (error) throw error;
-    return { user, error: null };
+    if (error || !user) {
+      return null;
+    }
+    return user;
   } catch (error) {
-    console.error('Error getting user:', error);
-    return { user: null, error };
+    console.error('Error:', error);
+    return null;
   }
-};
+}
 
-export {
-  createClient,
-  getUser,
-};
+// Helper function for role-based layouts
+export async function checkRole(requiredRole: string) {
+  const supabase = createClient();
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) {
+      return false;
+    }
+
+    const { data: roles } = await supabase
+      .from('ProfileRole')
+      .select('role')
+      .eq('profileId', user.id);
+
+    if (!roles) {
+      return false;
+    }
+
+    return roles.some(role => role.role === requiredRole);
+  } catch (error) {
+    console.error('Error checking role:', error);
+    return false;
+  }
+}

@@ -80,7 +80,9 @@ CREATE TABLE IF NOT EXISTS "Video" (
     "airtableRecordId" TEXT,
     "promptId" UUID REFERENCES "Prompt"(id) ON DELETE NO ACTION,
     "createdAt" TIMESTAMPTZ DEFAULT now(),
-    "updatedAt" TIMESTAMPTZ DEFAULT now()
+    "updatedAt" TIMESTAMPTZ DEFAULT now(),
+    "status" TEXT DEFAULT 'WAITING',
+    "errorMessage" TEXT
 );
 
 -- Create PromptResponse table
