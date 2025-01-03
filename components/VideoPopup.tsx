@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import VideoPlayer from './VideoPlayer';
+import { MuxPlayer } from './MuxPlayer';
 
 interface VideoPopupProps {
   open: boolean;
@@ -39,14 +39,16 @@ export function VideoPopup({
 }: VideoPopupProps) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95vw] w-full h-[90vh] max-h-[90vh] flex flex-col p-0 gap-0">
-        <DialogHeader className="p-4 shrink-0">
-          <DialogTitle className="text-lg font-semibold">{promptText}</DialogTitle>
+      <DialogContent className="max-w-[95vw] max-h-[95vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="p-4 pr-14 relative">
+          <DialogTitle className="text-lg font-semibold text-left pr-8">
+            {promptText}
+          </DialogTitle>
           <DialogDescription className="sr-only">
             Video playback for the prompt: {promptText}
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-1 flex items-center justify-center p-4 relative min-h-0">
+        <div className="flex items-center justify-center p-4 relative overflow-hidden">
           {/* Navigation buttons */}
           {hasPrevious && (
             <Button
@@ -70,8 +72,18 @@ export function VideoPopup({
           )}
 
           {/* Content area */}
-          <div className="w-full h-full rounded-lg overflow-hidden bg-black flex items-center justify-center">
-            {children || (videoId && <VideoPlayer playbackId={videoId} />)}
+          <div className="flex items-center justify-center w-full">
+            {children || (videoId && (
+              <div className="relative w-full max-w-[800px]" style={{ width: 'min(60vw, calc(55vh * 16/9))' }}>
+                <div className="w-full">
+                  <div className="aspect-video bg-black rounded-md overflow-hidden relative">
+                    <div className="absolute inset-0">
+                      <MuxPlayer playbackId={videoId} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </DialogContent>

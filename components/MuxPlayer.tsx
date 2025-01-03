@@ -14,22 +14,15 @@ export function MuxPlayer({ playbackId, className = '' }: MuxPlayerProps) {
   if (!playbackId) return null;
 
   return (
-    <div className="absolute inset-0">
+    <div className="relative w-full h-full">
       <MuxPlayerReact
-        streamType="on-demand"
         playbackId={playbackId}
+        streamType="on-demand"
+        accentColor="#8fbc55"
+        style={{ height: '100%', width: '100%', maxWidth: '100%', maxHeight: '100%' }}
         metadata={{
-          video_title: 'Response Video',
+          videoTitle: "Video Response",
         }}
-        style={{
-          height: '100%',
-          width: '100%',
-          maxHeight: '100%',
-          borderRadius: '0.75rem',
-          overflow: 'hidden',
-        }}
-        className={`rounded-xl object-cover ${className}`}
-        nohotkeys={true}
       />
     </div>
   );

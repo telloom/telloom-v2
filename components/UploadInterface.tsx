@@ -16,6 +16,7 @@ interface UploadInterfaceProps {
   onSave?: (videoBlob: Blob) => void;
   promptId?: string;
   promptText?: string;
+  onUploadSuccess?: () => void;
 }
 
 export function UploadInterface({
@@ -23,7 +24,8 @@ export function UploadInterface({
   onComplete,
   onSave,
   promptId,
-  promptText
+  promptText,
+  onUploadSuccess
 }: UploadInterfaceProps) {
   const supabase = createClient();
   const [isUploading, setIsUploading] = useState(false);
@@ -40,7 +42,10 @@ export function UploadInterface({
     setProcessingState('ready');
     setMuxPlaybackId(playbackId);
     toast.success('Video uploaded successfully');
-  }, []);
+    if (onUploadSuccess) {
+      onUploadSuccess();
+    }
+  }, [onUploadSuccess]);
 
   const handleVideoError = useCallback(() => {
     setProcessingState('error');
@@ -324,12 +329,18 @@ export function UploadInterface({
 
         <div className="flex flex-col flex-1 min-h-0">
           {processingState === 'ready' && muxPlaybackId ? (
-            <div className="flex flex-col flex-1 min-h-0">
-              <div className="flex-1 min-h-0 relative">
-                <MuxPlayer playbackId={muxPlaybackId} />
-              </div>
-              <div className="text-sm text-[#16A34A] bg-[#DCFCE7] p-3 rounded-md text-center mt-4">
-                Video uploaded and processed successfully!
+            <div className="flex flex-col items-center justify-center flex-1 min-h-0">
+              <div className="relative w-full max-w-[800px]" style={{ width: 'min(60vw, calc(55vh * 16/9))' }}>
+                <div className="w-full">
+                  <div className="aspect-video bg-black rounded-md overflow-hidden relative">
+                    <div className="absolute inset-0">
+                      <MuxPlayer playbackId={muxPlaybackId} />
+                    </div>
+                  </div>
+                  <div className="text-sm text-[#16A34A] bg-[#DCFCE7] p-3 rounded-md text-center mt-4 w-full">
+                    Video uploaded and processed successfully!
+                  </div>
+                </div>
               </div>
             </div>
           ) : processingState === 'processing' ? (
@@ -365,20 +376,20 @@ export function UploadInterface({
           ) : (
             <div className="flex-1 flex flex-col">
               {isUploading ? (
-                <div className="py-8 space-y-4">
-                  <div className="text-sm text-muted-foreground text-center">
+                <div className="py-24 space-y-8">
+                  <div className="text-xl text-muted-foreground text-center">
                     Uploading... {uploadProgress}%
                   </div>
-                  <div className="w-full max-w-md mx-auto bg-secondary rounded-full h-2">
+                  <div className="w-full max-w-4xl mx-auto bg-secondary rounded-full h-6">
                     <div
-                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      className="bg-primary h-6 rounded-full transition-all duration-300"
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
                 </div>
               ) : (
                 <div
-                  className={`flex-1 border border-dashed rounded-lg py-32 px-4 text-center hover:bg-muted/50 transition-colors cursor-pointer ${
+                  className={`flex-1 border-2 border-dashed rounded-lg py-52 px-8 text-center hover:bg-muted/50 transition-colors cursor-pointer ${
                     processingState !== 'idle' ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                   onDrop={handleDrop}
@@ -395,7 +406,7 @@ export function UploadInterface({
                     }
                   }}
                 >
-                  <p className="text-muted-foreground">
+                  <p className="text-xl text-muted-foreground">
                     Drag and drop a video file here, or click to select one
                   </p>
                 </div>

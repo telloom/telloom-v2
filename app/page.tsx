@@ -2,29 +2,26 @@
 import { redirect } from 'next/navigation';
 import { getUser } from '@/utils/supabase/server';
 import { Role } from '@/types/models';
+import { useCallback, useState } from 'react';
 
-export default async function HomePage() {
-  const { user, roles, error } = await getUser();
+export default function Home() {
+  const [refreshKey, setRefreshKey] = useState(0);
   
-  if (error || !user) {
-    redirect('/login');
-  }
+  const handleUploadSuccess = useCallback(() => {
+    setRefreshKey(prev => prev + 1);
+  }, []);
 
-  if (!roles || roles.length === 0) {
-    redirect('/select-role');
-  }
-
-  // Redirect based on role (prioritizing ADMIN)
-  if (roles.some(r => r.role === Role.ADMIN)) {
-    redirect('/role-admin');
-  } else if (roles.some(r => r.role === Role.SHARER)) {
-    redirect('/role-sharer');
-  } else if (roles.some(r => r.role === Role.LISTENER)) {
-    redirect('/role-listener');
-  } else if (roles.some(r => r.role === Role.EXECUTOR)) {
-    redirect('/role-executor');
-  }
-
-  // If no matching role, redirect to role selection
-  redirect('/select-role');
+  return (
+    <main className="container mx-auto p-4 md:p-6 lg:p-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {prompts.map((prompt) => (
+          <PromptCard
+            key={`${prompt.id}-${refreshKey}`}
+            prompt={prompt}
+            onUploadSuccess={handleUploadSuccess}
+          />
+        ))}
+      </div>
+    </main>
+  );
 }

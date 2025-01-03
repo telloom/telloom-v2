@@ -45,20 +45,40 @@ export async function POST(request: Request) {
     // Check if a video already exists for this prompt using admin client
     const { data: existingVideos, error: existingError } = await supabaseAdmin
       .from('Video')
-      .select('id')
+      .select('id, status')
       .eq('promptId', promptId)
-      .not('status', 'eq', 'ERRORED');
+      .eq('profileSharerId', profile.sharerId);
 
     if (existingError) {
       console.error('Error checking for existing videos:', existingError);
       throw existingError;
     }
 
-    if (existingVideos && existingVideos.length > 0) {
+    // If there's an existing video that's not in WAITING or ERRORED state, return conflict
+    const activeVideo = existingVideos?.find(v => !['WAITING', 'ERRORED'].includes(v.status));
+    if (activeVideo) {
+      console.log('Found existing active video for prompt:', {
+        promptId,
+        profileSharerId: profile.sharerId,
+        existingVideos
+      });
       return NextResponse.json(
-        { error: 'A video already exists for this prompt' },
+        { error: 'You have already uploaded a video for this prompt' },
         { status: 409 }
       );
+    }
+
+    // If there are any videos in WAITING or ERRORED state, delete them
+    if (existingVideos?.length > 0) {
+      const { error: deleteError } = await supabaseAdmin
+        .from('Video')
+        .delete()
+        .in('id', existingVideos.map(v => v.id));
+
+      if (deleteError) {
+        console.error('Error deleting stale videos:', deleteError);
+        throw deleteError;
+      }
     }
 
     // Create a new video record first using admin client
