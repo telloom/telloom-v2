@@ -2,7 +2,7 @@
 // This component provides the user interface for recording videos, including device selection and recording controls.
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Video, X, Square, Circle, Upload, Timer, Camera, Mic, RotateCcw, Save, Play, Pause } from 'lucide-react';
@@ -16,12 +16,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { MuxPlayer } from './MuxPlayer';
 
 export interface RecordingInterfaceProps {
-  onComplete: (videoBlob: Blob) => Promise<void>;
+  onComplete?: (videoBlob: Blob) => Promise<void>;
   onCancel: () => void;
   onClose: () => void;
-  onSave: (videoBlob: Blob) => Promise<void>;
+  onSave: (videoBlob: Blob) => Promise<string>;
 }
 
 interface MediaDevice {
@@ -43,12 +44,21 @@ export function RecordingInterface({ onComplete, onCancel, onClose, onSave }: Re
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const [isPlayingPreview, setIsPlayingPreview] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [countdownValue, setCountdownValue] = useState<number | null>(null);
+  const [audioLevel, setAudioLevel] = useState<number>(0);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioAnalyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [processingState, setProcessingState] = useState<'idle' | 'uploading' | 'processing' | 'ready' | 'error'>('idle');
+  const [muxPlaybackId, setMuxPlaybackId] = useState<string | null>(null);
 
   useEffect(() => {
     // Get available media devices and start preview automatically
@@ -104,24 +114,108 @@ export function RecordingInterface({ onComplete, onCancel, onClose, onSave }: Re
       if (recordedVideoUrl) {
         URL.revokeObjectURL(recordedVideoUrl);
       }
+      cleanupAudioVisualization();
     };
   }, []);
 
+  // Add audio visualization setup
+  const setupAudioVisualization = (stream: MediaStream) => {
+    try {
+      // Create audio context and analyzer
+      const audioContext = new AudioContext();
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      
+      // Connect audio stream to analyzer
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      
+      audioContextRef.current = audioContext;
+      audioAnalyserRef.current = analyser;
+
+      // Start visualization loop
+      const updateAudioLevel = () => {
+        if (!audioAnalyserRef.current) return;
+        
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(dataArray);
+        
+        // Calculate average volume level
+        const average = dataArray.reduce((acc, val) => acc + val, 0) / dataArray.length;
+        setAudioLevel(average);
+        
+        animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
+      };
+      
+      updateAudioLevel();
+    } catch (err) {
+      console.error('Error setting up audio visualization:', err);
+    }
+  };
+
+  // Clean up audio visualization
+  const cleanupAudioVisualization = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+    }
+    audioContextRef.current = null;
+    audioAnalyserRef.current = null;
+  };
+
   const startPreview = async (videoDeviceId?: string, audioDeviceId?: string) => {
     try {
+      // Clean up existing resources
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current.getTracks().forEach(track => {
+          track.stop();
+          streamRef.current?.removeTrack(track);
+        });
       }
+      cleanupAudioVisualization();
 
+      // Try to get the highest quality, but allow fallback
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: videoDeviceId || selectedVideoDevice },
-        audio: { deviceId: audioDeviceId || selectedAudioDevice }
+        video: { 
+          deviceId: videoDeviceId ? { exact: videoDeviceId } : undefined,
+          width: { ideal: 1920, min: 1280 },
+          height: { ideal: 1080, min: 720 },
+          frameRate: { ideal: 30, min: 24 },
+          aspectRatio: { ideal: 16/9 }
+        },
+        audio: { 
+          deviceId: audioDeviceId ? { exact: audioDeviceId } : undefined,
+          sampleRate: { ideal: 48000 },
+          channelCount: { ideal: 2 },
+          echoCancellation: { ideal: true },
+          noiseSuppression: { ideal: true },
+          autoGainControl: { ideal: true }
+        }
+      }).catch(async (err) => {
+        console.warn('Failed to get high quality stream, falling back:', err);
+        // Fallback to more basic constraints
+        return navigator.mediaDevices.getUserMedia({
+          video: { 
+            deviceId: videoDeviceId ? { exact: videoDeviceId } : undefined,
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: { 
+            deviceId: audioDeviceId ? { exact: audioDeviceId } : undefined
+          }
+        });
       });
 
       streamRef.current = stream;
+      setupAudioVisualization(stream);
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.playsInline = true;
+        videoRef.current.muted = true;
+        videoRef.current.volume = 0;
       }
 
       setIsPreviewActive(true);
@@ -132,17 +226,17 @@ export function RecordingInterface({ onComplete, onCancel, onClose, onSave }: Re
     }
   };
 
-  const startRecording = async () => {
+  const startRecording = useCallback(async () => {
     try {
       if (!isPreviewActive) {
-        await startPreview();
+        await startPreview(selectedVideoDevice, selectedAudioDevice);
       }
 
       if (!streamRef.current) {
         throw new Error('No media stream available');
       }
 
-      // Clear any existing recorded video
+      // Clean up any existing recordings
       if (recordedVideoUrl) {
         URL.revokeObjectURL(recordedVideoUrl);
         setRecordedVideoUrl(null);
@@ -151,91 +245,129 @@ export function RecordingInterface({ onComplete, onCancel, onClose, onSave }: Re
       setRecordingTime(0);
       setIsPreviewMode(false);
 
-      // Try to use the most compatible codec
-      let mimeType = 'video/webm';
-      if (MediaRecorder.isTypeSupported('video/webm;codecs=h264')) {
-        mimeType = 'video/webm;codecs=h264';
-      } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
-        mimeType = 'video/webm;codecs=vp8';
-      }
+      // Prioritize highest quality codecs
+      const codecs = [
+        'video/webm;codecs=h264,opus',   // High quality, widely supported
+        'video/webm;codecs=vp9,opus',    // Excellent quality, better compression
+        'video/webm;codecs=vp8,opus',    // Fallback
+        'video/webm'                     // Last resort
+      ];
 
+      let mimeType = codecs.find(codec => MediaRecorder.isTypeSupported(codec)) || 'video/webm';
+
+      // Configure for maximum quality
       const mediaRecorder = new MediaRecorder(streamRef.current, {
         mimeType,
-        videoBitsPerSecond: 2500000 // 2.5 Mbps
+        videoBitsPerSecond: 8000000,     // 8 Mbps for high quality video
+        audioBitsPerSecond: 256000       // 256 kbps for high quality audio
       });
       
       mediaRecorderRef.current = mediaRecorder;
 
+      // Store all chunks immediately for best quality
+      let chunks: Blob[] = [];
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          setRecordedChunks((prev) => [...prev, event.data]);
+          chunks.push(event.data);
+          setRecordedChunks(chunks); // Update immediately to ensure we don't lose data
         }
       };
 
-      // Start the recording timer
+      // Handle recording errors
+      mediaRecorder.onerror = (event) => {
+        console.error('MediaRecorder error:', event);
+        setError('Recording error occurred. Please try again.');
+        stopRecording();
+      };
+
+      // Use performance.now() for accurate timing
+      let startTime = performance.now();
       timerRef.current = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
+        const elapsedSeconds = Math.floor((performance.now() - startTime) / 1000);
+        setRecordingTime(elapsedSeconds);
       }, 1000);
 
-      mediaRecorder.start(1000); // Record in 1-second chunks
+      // Use smaller chunks for better quality control
+      mediaRecorder.start(100); // 100ms chunks for finer granularity
       setIsRecording(true);
       setError(null);
     } catch (err) {
       console.error('Error starting recording:', err);
       setError('Unable to start recording. Please check your device settings.');
     }
-  };
+  }, [isPreviewActive, recordedVideoUrl, selectedVideoDevice, selectedAudioDevice, startPreview]);
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
+  const startCountdown = useCallback(() => {
+    setCountdownValue(3);
+    const countdownInterval = setInterval(() => {
+      setCountdownValue((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(countdownInterval);
+          if (prev === 1) {
+            startRecording();
+          }
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [startRecording]);
+
+  const stopRecording = useCallback(() => {
+    if (!mediaRecorderRef.current) return Promise.resolve();
+
+    return new Promise<void>((resolve) => {
+      if (!mediaRecorderRef.current) {
+        resolve();
+        return;
       }
-      setIsRecording(false);
 
-      // Create preview when recording stops
-      mediaRecorderRef.current.onstop = () => {
+      mediaRecorderRef.current.onstop = async () => {
         try {
-          // Stop the live stream first
+          // Stop all tracks properly
           if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current.getTracks().forEach(track => {
+              track.stop();
+              streamRef.current?.removeTrack(track);
+            });
           }
 
-          // Create a new blob with proper MIME type
+          // Create a single high-quality blob
           const blob = new Blob(recordedChunks, { 
             type: mediaRecorderRef.current?.mimeType || 'video/webm'
           });
           
-          // Create object URL
+          // Store locally for best quality
           const url = URL.createObjectURL(blob);
           setRecordedVideoUrl(url);
+          setIsRecording(false);
           setIsPreviewMode(true);
           
-          // Switch video source to recorded video
+          // Configure video element for high-quality playback
           if (videoRef.current) {
             videoRef.current.srcObject = null;
             videoRef.current.src = url;
             videoRef.current.muted = false;
-            
-            // Play the preview
-            videoRef.current.load(); // Force reload with new source
-            videoRef.current.play()
-              .then(() => {
-                setIsPlayingPreview(true);
-              })
-              .catch((playError) => {
-                console.error('Error playing preview:', playError);
-                setError('Unable to play video preview. Please try recording again.');
-              });
+            videoRef.current.volume = 1;
+            await videoRef.current.load();
           }
+
+          resolve();
         } catch (err) {
           console.error('Error creating video preview:', err);
           setError('Failed to create video preview. Please try recording again.');
+          resolve();
         }
       };
-    }
-  };
+
+      // Clear recording timer
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+
+      mediaRecorderRef.current.stop();
+    });
+  }, [recordedChunks]);
 
   const togglePause = () => {
     if (mediaRecorderRef.current) {
@@ -259,45 +391,84 @@ export function RecordingInterface({ onComplete, onCancel, onClose, onSave }: Re
   };
 
   const handleSave = async () => {
-    if (recordedChunks.length > 0) {
-      const blob = new Blob(recordedChunks, { type: 'video/webm' });
-      try {
-        await onComplete(blob);
-        await onSave(blob);
-      } catch (err) {
-        console.error('Error saving video:', err);
-        setError('Failed to save video. Please try again.');
+    try {
+      if (recordedChunks.length === 0) {
+        setError('No recording available to save');
+        return;
       }
+
+      setProcessingState('uploading');
+      setError(null);
+
+      const blob = new Blob(recordedChunks, {
+        type: 'video/webm'
+      });
+
+      // Call onSave and wait for the MuxPlaybackId
+      const muxPlaybackId = await onSave(blob);
+      setMuxPlaybackId(muxPlaybackId);
+      setProcessingState('ready');
+    } catch (error) {
+      console.error('Error saving video:', error);
+      setError('Failed to save video. Please try again.');
+      setProcessingState('error');
     }
   };
 
   const handleCancel = () => {
-    stopRecording();
+    // Stop recording if active
+    if (mediaRecorderRef.current && isRecording) {
+      stopRecording();
+    }
+    
+    // Clean up recording state
     setRecordedChunks([]);
     setRecordingTime(0);
+    
+    // Stop all media tracks
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach(track => {
+        track.stop();
+        streamRef.current?.removeTrack(track);
+      });
+      streamRef.current = null;
     }
+    
+    // Clean up video resources
     if (recordedVideoUrl) {
       URL.revokeObjectURL(recordedVideoUrl);
       setRecordedVideoUrl(null);
     }
+    
+    // Clean up audio visualization
+    cleanupAudioVisualization();
+    
+    // Reset all states
     setIsPreviewMode(false);
     setIsPreviewActive(false);
+    setIsRecording(false);
+    setIsPaused(false);
+    setIsProcessing(false);
+    
+    // Clear any timers
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    // Call parent handlers
     onCancel();
     onClose();
+
+    // Force a page refresh to ensure camera is fully stopped
+    window.location.reload();
   };
 
-  const handleRerecord = async () => {
-    if (recordedVideoUrl) {
-      URL.revokeObjectURL(recordedVideoUrl);
-      setRecordedVideoUrl(null);
-    }
-    setRecordedChunks([]);
-    setRecordingTime(0);
+  const handleRetake = useCallback(() => {
     setIsPreviewMode(false);
-    await startPreview();
-  };
+    setRecordedChunks([]);
+    startPreview(selectedVideoDevice, selectedAudioDevice);
+  }, [selectedVideoDevice, selectedAudioDevice, startPreview]);
 
   const togglePreviewPlayback = async () => {
     if (videoRef.current) {
@@ -319,24 +490,12 @@ export function RecordingInterface({ onComplete, onCancel, onClose, onSave }: Re
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Check if file is a video
-    if (!file.type.startsWith('video/')) {
-      setError('Please upload a video file.');
-      return;
-    }
-
-    // Check file size (e.g., max 100MB)
-    if (file.size > 100 * 1024 * 1024) {
-      setError('File size should be less than 100MB.');
-      return;
-    }
-
     try {
-      await onComplete(file);
+      // Only call onSave since it's the same function as onComplete
       await onSave(file);
-    } catch (err) {
-      console.error('Error uploading file:', err);
-      setError('Failed to upload video file.');
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      setError('Failed to upload file. Please try again.');
     }
   };
 
@@ -347,176 +506,290 @@ export function RecordingInterface({ onComplete, onCancel, onClose, onSave }: Re
   };
 
   return (
-    <Card className="p-6">
-      <div className="space-y-6">
+    <div className="p-6">
+      <div className="space-y-8">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-md">
             {error}
           </div>
         )}
 
-        {/* Device Selection */}
-        <div className={cn("space-y-4", (isRecording || isPreviewMode) && "opacity-50 pointer-events-none")}>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <Label htmlFor="camera">Camera</Label>
-              <Select
-                value={selectedVideoDevice}
-                onValueChange={(value) => {
-                  setSelectedVideoDevice(value);
-                  startPreview(value, selectedAudioDevice);
-                }}
-                disabled={isRecording || isPreviewMode}
-              >
-                <SelectTrigger>
-                  <Camera className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="Select camera" />
-                </SelectTrigger>
-                <SelectContent>
-                  {videoDevices.map((device) => (
-                    <SelectItem key={device.deviceId} value={device.deviceId}>
-                      {device.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex-1">
-              <Label htmlFor="microphone">Microphone</Label>
-              <Select
-                value={selectedAudioDevice}
-                onValueChange={(value) => {
-                  setSelectedAudioDevice(value);
-                  startPreview(selectedVideoDevice, value);
-                }}
-                disabled={isRecording || isPreviewMode}
-              >
-                <SelectTrigger>
-                  <Mic className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="Select microphone" />
-                </SelectTrigger>
-                <SelectContent>
-                  {audioDevices.map((device) => (
-                    <SelectItem key={device.deviceId} value={device.deviceId}>
-                      {device.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        {/* Video Preview with Timer Overlay */}
-        <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden relative">
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted={!isPreviewMode}
-            controls={isPreviewMode}
-            controlsList="nodownload"
-            className="w-full h-full object-cover"
-            onEnded={() => setIsPlayingPreview(false)}
-            onError={(e) => {
-              const error = e.currentTarget.error;
-              console.error('Video error:', {
-                code: error?.code,
-                message: error?.message,
-                event: e
-              });
-              setError(`Error playing video: ${error?.message || 'Please try recording again.'}`);
-            }}
-          />
-          {isRecording && (
-            <div className="absolute top-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full flex items-center gap-2 z-10">
-              <Timer className="h-4 w-4 text-red-500 animate-pulse" />
-              <span className="font-mono">{formatTime(recordingTime)}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Controls */}
-        <div className="flex justify-center gap-4">
-          {!isRecording && !isPreviewMode && (
-            <div className="flex gap-4">
-              <Button onClick={startRecording} size="lg">
-                <Video className="mr-2 h-5 w-5" />
-                Start Recording
-              </Button>
-              <div className="relative">
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="mr-2 h-5 w-5" />
-                  Upload Video
-                </Button>
-                <Input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="video/*"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
+        <div className="flex flex-col flex-1 min-h-0">
+          {processingState === 'ready' && muxPlaybackId ? (
+            <div className="flex flex-col items-center justify-center flex-1 min-h-0">
+              <div className="relative w-full max-w-[800px]" style={{ width: 'min(60vw, calc(55vh * 16/9))' }}>
+                <div className="w-full">
+                  <div className="aspect-video bg-black rounded-md overflow-hidden relative">
+                    <div className="absolute inset-0">
+                      <MuxPlayer playbackId={muxPlaybackId} />
+                    </div>
+                  </div>
+                  <div className="text-sm text-[#16A34A] bg-[#DCFCE7] p-3 rounded-md text-center mt-4 w-full">
+                    Video uploaded and processed successfully!
+                  </div>
+                </div>
               </div>
             </div>
-          )}
-
-          {isRecording && (
+          ) : processingState === 'processing' ? (
+            <div className="text-center py-12">
+              <svg
+                className="animate-spin h-12 w-12 mx-auto mb-4 text-[#16A34A]"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              <p className="text-lg font-medium">Processing video...</p>
+              <p className="text-sm text-muted-foreground">This may take a few minutes</p>
+            </div>
+          ) : processingState === 'uploading' ? (
+            <div className="text-center py-12">
+              <svg
+                className="animate-spin h-12 w-12 mx-auto mb-4 text-[#16A34A]"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              <p className="text-lg font-medium">Uploading video...</p>
+              <p className="text-sm text-muted-foreground">Please wait</p>
+            </div>
+          ) : processingState === 'error' ? (
+            <div className="text-center py-12 text-red-500">
+              <p className="text-lg font-medium">Error processing video</p>
+              <p className="text-sm">Please try again</p>
+            </div>
+          ) : (
             <>
-              <Button onClick={togglePause} variant="outline" size="lg">
-                {isPaused ? (
-                  <Circle className="mr-2 h-5 w-5 fill-current" />
-                ) : (
-                  <Square className="mr-2 h-5 w-5" />
-                )}
-                {isPaused ? 'Resume' : 'Pause'}
-              </Button>
-              <Button onClick={handleComplete} size="lg">
-                <Square className="mr-2 h-5 w-5" />
-                Stop Recording
-              </Button>
-              <Button onClick={handleCancel} variant="ghost" size="lg">
-                <X className="mr-2 h-5 w-5" />
-                Cancel
-              </Button>
-            </>
-          )}
+              {/* Device Selection */}
+              <div className={cn("space-y-6", (isRecording || isPreviewMode || processingState !== 'idle') && "opacity-50 pointer-events-none")}>
+                <div className="flex gap-6">
+                  <div className="flex-1">
+                    <Label htmlFor="camera" className="mb-2 block">Camera</Label>
+                    <Select
+                      value={selectedVideoDevice}
+                      onValueChange={(value) => {
+                        setSelectedVideoDevice(value);
+                        startPreview(value, selectedAudioDevice);
+                      }}
+                      disabled={isRecording || isPreviewMode || processingState !== 'idle'}
+                    >
+                      <SelectTrigger className="h-12 rounded-full">
+                        <Camera className="mr-2 h-4 w-4" />
+                        <SelectValue placeholder="Select camera" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {videoDevices.map((device) => (
+                          <SelectItem key={device.deviceId} value={device.deviceId}>
+                            {device.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1">
+                    <Label htmlFor="microphone" className="mb-2 block">Microphone</Label>
+                    <Select
+                      value={selectedAudioDevice}
+                      onValueChange={(value) => {
+                        setSelectedAudioDevice(value);
+                        startPreview(selectedVideoDevice, value);
+                      }}
+                      disabled={isRecording || isPreviewMode || processingState !== 'idle'}
+                    >
+                      <SelectTrigger className="h-12 rounded-full">
+                        <Mic className="mr-2 h-4 w-4" />
+                        <SelectValue placeholder="Select microphone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {audioDevices.map((device) => (
+                          <SelectItem key={device.deviceId} value={device.deviceId}>
+                            {device.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
 
-          {isPreviewMode && (
-            <>
-              <Button onClick={togglePreviewPlayback} variant="outline" size="lg">
-                {isPlayingPreview ? (
-                  <>
-                    <Pause className="mr-2 h-5 w-5" />
-                    Pause Preview
-                  </>
-                ) : (
-                  <>
-                    <Play className="mr-2 h-5 w-5" />
-                    Play Preview
-                  </>
+              {/* Video Preview with Timer and Audio Level Overlay */}
+              <div className="flex flex-col items-center justify-center flex-1 min-h-0 mt-6">
+                <div className="relative w-full max-w-[800px]" style={{ width: 'min(60vw, calc(55vh * 16/9))' }}>
+                  <div className="w-full">
+                    <div className="aspect-video bg-black rounded-md overflow-hidden relative">
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted={!isPreviewMode}
+                        controls={isPreviewMode}
+                        controlsList="nodownload"
+                        className={cn(
+                          "w-full h-full object-cover",
+                          !isPreviewMode && "scale-x-[-1]"
+                        )}
+                        onEnded={() => setIsPlayingPreview(false)}
+                        onError={(e) => {
+                          const error = e.currentTarget.error;
+                          console.error('Video error:', {
+                            code: error?.code,
+                            message: error?.message,
+                            event: e
+                          });
+                          setError(`Error playing video: ${error?.message || 'Please try recording again.'}`);
+                        }}
+                      />
+                      {/* Timer Overlay */}
+                      {isRecording && (
+                        <div className="absolute top-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full flex items-center gap-2 z-10">
+                          <Timer className="h-4 w-4 text-red-500 animate-pulse" />
+                          <span className="font-mono">{formatTime(recordingTime)}</span>
+                        </div>
+                      )}
+                      {/* Audio Level Indicator */}
+                      {(isPreviewActive || isRecording) && !isPreviewMode && (
+                        <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-full flex items-center gap-2 z-10">
+                          <Mic className={cn(
+                            "h-4 w-4",
+                            audioLevel > 50 ? "text-green-500" : "text-gray-500",
+                            audioLevel > 50 && "animate-pulse"
+                          )} />
+                          <div className="w-16 h-1 bg-gray-700 rounded-full">
+                            <div 
+                              className="h-full bg-green-500 rounded-full transition-all duration-100"
+                              style={{ width: `${Math.min(100, (audioLevel / 256) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {/* Countdown Overlay */}
+                      {countdownValue !== null && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                          <span className="text-white text-8xl font-bold animate-pulse">
+                            {countdownValue}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Controls */}
+              <div className="flex justify-center gap-4 mt-8">
+                {!isRecording && !isPreviewMode && processingState === 'idle' && (
+                  <div className="flex gap-4">
+                    <Button 
+                      onClick={startCountdown} 
+                      size="lg"
+                      className="h-12 px-6 rounded-full"
+                      disabled={countdownValue !== null}
+                    >
+                      <Video className="mr-2 h-5 w-5" />
+                      Start Recording
+                    </Button>
+                    <Button 
+                      onClick={handleCancel} 
+                      size="lg" 
+                      variant="ghost"
+                      className="h-12 px-6 rounded-full"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
                 )}
-              </Button>
-              <Button onClick={handleSave} size="lg">
-                <Save className="mr-2 h-5 w-5" />
-                Save Video
-              </Button>
-              <Button onClick={handleRerecord} variant="outline" size="lg">
-                <RotateCcw className="mr-2 h-5 w-5" />
-                Record Again
-              </Button>
-              <Button onClick={handleCancel} variant="ghost" size="lg">
-                <X className="mr-2 h-5 w-5" />
-                Cancel
-              </Button>
+
+                {isRecording && (
+                  <div className="flex gap-4">
+                    <Button 
+                      onClick={togglePause} 
+                      size="lg" 
+                      variant="outline"
+                      className="h-12 px-6 rounded-full"
+                    >
+                      <Pause className="mr-2 h-5 w-5" />
+                      Pause
+                    </Button>
+                    <Button 
+                      onClick={stopRecording} 
+                      size="lg" 
+                      variant="destructive"
+                      className="h-12 px-6 rounded-full"
+                    >
+                      <Square className="mr-2 h-5 w-5" />
+                      End Recording
+                    </Button>
+                    <Button 
+                      onClick={handleCancel} 
+                      size="lg" 
+                      variant="ghost"
+                      className="h-12 px-6 rounded-full"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+
+                {isPreviewMode && processingState === 'idle' && (
+                  <div className="flex gap-4">
+                    <Button 
+                      onClick={handleSave} 
+                      size="lg"
+                      className="h-12 px-6 rounded-full"
+                    >
+                      Save Recording
+                    </Button>
+                    <Button 
+                      onClick={handleRetake} 
+                      size="lg" 
+                      variant="outline"
+                      className="h-12 px-6 rounded-full"
+                    >
+                      Record Again
+                    </Button>
+                    <Button 
+                      onClick={handleCancel} 
+                      size="lg" 
+                      variant="ghost"
+                      className="h-12 px-6 rounded-full"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
