@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RecordingInterface } from '@/components/RecordingInterface';
 import { VideoPopup } from '@/components/VideoPopup';
 import { UploadPopup } from '@/components/UploadPopup';
-import { ArrowLeft, Video as VideoIcon, Play, CheckCircle2, LayoutGrid, Table as TableIcon, Camera, Upload } from 'lucide-react';
-import { PromptCategory, Prompt } from '@/types/models';
+import { ArrowLeft, Video as VideoIcon, Play, CheckCircle2, LayoutGrid, Table as TableIcon, Camera, Upload, Paperclip } from 'lucide-react';
+import { PromptCategory, Prompt, PromptResponse, Video, PromptResponseAttachment } from '@/types/models';
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -21,6 +21,8 @@ import {
 import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { AttachmentUpload } from '@/components/AttachmentUpload';
+import { PromptResponseGallery } from '@/components/PromptResponseGallery';
 
 export default function TopicPage() {
   const router = useRouter();
@@ -36,6 +38,8 @@ export default function TopicPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('grid');
   const [sortByStatus, setSortByStatus] = useState(false);
+  const [isAttachmentUploadOpen, setIsAttachmentUploadOpen] = useState(false);
+  const [selectedPromptResponse, setSelectedPromptResponse] = useState<any>(null);
 
   useEffect(() => {
     if (params && typeof params.id === 'string') {
@@ -51,13 +55,17 @@ export default function TopicPage() {
       
       setIsLoading(true);
       try {
+        console.log('Fetching data for topic:', topicId);
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
 
         if (!session) {
+          console.log('No session found, redirecting to login');
           router.push('/login');
           return;
         }
+
+        console.log('Session found, user:', session.user.id);
 
         // Get ProfileSharer record
         const { data: profileSharer, error: sharerError } = await supabase
@@ -66,13 +74,22 @@ export default function TopicPage() {
           .eq('profileId', session.user.id)
           .single();
 
-        if (sharerError || !profileSharer) {
+        if (sharerError) {
           console.error('Error fetching profile sharer:', sharerError);
           setError('Could not find your sharer profile');
           return;
         }
 
+        if (!profileSharer) {
+          console.error('No profile sharer found for user:', session.user.id);
+          setError('Could not find your sharer profile');
+          return;
+        }
+
+        console.log('ProfileSharer found:', profileSharer.id);
+
         // Fetch PromptCategory with related data
+        console.log('Fetching prompt category data...');
         const { data, error } = await supabase
           .from('PromptCategory')
           .select(`
@@ -97,6 +114,15 @@ export default function TopicPage() {
                   VideoTranscript (
                     transcript
                   )
+                ),
+                PromptResponseAttachment (
+                  id,
+                  fileUrl,
+                  fileType,
+                  fileName,
+                  description,
+                  dateCaptured,
+                  yearCaptured
                 )
               )
             )
@@ -106,47 +132,60 @@ export default function TopicPage() {
 
         if (error) {
           console.error('Error fetching prompt category:', error);
-          setError('Failed to load topic data');
+          setError(error.message);
           return;
         }
 
         if (!data) {
-          console.error('No data returned from query');
-          setError('No topic found');
+          console.error('No data found for topic:', topicId);
+          setError('Topic not found');
           return;
         }
 
-        // Transform the data to match our interface
+        console.log('Successfully fetched prompt category data:', data);
+
+        // Transform the data with proper typing and avoid circular references
         const transformedData: PromptCategory = {
           id: data.id,
           category: data.category || '',
           description: data.description || '',
-          theme: data.theme,
-          prompts: (data.Prompt || []).map((prompt: any) => ({
+          theme: data.theme || '',
+          prompts: (data.Prompt || []).map((prompt: any): Prompt => ({
             id: prompt.id,
-            promptText: prompt.promptText,
+            promptText: prompt.promptText || '',
             promptType: prompt.promptType || '',
             isContextEstablishing: prompt.isContextEstablishing || false,
             promptCategoryId: prompt.promptCategoryId || '',
             videos: [],
             promptResponses: (prompt.PromptResponse || [])
               .filter((response: any) => response.profileSharerId === profileSharer.id)
-              .map((response: any) => ({
+              .map((response: any): PromptResponse => ({
                 id: response.id,
                 summary: response.responseText || '',
-                transcription: response.Video?.VideoTranscript?.[0]?.transcript || '',
+                transcription: response.Video?.VideoTranscript?.transcript || '',
                 videos: response.Video ? [{
                   id: response.Video.id,
                   muxPlaybackId: response.Video.muxPlaybackId
-                }] : []
+                }] : [],
+                attachments: (response.PromptResponseAttachment || []).map((attachment: any): PromptResponseAttachment => ({
+                  id: attachment.id,
+                  promptResponseId: response.id,
+                  fileUrl: attachment.fileUrl,
+                  fileType: attachment.fileType,
+                  fileName: attachment.fileName,
+                  // Instead of creating a circular reference, we'll omit the promptResponse field
+                  // since we already have access to it through the parent structure
+                  promptResponse: null as any
+                }))
               }))
           }))
         };
 
+        console.log('Transformed data:', transformedData);
         setPromptCategory(transformedData);
-      } catch (error) {
-        console.error('Error:', error);
-        setError('An unexpected error occurred');
+      } catch (error: any) {
+        console.error('Unexpected error:', error);
+        setError(error?.message || 'An unexpected error occurred');
       } finally {
         setIsLoading(false);
       }
@@ -204,6 +243,16 @@ export default function TopicPage() {
                 VideoTranscript (
                   transcript
                 )
+              ),
+              PromptResponseAttachment (
+                id,
+                fileUrl,
+                fileType,
+                fileName,
+                title,
+                description,
+                dateCaptured,
+                yearCaptured
               )
             )
           )
@@ -238,7 +287,8 @@ export default function TopicPage() {
               videos: response.Video ? [{
                 id: response.Video.id,
                 muxPlaybackId: response.Video.muxPlaybackId
-              }] : []
+              }] : [],
+              attachments: response.PromptResponseAttachment || []
             }))
         }))
       };
@@ -507,28 +557,51 @@ export default function TopicPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col justify-end">
-                  <div className="flex items-center justify-between gap-3 mt-4">
-                    {hasResponse && response?.videos[0]?.muxPlaybackId ? (
-                      <Button
-                        onClick={() => {
-                          setSelectedPrompt(prompt);
-                          setIsVideoPopupOpen(true);
-                        }}
-                        size="sm"
-                        className="bg-[#1B4332] hover:bg-[#1B4332]/90 rounded-full w-full"
-                      >
-                        <Play className="mr-2 h-4 w-4" />
-                        Watch
-                      </Button>
+                  <div className="flex flex-col gap-4">
+                    {/* Gallery Component - Right aligned */}
+                    {hasResponse && prompt.promptResponses[0].attachments && prompt.promptResponses[0].attachments.length > 0 && (
+                      <div className="flex justify-end">
+                        <PromptResponseGallery promptResponseId={prompt.promptResponses[0].id} />
+                      </div>
+                    )}
+                    
+                    {/* Buttons */}
+                    {hasResponse && prompt.promptResponses[0]?.videos[0]?.muxPlaybackId ? (
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => {
+                            setSelectedPrompt(prompt);
+                            setIsVideoPopupOpen(true);
+                          }}
+                          size="sm"
+                          className="bg-[#1B4332] hover:bg-[#1B4332]/90 rounded-full flex-1"
+                        >
+                          <Play className="mr-2 h-4 w-4" />
+                          Watch
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setSelectedPromptResponse(prompt.promptResponses[0]);
+                            setIsAttachmentUploadOpen(true);
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full flex-1"
+                        >
+                          <Paperclip className="mr-1 h-4 w-4" />
+                          {prompt.promptResponses[0].attachments?.length || 0}
+                        </Button>
+                      </div>
                     ) : (
-                      <div className="flex gap-2 w-full">
+                      <div className="flex gap-2">
                         <Button
                           onClick={() => {
                             setSelectedPrompt(prompt);
                             setIsRecordingPopupOpen(true);
                           }}
                           variant="outline"
-                          className="flex-1 border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full font-medium h-auto py-2"
+                          size="sm"
+                          className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full flex-1"
                         >
                           <VideoIcon className="mr-2 h-4 w-4" />
                           Record
@@ -539,7 +612,8 @@ export default function TopicPage() {
                             setIsUploadPopupOpen(true);
                           }}
                           variant="outline"
-                          className="flex-1 border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full font-medium h-auto py-2"
+                          size="sm"
+                          className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full flex-1"
                         >
                           <Upload className="mr-2 h-4 w-4" />
                           Upload
@@ -585,48 +659,66 @@ export default function TopicPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {hasResponse && response?.videos[0]?.muxPlaybackId ? (
-                        <div className="flex justify-end">
-                          <Button
-                            onClick={() => {
-                              setSelectedPrompt(prompt);
-                              setIsVideoPopupOpen(true);
-                            }}
-                            size="sm"
-                            className="bg-[#1B4332] hover:bg-[#1B4332]/90 rounded-full w-[190px] h-auto py-2 font-medium"
-                          >
-                            <Play className="mr-2 h-4 w-4" />
-                            Watch
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex gap-2 justify-end">
-                          <Button
-                            onClick={() => {
-                              setSelectedPrompt(prompt);
-                              setIsRecordingPopupOpen(true);
-                            }}
-                            size="sm"
-                            variant="outline"
-                            className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full"
-                          >
-                            <VideoIcon className="mr-2 h-4 w-4" />
-                            Record
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              setSelectedPrompt(prompt);
-                              setIsUploadPopupOpen(true);
-                            }}
-                            size="sm"
-                            variant="outline"
-                            className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full"
-                          >
-                            <Upload className="mr-2 h-4 w-4" />
-                            Upload
-                          </Button>
-                        </div>
-                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        {hasResponse && prompt.promptResponses[0]?.videos[0]?.muxPlaybackId ? (
+                          <>
+                            {/* Gallery Component */}
+                            {prompt.promptResponses[0].attachments && prompt.promptResponses[0].attachments.length > 0 && (
+                              <PromptResponseGallery promptResponseId={prompt.promptResponses[0].id} />
+                            )}
+                            <Button
+                              onClick={() => {
+                                setSelectedPrompt(prompt);
+                                setIsVideoPopupOpen(true);
+                              }}
+                              size="sm"
+                              className="bg-[#1B4332] hover:bg-[#1B4332]/90 rounded-full"
+                            >
+                              <Play className="mr-2 h-4 w-4" />
+                              Watch
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                setSelectedPromptResponse(prompt.promptResponses[0]);
+                                setIsAttachmentUploadOpen(true);
+                              }}
+                              variant="outline"
+                              size="sm"
+                              className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full"
+                            >
+                              <Paperclip className="mr-1 h-4 w-4" />
+                              {prompt.promptResponses[0].attachments?.length || 0}
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              onClick={() => {
+                                setSelectedPrompt(prompt);
+                                setIsRecordingPopupOpen(true);
+                              }}
+                              variant="outline"
+                              size="sm"
+                              className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full flex-1"
+                            >
+                              <VideoIcon className="mr-2 h-4 w-4" />
+                              Record
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                setSelectedPrompt(prompt);
+                                setIsUploadPopupOpen(true);
+                              }}
+                              variant="outline"
+                              size="sm"
+                              className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full flex-1"
+                            >
+                              <Upload className="mr-2 h-4 w-4" />
+                              Upload
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -694,6 +786,23 @@ export default function TopicPage() {
           onPrevious={() => {}}
           hasNext={false}
           hasPrevious={false}
+        />
+      )}
+
+      {/* Attachment Upload Dialog */}
+      {selectedPromptResponse && (
+        <AttachmentUpload
+          promptResponseId={selectedPromptResponse.id}
+          isOpen={isAttachmentUploadOpen}
+          onClose={() => {
+            setIsAttachmentUploadOpen(false);
+            setSelectedPromptResponse(null);
+          }}
+          onUploadSuccess={() => {
+            refreshData();
+            setIsAttachmentUploadOpen(false);
+            setSelectedPromptResponse(null);
+          }}
         />
       )}
     </div>
