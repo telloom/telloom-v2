@@ -192,6 +192,7 @@ model ProfileSharer {
   subscriptionStatus       Boolean
   createdAt                DateTime                   @default(now()) @db.Timestamptz(6)
   Invitation               Invitation[]
+  PersonTag                PersonTag[]
   ProfileExecutor          ProfileExecutor?
   ProfileListener          ProfileListener[]
   Profile                  Profile                    @relation(fields: [profileId], references: [id], onDelete: Cascade)
@@ -256,26 +257,29 @@ model PromptResponse {
   PromptResponseRecentlyWatched PromptResponseRecentlyWatched[]
   ResponsePermission            ResponsePermission[]
   ProfileListener               ProfileListener[]               @relation("ListenerPromptViews")
-  ThematicVideo                 ThematicVideo[]
+  ThematicVideo                 ThematicVideo[]                 @relation("PromptResponseToThematicVideo")
 
   @@index([search_vector], map: "prompt_response_search_idx", type: Gin)
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model PromptResponseAttachment {
-  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  promptResponseId String         @db.Uuid
-  profileSharerId  String         @db.Uuid
-  fileUrl          String
-  fileType         String
-  fileName         String
-  fileSize         Int?
-  title            String?
-  description      String?
-  estimatedYear    Int?
-  uploadedAt       DateTime       @default(now()) @db.Timestamptz(6)
-  ProfileSharer    ProfileSharer  @relation(fields: [profileSharerId], references: [id], onDelete: NoAction)
-  PromptResponse   PromptResponse @relation(fields: [promptResponseId], references: [id], onDelete: Cascade)
+  id                                String                              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  promptResponseId                  String                              @db.Uuid
+  profileSharerId                   String                              @db.Uuid
+  fileUrl                           String
+  fileType                          String
+  fileName                          String
+  fileSize                          Int?
+  title                             String?
+  description                       String?
+  estimatedYear                     Int?
+  uploadedAt                        DateTime                            @default(now()) @db.Timestamptz(6)
+  dateCaptured                      DateTime?                           @db.Date
+  yearCaptured                      Int?
+  ProfileSharer                     ProfileSharer                       @relation(fields: [profileSharerId], references: [id], onDelete: NoAction)
+  PromptResponse                    PromptResponse                      @relation(fields: [promptResponseId], references: [id], onDelete: Cascade)
+  PromptResponseAttachmentPersonTag PromptResponseAttachmentPersonTag[]
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -382,7 +386,7 @@ model ThematicVideo {
   createdAt        DateTime?        @default(now()) @db.Timestamptz(6)
   updatedAt        DateTime?        @default(now()) @db.Timestamptz(6)
   ProfileSharer    ProfileSharer    @relation(fields: [profileSharerId], references: [id], onDelete: Cascade)
-  PromptResponse   PromptResponse[]
+  PromptResponse   PromptResponse[] @relation("PromptResponseToThematicVideo")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -430,14 +434,11 @@ model Video {
   createdAt        DateTime?         @default(now()) @db.Timestamptz(6)
   updatedAt        DateTime?         @default(now()) @db.Timestamptz(6)
   status           VideoStatus       @default(WAITING)
-  errorMessage     String?           // Add this field to store error messages
   PromptResponse   PromptResponse?
   ProfileSharer    ProfileSharer     @relation(fields: [profileSharerId], references: [id], onDelete: Cascade)
   Prompt           Prompt?           @relation(fields: [promptId], references: [id], onDelete: NoAction)
   VideoTranscript  VideoTranscript?
   ProfileListener  ProfileListener[] @relation("ListenerVideoViews")
-
-  @@unique([promptId, profileSharerId], name: "unique_prompt_sharer")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -448,6 +449,27 @@ model VideoTranscript {
   createdAt  DateTime @default(now()) @db.Timestamptz(6)
   updatedAt  DateTime @db.Timestamptz(6)
   Video      Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+}
+
+model PersonTag {
+  id                                String                              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                              String
+  profileSharerId                   String                              @db.Uuid
+  relation                          person_relation
+  createdAt                         DateTime?                           @default(now()) @db.Timestamptz(6)
+  updatedAt                         DateTime?                           @default(now()) @db.Timestamptz(6)
+  ProfileSharer                     ProfileSharer                       @relation(fields: [profileSharerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_person_tag_profile_sharer")
+  PromptResponseAttachmentPersonTag PromptResponseAttachmentPersonTag[]
+}
+
+model PromptResponseAttachmentPersonTag {
+  id                         String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  promptResponseAttachmentId String                   @db.Uuid
+  personTagId                String                   @db.Uuid
+  createdAt                  DateTime?                @default(now()) @db.Timestamptz(6)
+  updatedAt                  DateTime?                @default(now()) @db.Timestamptz(6)
+  PromptResponseAttachment   PromptResponseAttachment @relation(fields: [promptResponseAttachmentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_attachment_tag_attachment")
+  PersonTag                  PersonTag                @relation(fields: [personTagId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_attachment_tag_person_tag")
 }
 
 enum InvitationStatus {
@@ -486,4 +508,49 @@ enum VideoStatus {
   ASSET_CREATED
   READY
   ERRORED
+}
+
+enum person_relation {
+  Spouse
+  Partner
+  Mother
+  Father
+  Sister
+  Brother
+  Daughter
+  Son
+  Grandmother
+  Grandfather
+  GreatGrandmother
+  GreatGrandfather
+  Granddaughter
+  Grandson
+  GreatGranddaughter
+  GreatGrandson
+  Aunt
+  Uncle
+  GreatAunt
+  GreatUncle
+  Niece
+  Nephew
+  Cousin
+  Friend
+  Coworker
+  Mentor
+  Teacher
+  Boss
+  MotherInLaw
+  FatherInLaw
+  SisterInLaw
+  BrotherInLaw
+  StepMother
+  StepFather
+  StepSister
+  StepBrother
+  StepDaughter
+  StepSon
+  Godmother
+  Godfather
+  Godchild
+  Other
 }

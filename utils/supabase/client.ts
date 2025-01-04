@@ -7,6 +7,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 let supabaseClient: SupabaseClient | null = null;
 
 export const createClient = () => {
+  // Always create a new client if we're in development to avoid stale auth state
+  if (process.env.NODE_ENV === 'development') {
+    supabaseClient = null;
+  }
+  
   if (supabaseClient) {
     return supabaseClient;
   }
@@ -23,12 +28,16 @@ export const createClient = () => {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      flowType: 'pkce'
+      flowType: 'pkce',
+      debug: process.env.NODE_ENV === 'development'
     },
     global: {
       headers: {
         'x-client-info': `@supabase/auth-helpers-nextjs/0.0.0`
       }
+    },
+    db: {
+      schema: 'public'
     }
   });
 
@@ -37,12 +46,21 @@ export const createClient = () => {
 
 export const getSession = async () => {
   const client = createClient();
-  const { data: { session }, error } = await client.auth.getSession();
-  if (error) {
-    console.error('Error getting session:', error);
+  try {
+    const { data: { session }, error } = await client.auth.getSession();
+    if (error) {
+      console.error('Error getting session:', error);
+      return null;
+    }
+    if (!session) {
+      console.warn('No session found');
+      return null;
+    }
+    return session;
+  } catch (error) {
+    console.error('Unexpected error getting session:', error);
     return null;
   }
-  return session;
 };
 
 export const getUser = async () => {

@@ -103,6 +103,7 @@ export enum Role {
     summary: string;
     transcription: string;
     videos: Video[];
+    attachments?: PromptResponseAttachment[];
   }
   
   export interface Video {
