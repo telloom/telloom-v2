@@ -8,19 +8,17 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
+  DialogDescription
 } from "@/components/ui/dialog";
 import { UploadInterface } from '@/components/UploadInterface';
-import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
 
 interface UploadPopupProps {
   open: boolean;
   onClose: () => void;
   promptText?: string;
   promptId?: string;
-  onComplete?: (videoBlob: Blob) => void;
-  onSave?: (videoBlob: Blob) => void;
+  onComplete?: () => void;
   onUploadSuccess?: () => void;
 }
 
@@ -30,7 +28,6 @@ export function UploadPopup({
   promptText,
   promptId,
   onComplete,
-  onSave,
   onUploadSuccess
 }: UploadPopupProps) {
   return (
@@ -40,13 +37,15 @@ export function UploadPopup({
           <DialogTitle className="text-lg font-semibold text-left pr-8">
             {promptText || "Upload a video response to the prompt"}
           </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Record or upload a video response to share your story.
+          </DialogDescription>
         </DialogHeader>
         <div className="flex items-center justify-center p-4 relative overflow-hidden">
           <div className="flex items-center justify-center">
             <UploadInterface
               onClose={onClose}
               onComplete={onComplete}
-              onSave={onSave}
               promptId={promptId}
               promptText={promptText}
               onUploadSuccess={onUploadSuccess}

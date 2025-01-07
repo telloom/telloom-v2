@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RecordingInterface } from '@/components/RecordingInterface';
 import { VideoPopup } from '@/components/VideoPopup';
 import { UploadPopup } from '@/components/UploadPopup';
-import { ArrowLeft, Video as VideoIcon, Play, CheckCircle2, LayoutGrid, Table as TableIcon, Camera, Upload, Paperclip } from 'lucide-react';
-import { PromptCategory, Prompt, PromptResponse, Video, PromptResponseAttachment } from '@/types/models';
+import { ArrowLeft, Video as VideoIcon, Play, CheckCircle2, LayoutGrid, Table as TableIcon, Upload, Paperclip } from 'lucide-react';
+import { PromptCategory, Prompt, PromptResponse, PromptResponseAttachment } from '@/types/models';
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -20,478 +20,135 @@ import {
 } from "@/components/ui/table";
 import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
-import { AttachmentUpload } from '@/components/AttachmentUpload';
+import dynamic from 'next/dynamic';
 import { PromptResponseGallery } from '@/components/PromptResponseGallery';
+import { ErrorBoundary } from 'react-error-boundary';
 
-export default function TopicPage() {
-  const router = useRouter();
-  const params = useParams();
-  const [topicId, setTopicId] = useState<string | null>(null);
+// Dynamically import AttachmentUpload with no SSR
+const AttachmentUpload = dynamic(
+  () => import('@/components/AttachmentUpload').then(mod => ({ default: mod.AttachmentUpload })),
+  { ssr: false }
+);
 
-  const [promptCategory, setPromptCategory] = useState<PromptCategory | null>(null);
-  const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
-  const [isVideoPopupOpen, setIsVideoPopupOpen] = useState(false);
-  const [isRecordingPopupOpen, setIsRecordingPopupOpen] = useState(false);
-  const [isUploadPopupOpen, setIsUploadPopupOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('grid');
-  const [sortByStatus, setSortByStatus] = useState(false);
-  const [isAttachmentUploadOpen, setIsAttachmentUploadOpen] = useState(false);
-  const [selectedPromptResponse, setSelectedPromptResponse] = useState<any>(null);
+interface TopicPageContentProps {
+  promptCategory: PromptCategory | null;
+  viewMode: 'table' | 'grid';
+  sortByStatus: boolean;
+  isVideoPopupOpen: boolean;
+  isRecordingPopupOpen: boolean;
+  isUploadPopupOpen: boolean;
+  isAttachmentUploadOpen: boolean;
+  selectedPrompt: Prompt | null;
+  selectedPromptResponse: PromptResponse | null;
+  setViewMode: (mode: 'table' | 'grid') => void;
+  setSortByStatus: (status: boolean) => void;
+  setSelectedPrompt: (prompt: Prompt | null) => void;
+  setSelectedPromptResponse: (response: PromptResponse | null) => void;
+  setIsVideoPopupOpen: (open: boolean) => void;
+  setIsRecordingPopupOpen: (open: boolean) => void;
+  setIsUploadPopupOpen: (open: boolean) => void;
+  setIsAttachmentUploadOpen: (open: boolean) => void;
+  handleVideoComplete: () => Promise<string>;
+  refreshData: () => Promise<void>;
+  router: ReturnType<typeof useRouter>;
+}
 
-  useEffect(() => {
-    if (params && typeof params.id === 'string') {
-      setTopicId(params.id);
-    } else {
-      router.push('/role-sharer/topics');
-    }
-  }, [params, router]);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!topicId) return;
-      
-      setIsLoading(true);
-      try {
-        console.log('Fetching data for topic:', topicId);
-        const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (!session) {
-          console.log('No session found, redirecting to login');
-          router.push('/login');
-          return;
-        }
-
-        console.log('Session found, user:', session.user.id);
-
-        // Get ProfileSharer record
-        const { data: profileSharer, error: sharerError } = await supabase
-          .from('ProfileSharer')
-          .select('id')
-          .eq('profileId', session.user.id)
-          .single();
-
-        if (sharerError) {
-          console.error('Error fetching profile sharer:', sharerError);
-          setError('Could not find your sharer profile');
-          return;
-        }
-
-        if (!profileSharer) {
-          console.error('No profile sharer found for user:', session.user.id);
-          setError('Could not find your sharer profile');
-          return;
-        }
-
-        console.log('ProfileSharer found:', profileSharer.id);
-
-        // Fetch PromptCategory with related data
-        console.log('Fetching prompt category data...');
-        const { data, error } = await supabase
-          .from('PromptCategory')
-          .select(`
-            id,
-            category,
-            description,
-            theme,
-            Prompt (
-              id,
-              promptText,
-              promptType,
-              isContextEstablishing,
-              promptCategoryId,
-              PromptResponse (
-                id,
-                profileSharerId,
-                responseText,
-                Video (
-                  id,
-                  muxPlaybackId,
-                  muxAssetId,
-                  VideoTranscript (
-                    transcript
-                  )
-                ),
-                PromptResponseAttachment (
-                  id,
-                  fileUrl,
-                  fileType,
-                  fileName,
-                  description,
-                  dateCaptured,
-                  yearCaptured
-                )
-              )
-            )
-          `)
-          .eq('id', topicId)
-          .single();
-
-        if (error) {
-          console.error('Error fetching prompt category:', error);
-          setError(error.message);
-          return;
-        }
-
-        if (!data) {
-          console.error('No data found for topic:', topicId);
-          setError('Topic not found');
-          return;
-        }
-
-        console.log('Successfully fetched prompt category data:', data);
-
-        // Transform the data with proper typing and avoid circular references
-        const transformedData: PromptCategory = {
-          id: data.id,
-          category: data.category || '',
-          description: data.description || '',
-          theme: data.theme || '',
-          prompts: (data.Prompt || []).map((prompt: any): Prompt => ({
-            id: prompt.id,
-            promptText: prompt.promptText || '',
-            promptType: prompt.promptType || '',
-            isContextEstablishing: prompt.isContextEstablishing || false,
-            promptCategoryId: prompt.promptCategoryId || '',
-            videos: [],
-            promptResponses: (prompt.PromptResponse || [])
-              .filter((response: any) => response.profileSharerId === profileSharer.id)
-              .map((response: any): PromptResponse => ({
-                id: response.id,
-                summary: response.responseText || '',
-                transcription: response.Video?.VideoTranscript?.transcript || '',
-                videos: response.Video ? [{
-                  id: response.Video.id,
-                  muxPlaybackId: response.Video.muxPlaybackId
-                }] : [],
-                attachments: (response.PromptResponseAttachment || []).map((attachment: any): PromptResponseAttachment => ({
-                  id: attachment.id,
-                  promptResponseId: response.id,
-                  fileUrl: attachment.fileUrl,
-                  fileType: attachment.fileType,
-                  fileName: attachment.fileName,
-                  // Instead of creating a circular reference, we'll omit the promptResponse field
-                  // since we already have access to it through the parent structure
-                  promptResponse: null as any
-                }))
-              }))
-          }))
-        };
-
-        console.log('Transformed data:', transformedData);
-        setPromptCategory(transformedData);
-      } catch (error: any) {
-        console.error('Unexpected error:', error);
-        setError(error?.message || 'An unexpected error occurred');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [topicId, router]);
-
-  const refreshData = useCallback(async () => {
-    if (!topicId) return;
-    
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        router.push('/login');
-        return;
-      }
-
-      // Get ProfileSharer record
-      const { data: profileSharer, error: sharerError } = await supabase
-        .from('ProfileSharer')
-        .select('id')
-        .eq('profileId', session.user.id)
-        .single();
-
-      if (sharerError || !profileSharer) {
-        console.error('Error fetching profile sharer:', sharerError);
-        return;
-      }
-
-      // Fetch updated data
-      const { data, error } = await supabase
-        .from('PromptCategory')
-        .select(`
-          id,
-          category,
-          description,
-          theme,
-          Prompt (
-            id,
-            promptText,
-            promptType,
-            isContextEstablishing,
-            promptCategoryId,
-            PromptResponse (
-              id,
-              profileSharerId,
-              responseText,
-              Video (
-                id,
-                muxPlaybackId,
-                muxAssetId,
-                VideoTranscript (
-                  transcript
-                )
-              ),
-              PromptResponseAttachment (
-                id,
-                fileUrl,
-                fileType,
-                fileName,
-                title,
-                description,
-                dateCaptured,
-                yearCaptured
-              )
-            )
-          )
-        `)
-        .eq('id', topicId)
-        .single();
-
-      if (error || !data) {
-        console.error('Error fetching updated data:', error);
-        return;
-      }
-
-      // Transform the data
-      const transformedData: PromptCategory = {
-        id: data.id,
-        category: data.category || '',
-        description: data.description || '',
-        theme: data.theme,
-        prompts: (data.Prompt || []).map((prompt: any) => ({
-          id: prompt.id,
-          promptText: prompt.promptText,
-          promptType: prompt.promptType || '',
-          isContextEstablishing: prompt.isContextEstablishing || false,
-          promptCategoryId: prompt.promptCategoryId || '',
-          videos: [],
-          promptResponses: (prompt.PromptResponse || [])
-            .filter((response: any) => response.profileSharerId === profileSharer.id)
-            .map((response: any) => ({
-              id: response.id,
-              summary: response.responseText || '',
-              transcription: response.Video?.VideoTranscript?.[0]?.transcript || '',
-              videos: response.Video ? [{
-                id: response.Video.id,
-                muxPlaybackId: response.Video.muxPlaybackId
-              }] : [],
-              attachments: response.PromptResponseAttachment || []
-            }))
-        }))
-      };
-
-      setPromptCategory(transformedData);
-    } catch (error) {
-      console.error('Error refreshing data:', error);
-    }
-  }, [topicId, router]);
-
-  const handleVideoComplete = useCallback(async (blob: Blob) => {
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        throw new Error('No active session');
-      }
-
-      // Get ProfileSharer record
-      const { data: profileSharer } = await supabase
-        .from('ProfileSharer')
-        .select('id')
-        .eq('profileId', session.user.id)
-        .single();
-
-      if (!profileSharer) {
-        throw new Error('Profile sharer not found');
-      }
-
-      // Get upload URL
-      const uploadResponse = await fetch('/api/mux/upload-url', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          promptId: selectedPrompt?.id,
-          profileSharerId: profileSharer.id
-        }),
-      });
-
-      let errorData;
-      try {
-        errorData = await uploadResponse.json();
-      } catch (err) {
-        console.error('Failed to parse error response:', err);
-        errorData = {};
-      }
-
-      if (!uploadResponse.ok) {
-        // If it's a conflict error, refresh the data to show the existing video
-        if (uploadResponse.status === 409) {
-          await refreshData();
-          setIsRecordingPopupOpen(false);
-          setIsUploadPopupOpen(false);
-          setSelectedPrompt(null);
-          return;
-        }
-
-        console.error('Upload URL error details:', {
-          status: uploadResponse.status,
-          statusText: uploadResponse.statusText,
-          data: errorData
-        });
-        throw new Error(errorData.error || 'Failed to get upload URL. Please try again.');
-      }
-
-      let responseData = errorData;
-      console.log('Upload URL response data:', responseData);
-
-      if (!responseData?.uploadUrl) {
-        console.error('Invalid upload URL response:', responseData);
-        throw new Error('Invalid upload URL format received');
-      }
-
-      // Upload the video
-      const uploadResult = await fetch(responseData.uploadUrl, {
-        method: 'PUT',
-        body: blob,
-        headers: {
-          'Content-Type': 'video/webm',
-        },
-      });
-
-      if (!uploadResult.ok) {
-        const errorData = await uploadResult.json().catch(() => ({}));
-        console.error('Upload error:', errorData);
-        throw new Error(errorData.error || 'Failed to upload video. Please try again.');
-      }
-
-      // Start polling for video status
-      const pollVideoStatus = async () => {
-        let attempts = 0;
-        const maxAttempts = 60; // 5 minutes with 5-second intervals
-
-        const checkStatus = async () => {
-          const { data: video, error } = await supabase
-            .from('Video')
-            .select('status, muxPlaybackId')
-            .eq('id', responseData.videoId)
-            .single();
-
-          if (error) {
-            console.error('Error checking video status:', error);
-            throw new Error('Failed to check video status');
-          }
-
-          if (video.status === 'READY' && video.muxPlaybackId) {
-            // Video is ready
-            return video.muxPlaybackId;
-          }
-
-          if (video.status === 'ERRORED') {
-            throw new Error('Video processing failed');
-          }
-
-          if (attempts < maxAttempts) {
-            attempts++;
-            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
-            return checkStatus();
-          } else {
-            throw new Error('Video processing timed out');
-          }
-        };
-
-        return checkStatus();
-      };
-
-      // Wait for video to be ready
-      const muxPlaybackId = await pollVideoStatus();
-
-      // Force a refresh of the prompts data
-      await refreshData();
-      
-      return muxPlaybackId;
-    } catch (error) {
-      console.error('Error uploading video:', error);
-      throw error;
-    }
-  }, [selectedPrompt, refreshData]);
-
-  if (isLoading) {
-    return (
-      <div className="container mx-auto py-8">
-        <Card className="p-6 border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
-          <CardHeader>
-            <CardTitle>Loading...</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>Please wait while we load your topic...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+// Add error logging utility
+const logError = (error: any, context: string) => {
+  console.error(`[${context}] Error:`, {
+    message: error?.message,
+    stack: error?.stack,
+    cause: error?.cause,
+    name: error?.name,
+    ...(error?.response && {
+      status: error.response.status,
+      statusText: error.response.statusText,
+      data: error.response.data
+    })
+  });
+  
+  // Log to server if needed
+  if (process.env.NODE_ENV === 'production') {
+    // Add server logging here
   }
+};
 
-  if (error) {
+// Error boundary component
+const ErrorFallback = ({ error, resetErrorBoundary }: { error: Error | string; resetErrorBoundary: () => void }) => {
+  const errorMessage = error instanceof Error ? error.message : error;
     return (
       <div className="container mx-auto py-8">
-        <Card className="p-6 border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
+      <Card className="p-6 border-2 border-red-500 shadow-[6px_6px_0_0_#ef4444]">
           <CardHeader>
-            <CardTitle>Error</CardTitle>
+          <CardTitle>Something went wrong</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-red-500">{error}</p>
-            <Button className="mt-4" onClick={() => router.push('/role-sharer/topics')}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Topics
+          <p className="text-red-500">{errorMessage}</p>
+          <Button className="mt-4" onClick={resetErrorBoundary}>
+            Try again
             </Button>
           </CardContent>
         </Card>
       </div>
     );
-  }
+};
 
-  if (!promptCategory) {
+// Main content component to wrap in error boundary
+const TopicPageContent = ({ 
+  promptCategory,
+  viewMode,
+  sortByStatus,
+  isVideoPopupOpen,
+  isRecordingPopupOpen,
+  isUploadPopupOpen,
+  isAttachmentUploadOpen,
+  selectedPrompt,
+  selectedPromptResponse,
+  setViewMode,
+  setSortByStatus,
+  setSelectedPrompt,
+  setSelectedPromptResponse,
+  setIsVideoPopupOpen,
+  setIsRecordingPopupOpen,
+  setIsUploadPopupOpen,
+  setIsAttachmentUploadOpen,
+  handleVideoComplete,
+  refreshData,
+  router
+}: TopicPageContentProps) => {
+  // Add error boundary for renderGallery
+  const renderGallery = useCallback((promptResponse: PromptResponse | null) => {
+    try {
+      if (!promptResponse?.id || !Array.isArray(promptResponse?.attachments) || promptResponse.attachments.length === 0) {
+        return null;
+      }
+      
     return (
-      <div className="container mx-auto py-8">
-        <Card className="p-6 border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
-          <CardHeader>
-            <CardTitle>No Topic Found</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>This topic could not be found.</p>
-          </CardContent>
-        </Card>
+        <div className="flex justify-end">
+          <PromptResponseGallery promptResponseId={promptResponse.id} />
       </div>
     );
-  }
+    } catch (error) {
+      logError(error, 'renderGallery');
+      return null;
+    }
+  }, []);
 
-  const completedCount = promptCategory.prompts.filter(p => p.promptResponses.length > 0).length;
-  const totalCount = promptCategory.prompts.length;
-  const progressPercentage = (completedCount / totalCount) * 100;
+  // Add error boundary for initial render checks
+  try {
+    if (!promptCategory) return null;
 
-  const sortedPrompts = sortByStatus 
-    ? [...promptCategory.prompts].sort((a, b) => {
-        const aHasResponse = a.promptResponses.length > 0 && a.promptResponses[0].videos.length > 0;
-        const bHasResponse = b.promptResponses.length > 0 && b.promptResponses[0].videos.length > 0;
-        return bHasResponse ? 1 : aHasResponse ? -1 : 0;
-      })
-    : promptCategory.prompts;
+    const completedCount = promptCategory?.prompts?.filter((p: Prompt) => p.promptResponses?.length > 0)?.length || 0;
+    const totalCount = promptCategory?.prompts?.length || 0;
+    const progressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+
+    const sortedPrompts = sortByStatus && promptCategory?.prompts 
+      ? [...promptCategory.prompts].sort((a: Prompt, b: Prompt) => {
+          const aHasResponse = a?.promptResponses?.[0]?.videos?.[0]?.muxPlaybackId ? 1 : 0;
+          const bHasResponse = b?.promptResponses?.[0]?.videos?.[0]?.muxPlaybackId ? 1 : 0;
+          return bHasResponse - aHasResponse;
+        })
+      : promptCategory?.prompts || [];
 
   return (
     <div className="container mx-auto py-8 space-y-8">
@@ -503,8 +160,8 @@ export default function TopicPage() {
         </Button>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">{promptCategory.category}</h1>
-            <p className="text-gray-600 mt-2">{promptCategory.description}</p>
+              <h1 className="text-3xl font-bold">{promptCategory?.category || 'Topic'}</h1>
+              <p className="text-gray-600 mt-2">{promptCategory?.description}</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="bg-[#8fbc55] text-[#1B4332] px-4 py-1.5 rounded-full text-lg font-semibold">
@@ -536,10 +193,10 @@ export default function TopicPage() {
       {viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedPrompts.map((prompt: Prompt) => {
-            const hasResponse = prompt.promptResponses.length > 0 && 
-              prompt.promptResponses[0].videos.length > 0 && 
-              prompt.promptResponses[0].videos[0]?.muxPlaybackId;
-            const response = hasResponse ? prompt.promptResponses[0] : null;
+              if (!prompt?.id) return null;
+              
+              const hasResponse = prompt?.promptResponses?.[0]?.videos?.[0]?.muxPlaybackId;
+              const promptResponse = hasResponse ? prompt.promptResponses[0] : null;
             
             return (
               <Card 
@@ -558,15 +215,10 @@ export default function TopicPage() {
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col justify-end">
                   <div className="flex flex-col gap-4">
-                    {/* Gallery Component - Right aligned */}
-                    {hasResponse && prompt.promptResponses[0].attachments && prompt.promptResponses[0].attachments.length > 0 && (
-                      <div className="flex justify-end">
-                        <PromptResponseGallery promptResponseId={prompt.promptResponses[0].id} />
-                      </div>
-                    )}
+                      {renderGallery(promptResponse)}
                     
                     {/* Buttons */}
-                    {hasResponse && prompt.promptResponses[0]?.videos[0]?.muxPlaybackId ? (
+                      {hasResponse ? (
                       <div className="flex gap-2">
                         <Button
                           onClick={() => {
@@ -581,7 +233,7 @@ export default function TopicPage() {
                         </Button>
                         <Button
                           onClick={() => {
-                            setSelectedPromptResponse(prompt.promptResponses[0]);
+                              setSelectedPromptResponse(promptResponse);
                             setIsAttachmentUploadOpen(true);
                           }}
                           variant="outline"
@@ -589,7 +241,7 @@ export default function TopicPage() {
                           className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full flex-1"
                         >
                           <Paperclip className="mr-1 h-4 w-4" />
-                          {prompt.promptResponses[0].attachments?.length || 0}
+                            {promptResponse?.attachments?.length || 0}
                         </Button>
                       </div>
                     ) : (
@@ -643,10 +295,10 @@ export default function TopicPage() {
             </TableHeader>
             <TableBody>
               {sortedPrompts.map((prompt) => {
-                const hasResponse = prompt.promptResponses.length > 0 && 
-                  prompt.promptResponses[0].videos.length > 0 && 
-                  prompt.promptResponses[0].videos[0]?.muxPlaybackId;
-                const response = hasResponse ? prompt.promptResponses[0] : null;
+                  if (!prompt?.id) return null;
+                  
+                  const hasResponse = prompt?.promptResponses?.[0]?.videos?.[0]?.muxPlaybackId;
+                  const promptResponse = hasResponse ? prompt.promptResponses[0] : null;
                 
                 return (
                   <TableRow key={prompt.id} className="hover:bg-gray-50/50 border-b border-[#1B4332] last:border-0">
@@ -660,12 +312,9 @@ export default function TopicPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {hasResponse && prompt.promptResponses[0]?.videos[0]?.muxPlaybackId ? (
+                          {hasResponse ? (
                           <>
-                            {/* Gallery Component */}
-                            {prompt.promptResponses[0].attachments && prompt.promptResponses[0].attachments.length > 0 && (
-                              <PromptResponseGallery promptResponseId={prompt.promptResponses[0].id} />
-                            )}
+                              {renderGallery(promptResponse)}
                             <Button
                               onClick={() => {
                                 setSelectedPrompt(prompt);
@@ -679,7 +328,7 @@ export default function TopicPage() {
                             </Button>
                             <Button
                               onClick={() => {
-                                setSelectedPromptResponse(prompt.promptResponses[0]);
+                                  setSelectedPromptResponse(promptResponse);
                                 setIsAttachmentUploadOpen(true);
                               }}
                               variant="outline"
@@ -687,7 +336,7 @@ export default function TopicPage() {
                               className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full"
                             >
                               <Paperclip className="mr-1 h-4 w-4" />
-                              {prompt.promptResponses[0].attachments?.length || 0}
+                                {promptResponse?.attachments?.length || 0}
                             </Button>
                           </>
                         ) : (
@@ -764,8 +413,10 @@ export default function TopicPage() {
           onClose={() => setIsUploadPopupOpen(false)}
           promptText={selectedPrompt?.promptText}
           promptId={selectedPrompt?.id}
-          onComplete={handleVideoComplete}
-          onSave={handleVideoComplete}
+          onComplete={() => {
+            setIsUploadPopupOpen(false);
+            setSelectedPrompt(null);
+          }}
           onUploadSuccess={() => {
             refreshData();
           }}
@@ -807,4 +458,365 @@ export default function TopicPage() {
       )}
     </div>
   );
+  } catch (error) {
+    logError(error, 'TopicPageContent-Init');
+    return null;
+  }
+};
+
+// Add error type
+interface RefreshError extends Error {
+  code?: string;
+  details?: string;
+}
+
+export default function TopicPage() {
+  // Move hooks outside of try-catch to maintain hook order
+  const router = useRouter();
+  const params = useParams();
+  const [topicId, setTopicId] = useState<string | null>(null);
+  const [promptCategory, setPromptCategory] = useState<PromptCategory | null>(null);
+  const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
+  const [isVideoPopupOpen, setIsVideoPopupOpen] = useState(false);
+  const [isRecordingPopupOpen, setIsRecordingPopupOpen] = useState(false);
+  const [isUploadPopupOpen, setIsUploadPopupOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('grid');
+  const [sortByStatus, setSortByStatus] = useState(false);
+  const [isAttachmentUploadOpen, setIsAttachmentUploadOpen] = useState(false);
+  const [selectedPromptResponse, setSelectedPromptResponse] = useState<PromptResponse | null>(null);
+
+  const refreshData = useCallback(async () => {
+    if (!topicId) {
+      console.error('[refreshData] No topicId provided');
+      return;
+    }
+    
+    try {
+      console.log('[refreshData] Starting refresh for topic:', topicId);
+      const supabase = createClient();
+      
+      // Get session with error handling
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error('[refreshData] Session error:', sessionError);
+        throw new Error(`Authentication error: ${sessionError.message}`);
+      }
+
+      if (!session) {
+        console.log('[refreshData] No session found, redirecting to login');
+        router.push('/login');
+        return;
+      }
+
+      console.log('[refreshData] Session found:', session.user.id);
+
+      // Get ProfileSharer record with error handling
+      const { data: profileSharer, error: sharerError } = await supabase
+        .from('ProfileSharer')
+        .select('id')
+        .eq('profileId', session.user.id)
+        .single();
+
+      if (sharerError) {
+        console.error('[refreshData] ProfileSharer error:', sharerError);
+        throw new Error(`Could not find your sharer profile: ${sharerError.message}`);
+      }
+
+      if (!profileSharer) {
+        console.error('[refreshData] No ProfileSharer found for user:', session.user.id);
+        throw new Error('Could not find your sharer profile');
+      }
+
+      console.log('[refreshData] ProfileSharer found:', profileSharer.id);
+
+      // Fetch PromptCategory with error handling
+      const { data: categoryData, error: promptError } = await supabase
+        .from('PromptCategory')
+        .select(`
+          id,
+          category,
+          description,
+          theme,
+          Prompt!inner (
+            id,
+            promptText,
+            promptType,
+            isContextEstablishing,
+            promptCategoryId,
+            PromptResponse!left (
+              id,
+              profileSharerId,
+              responseText,
+              Video!left (
+                id,
+                muxPlaybackId,
+                muxAssetId,
+                VideoTranscript!left (
+                  transcript
+                )
+              ),
+              PromptResponseAttachment!left (
+                id,
+                fileUrl,
+                fileType,
+                fileName,
+                description,
+                dateCaptured,
+                yearCaptured
+              )
+            )
+          )
+        `)
+        .eq('id', topicId)
+        .throwOnError()
+        .single();
+
+      if (promptError) {
+        console.error('[refreshData] PromptCategory error:', promptError);
+        throw new Error(`Error fetching topic: ${promptError.message}`);
+      }
+
+      if (!categoryData) {
+        console.error('[refreshData] No PromptCategory found for id:', topicId);
+        throw new Error('Topic not found');
+      }
+
+      console.log('[refreshData] Successfully fetched data:', {
+        id: categoryData.id,
+        category: categoryData.category,
+        promptCount: categoryData.Prompt?.length
+      });
+
+      // Transform the data with error handling
+      try {
+        const transformedData: PromptCategory = {
+          id: categoryData.id,
+          category: categoryData.category || '',
+          description: categoryData.description || '',
+          theme: categoryData.theme || '',
+          prompts: (categoryData.Prompt || []).map((prompt: any): Prompt => {
+            console.log('[refreshData] Transforming prompt:', prompt.id);
+            
+            const promptResponses = (prompt.PromptResponse || [])
+              .filter((response: any) => {
+                const matches = response.profileSharerId === profileSharer.id;
+                if (!matches) {
+                  console.log('[refreshData] Filtering out response:', response.id, 'profileSharerId:', response.profileSharerId);
+                }
+                return matches;
+              })
+              .map((response: any): PromptResponse => {
+                console.log('[refreshData] Transforming response:', response.id);
+                
+                const attachments = (response.PromptResponseAttachment || [])
+                  .map((attachment: any): PromptResponseAttachment | undefined => {
+                    if (!attachment?.id) {
+                      console.warn('[refreshData] Invalid attachment:', attachment);
+                      return undefined;
+                    }
+                    
+                    return {
+                      id: attachment.id,
+                      promptResponseId: response.id,
+                      fileUrl: attachment.fileUrl || '',
+                      fileType: attachment.fileType || '',
+                      fileName: attachment.fileName || '',
+                      promptResponse: {
+                        id: response.id,
+                        summary: response.responseText || '',
+                        transcription: '',
+                        videos: [],
+                        attachments: []
+                      }
+                    };
+                  })
+                  .filter((a: PromptResponseAttachment | undefined): a is PromptResponseAttachment => a !== undefined);
+
+                return {
+                  id: response.id,
+                  summary: response.responseText || '',
+                  transcription: response.Video?.VideoTranscript?.transcript || '',
+                  videos: response.Video ? [{
+                    id: response.Video.id,
+                    muxPlaybackId: response.Video.muxPlaybackId
+                  }] : [],
+                  attachments
+                };
+              });
+
+            return {
+              id: prompt.id,
+              promptText: prompt.promptText || '',
+              promptType: prompt.promptType || '',
+              isContextEstablishing: prompt.isContextEstablishing || false,
+              promptCategoryId: prompt.promptCategoryId || '',
+              videos: [],
+              promptResponses
+            };
+          })
+        };
+
+        console.log('[refreshData] Successfully transformed data');
+        setPromptCategory(transformedData);
+      } catch (error) {
+        const e = error as RefreshError;
+        console.error('[refreshData] Error transforming data:', e);
+        throw new Error(`Error transforming data: ${e.message}`);
+      }
+    } catch (error) {
+      const e = error as RefreshError;
+      console.error('[refreshData] Fatal error:', e);
+      throw e;
+    }
+  }, [topicId, router]);
+
+  const fetchData = useCallback(async () => {
+    if (!topicId) {
+      console.error('[fetchData] No topicId provided');
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      console.log('[fetchData] Starting initial fetch for topic:', topicId);
+      await refreshData();
+    } catch (error) {
+      const e = error as RefreshError;
+      console.error('[fetchData] Error:', e);
+      setError(e.message || 'An unexpected error occurred');
+      
+      // If it's a 404, redirect to topics page
+      if (e.code === 'PGRST116') {
+        console.log('[fetchData] Topic not found, redirecting');
+        router.push('/role-sharer/topics');
+        return;
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [topicId, refreshData, router]);
+
+  useEffect(() => {
+    try {
+      if (params && typeof params.id === 'string') {
+        console.log('[useEffect-params] Setting topicId:', params.id);
+        setTopicId(params.id);
+      } else {
+        console.log('[useEffect-params] Invalid params, redirecting');
+        router.push('/role-sharer/topics');
+      }
+    } catch (error) {
+      const e = error as RefreshError;
+      console.error('[useEffect-params] Error:', e);
+      router.push('/role-sharer/topics');
+    }
+  }, [params, router]);
+
+  useEffect(() => {
+    if (!topicId) {
+      console.log('[useEffect-fetchData] No topicId yet, skipping fetch');
+      return;
+    }
+
+    try {
+      console.log('[useEffect-fetchData] Calling fetchData');
+      fetchData();
+    } catch (error) {
+      const e = error as RefreshError;
+      console.error('[useEffect-fetchData] Error:', e);
+    }
+  }, [topicId, fetchData]);
+
+  const handleVideoComplete = useCallback(async () => {
+    try {
+      await refreshData();
+      setIsRecordingPopupOpen(false);
+      setIsUploadPopupOpen(false);
+      setSelectedPrompt(null);
+      return '';
+    } catch (error) {
+      const e = error as RefreshError;
+      console.error('[handleVideoComplete] Error:', e);
+      toast.error('Failed to refresh video data');
+      return '';
+    }
+  }, [refreshData]);
+
+  // Wrap the render in try-catch
+  try {
+    if (isLoading) {
+      return (
+        <div className="container mx-auto py-8">
+          <Card className="p-6 border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
+            <CardHeader>
+              <CardTitle>Loading...</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p>Please wait while we load your topic...</p>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <ErrorFallback 
+          error={error} 
+          resetErrorBoundary={() => {
+            setError(null);
+            setIsLoading(true);
+            fetchData();
+          }} 
+        />
+      );
+    }
+
+    return (
+      <ErrorBoundary
+        FallbackComponent={ErrorFallback}
+        onReset={() => {
+          setError(null);
+          setIsLoading(true);
+          fetchData();
+        }}
+        onError={(error) => logError(error, 'ErrorBoundary')}
+      >
+        <TopicPageContent
+          promptCategory={promptCategory}
+          viewMode={viewMode}
+          sortByStatus={sortByStatus}
+          isVideoPopupOpen={isVideoPopupOpen}
+          isRecordingPopupOpen={isRecordingPopupOpen}
+          isUploadPopupOpen={isUploadPopupOpen}
+          isAttachmentUploadOpen={isAttachmentUploadOpen}
+          selectedPrompt={selectedPrompt}
+          selectedPromptResponse={selectedPromptResponse}
+          setViewMode={setViewMode}
+          setSortByStatus={setSortByStatus}
+          setSelectedPrompt={setSelectedPrompt}
+          setSelectedPromptResponse={setSelectedPromptResponse}
+          setIsVideoPopupOpen={setIsVideoPopupOpen}
+          setIsRecordingPopupOpen={setIsRecordingPopupOpen}
+          setIsUploadPopupOpen={setIsUploadPopupOpen}
+          setIsAttachmentUploadOpen={setIsAttachmentUploadOpen}
+          handleVideoComplete={handleVideoComplete}
+          refreshData={refreshData}
+          router={router}
+        />
+      </ErrorBoundary>
+    );
+  } catch (error) {
+    logError(error, 'TopicPage-Render');
+    return (
+      <ErrorFallback 
+        error={error instanceof Error ? error : new Error('An unexpected error occurred')} 
+        resetErrorBoundary={() => window.location.reload()} 
+      />
+    );
+  }
 }
