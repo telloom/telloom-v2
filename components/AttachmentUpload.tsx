@@ -45,12 +45,13 @@ interface AttachmentUploadProps {
   onUploadSuccess: () => void;
 }
 
-export function AttachmentUpload({
+// Export as default for dynamic import
+const AttachmentUpload = ({
   promptResponseId,
   isOpen,
   onClose,
   onUploadSuccess
-}: AttachmentUploadProps) {
+}: AttachmentUploadProps) => {
   const [files, setFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [description, setDescription] = useState('');
@@ -756,4 +757,7 @@ export function AttachmentUpload({
       </DialogContent>
     </Dialog>
   );
-} 
+};
+
+export { AttachmentUpload };
+export default AttachmentUpload; 

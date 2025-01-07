@@ -24,7 +24,34 @@ declare module 'phoenix' {
 }
 
 declare module '@mux/mux-node' {
+  interface MuxOptions {
+    tokenId: string;
+    tokenSecret: string;
+  }
+
+  interface VideoUploadOptions {
+    cors_origin: string;
+    new_asset_settings: {
+      playback_policy: string[];
+      passthrough?: string;
+    };
+  }
+
+  interface VideoUpload {
+    id: string;
+    url: string;
+  }
+
+  interface VideoAPI {
+    uploads: {
+      create(options: VideoUploadOptions): Promise<VideoUpload>;
+    };
+  }
+
   export default class Mux {
+    constructor(options: MuxOptions);
+    video: VideoAPI;
+
     static Webhooks: {
       verifyHeader(
         body: string,

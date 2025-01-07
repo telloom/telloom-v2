@@ -4,17 +4,22 @@ import Mux from '@mux/mux-node';
 import { supabaseAdmin } from '@/utils/supabase/service-role';
 import { getProfile } from '@/lib/auth/profile';
 
-const { Video } = new Mux({
-  tokenId: process.env.MUX_TOKEN_ID!,
-  tokenSecret: process.env.MUX_TOKEN_SECRET!,
+if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
+  throw new Error('Missing required Mux environment variables');
+}
+
+// Initialize Mux client
+const muxClient = new Mux({
+  tokenId: process.env.MUX_TOKEN_ID,
+  tokenSecret: process.env.MUX_TOKEN_SECRET
 });
 
 export async function POST(request: Request) {
   try {
     // Get headers for auth and CORS
-    const headersList = headers();
-    const authHeader = await headersList.get('authorization');
-    const origin = await headersList.get('origin');
+    const headersList = await headers();
+    const authHeader = headersList.get('authorization');
+    const origin = headersList.get('origin');
     const corsOrigin = origin || process.env.NEXT_PUBLIC_APP_URL || '*';
     
     if (!authHeader) {
@@ -82,7 +87,7 @@ export async function POST(request: Request) {
     }
 
     // Create a new video record first using admin client
-    const { data: video, error: insertError } = await supabaseAdmin
+    const { data: videoRecord, error: insertError } = await supabaseAdmin
       .from('Video')
       .insert({
         promptId,
@@ -97,15 +102,15 @@ export async function POST(request: Request) {
       throw insertError;
     }
 
-    console.log('Created video record:', video);
+    console.log('Created video record:', videoRecord);
 
-    // Create a new direct upload
-    const upload = await Video.Uploads.create({
+    // Create a new direct upload using Mux SDK
+    const upload = await muxClient.video.uploads.create({
       cors_origin: corsOrigin,
       new_asset_settings: {
         playback_policy: ['public'],
         passthrough: JSON.stringify({
-          videoId: video.id,
+          videoId: videoRecord.id,
           promptId,
           profileSharerId: profile.sharerId
         })
@@ -120,7 +125,7 @@ export async function POST(request: Request) {
       .update({
         muxUploadId: upload.id
       })
-      .eq('id', video.id);
+      .eq('id', videoRecord.id);
 
     if (updateError) {
       console.error('Error updating video record:', updateError);
@@ -131,7 +136,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       uploadUrl: upload.url,
       uploadId: upload.id,
-      videoId: video.id
+      videoId: videoRecord.id
     }, {
       headers: {
         'Access-Control-Allow-Origin': corsOrigin

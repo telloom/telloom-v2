@@ -4,27 +4,18 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from 'sonner';
 import { createClient } from '@/utils/supabase/client';
 import { MuxPlayer } from './MuxPlayer';
 
 interface UploadInterfaceProps {
-  onClose?: () => void;
-  onComplete?: (videoBlob: Blob) => void;
-  onSave?: (videoBlob: Blob) => void;
-  promptId?: string;
-  promptText?: string;
   onUploadSuccess?: () => void;
+  promptId?: string;
 }
 
 export function UploadInterface({
-  onClose,
-  onComplete,
-  onSave,
   promptId,
-  promptText,
   onUploadSuccess
 }: UploadInterfaceProps) {
   const supabase = createClient();
@@ -58,35 +49,53 @@ export function UploadInterface({
       const maxAttempts = 60; // 5 minutes with 5-second intervals
 
       const checkStatus = async () => {
-        const { data: video, error } = await supabase
-          .from('Video')
-          .select('status, muxPlaybackId')
-          .eq('id', videoId)
-          .single();
+        try {
+          const { data: video, error } = await supabase
+            .from('Video')
+            .select('status, muxPlaybackId')
+            .eq('id', videoId)
+            .single();
 
-        if (error) {
+          // If the record doesn't exist yet or there's an error, wait and try again
+          if (error || !video) {
+            if (attempts < maxAttempts) {
+              attempts++;
+              await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+              return checkStatus();
+            } else {
+              handleVideoError();
+              return;
+            }
+          }
+
+          if (video.status === 'READY' && video.muxPlaybackId) {
+            // Video is ready
+            handleVideoReady(video.muxPlaybackId);
+            return;
+          }
+
+          if (video.status === 'ERRORED') {
+            toast.error('Video processing failed');
+            handleVideoError();
+            return;
+          }
+
+          if (attempts < maxAttempts) {
+            attempts++;
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+            return checkStatus();
+          } else {
+            handleVideoError();
+          }
+        } catch (error) {
           console.error('Error checking video status:', error);
-          handleVideoError();
-          return;
-        }
-
-        if (video.status === 'READY' && video.muxPlaybackId) {
-          // Video is ready
-          handleVideoReady(video.muxPlaybackId);
-          return;
-        }
-
-        if (video.status === 'ERRORED') {
-          toast.error('Video processing failed');
-          handleVideoError();
-          return;
-        }
-
-        if (attempts < maxAttempts) {
-          attempts++;
-          setTimeout(checkStatus, 5000); // Check every 5 seconds
-        } else {
-          handleVideoError();
+          if (attempts < maxAttempts) {
+            attempts++;
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            return checkStatus();
+          } else {
+            handleVideoError();
+          }
         }
       };
 
@@ -108,7 +117,7 @@ export function UploadInterface({
       }
 
       try {
-        // Set upload lock
+        // Set upload lock immediately
         uploadLock.current = true;
         setIsUploading(true);
         setProcessingState('uploading');
@@ -131,11 +140,16 @@ export function UploadInterface({
           .maybeSingle();
 
         if (existingVideo) {
+          console.log('Found existing video:', existingVideo);
           setExistingVideo(true);
           toast.error('A video for this prompt already exists');
           // Clean up and return early
           setIsUploading(false);
+          setProcessingState('idle');
           uploadLock.current = false;
+          if (onUploadSuccess) {
+            onUploadSuccess(); // Refresh parent to show existing video
+          }
           return;
         }
 
@@ -152,12 +166,17 @@ export function UploadInterface({
         });
 
         if (res.status === 409) {
-          await res.json(); // Consume the response
+          const data = await res.json(); // Consume the response
+          console.log('Upload URL 409 response:', data);
           setExistingVideo(true);
           toast.error('A video for this prompt already exists');
           // Clean up and return early
           setIsUploading(false);
+          setProcessingState('idle');
           uploadLock.current = false;
+          if (onUploadSuccess) {
+            onUploadSuccess(); // Refresh parent to show existing video
+          }
           return;
         }
 
@@ -192,29 +211,25 @@ export function UploadInterface({
             setUploadProgress(100);
             setProcessingState('processing');
 
-            if (onComplete) {
-              onComplete(new Blob());
-            }
-            if (onSave) {
-              onSave(new Blob());
-            }
-
             // Start polling for video status
             pollVideoStatus(videoId);
           } else {
             handleVideoError();
+            setProcessingState('idle');
           }
         });
 
         xhr.addEventListener('error', () => {
           if (!aborted) {
             handleVideoError();
+            setProcessingState('idle');
           }
         });
 
         xhr.addEventListener('abort', () => {
           aborted = true;
           handleVideoError();
+          setProcessingState('idle');
         });
 
         // Clean up function for all cases
@@ -234,19 +249,19 @@ export function UploadInterface({
         xhr.open('PUT', uploadUrl);
         xhr.send(file);
       } catch (error) {
+        console.error('Upload error:', error);
         handleVideoError();
         setIsUploading(false);
+        setProcessingState('idle');
         uploadLock.current = false;
       }
     },
     [
-      isUploading,
       processingState,
       promptId,
-      onComplete,
-      onSave,
       pollVideoStatus,
       handleVideoError,
+      onUploadSuccess,
       supabase
     ]
   );
