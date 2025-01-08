@@ -5,12 +5,7 @@
 
 import MuxPlayerReact from '@mux/mux-player-react';
 
-interface MuxPlayerProps {
-  playbackId: string;
-  className?: string;
-}
-
-export function MuxPlayer({ playbackId, className = '' }: MuxPlayerProps) {
+export function MuxPlayer({ playbackId }: { playbackId: string }) {
   if (!playbackId) return null;
 
   return (

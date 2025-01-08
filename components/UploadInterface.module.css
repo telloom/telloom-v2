@@ -1,0 +1,21 @@
+.videoContainer {
+  width: min(60vw, calc(55vh * 16/9));
+}
+
+.progressBarContainer {
+  width: 100%;
+  max-width: 48rem;
+  margin: 0 auto;
+  background: hsl(var(--secondary));
+  border-radius: 9999px;
+  height: 1.5rem;
+  overflow: hidden;
+}
+
+.progressBar {
+  height: 100%;
+  border-radius: 9999px;
+  background: hsl(var(--primary));
+  transition: width 300ms ease;
+  width: var(--upload-progress, 0%);
+} 

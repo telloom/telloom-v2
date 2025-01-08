@@ -8,10 +8,14 @@ import { Card } from "@/components/ui/card";
 import { toast } from 'sonner';
 import { createClient } from '@/utils/supabase/client';
 import { MuxPlayer } from './MuxPlayer';
+import styles from './UploadInterface.module.css';
 
 interface UploadInterfaceProps {
   onUploadSuccess?: () => void;
   promptId?: string;
+  onClose?: () => void;
+  onComplete?: () => void;
+  promptText?: string;
 }
 
 export function UploadInterface({
@@ -345,7 +349,7 @@ export function UploadInterface({
         <div className="flex flex-col flex-1 min-h-0">
           {processingState === 'ready' && muxPlaybackId ? (
             <div className="flex flex-col items-center justify-center flex-1 min-h-0">
-              <div className="relative w-full max-w-[800px]" style={{ width: 'min(60vw, calc(55vh * 16/9))' }}>
+              <div className={`relative w-full max-w-[800px] ${styles.videoContainer}`}>
                 <div className="w-full">
                   <div className="aspect-video bg-black rounded-md overflow-hidden relative">
                     <div className="absolute inset-0">
@@ -395,9 +399,9 @@ export function UploadInterface({
                   <div className="text-xl text-muted-foreground text-center">
                     Uploading... {uploadProgress}%
                   </div>
-                  <div className="w-full max-w-4xl mx-auto bg-secondary rounded-full h-6">
+                  <div className="w-full max-w-3xl mx-auto bg-secondary rounded-full h-6 overflow-hidden">
                     <div
-                      className="bg-primary h-6 rounded-full transition-all duration-300"
+                      className="h-full bg-primary rounded-full transition-all duration-300"
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>

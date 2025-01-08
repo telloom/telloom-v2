@@ -248,6 +248,7 @@ model PromptResponse {
   airtableRecordId              String?
   promptId                      String?                         @db.Uuid
   search_vector                 Unsupported("tsvector")?
+  summary                       String?
   Object                        Object[]
   ProfileSharer                 ProfileSharer                   @relation(fields: [profileSharerId], references: [id], onDelete: Cascade)
   Prompt                        Prompt?                         @relation(fields: [promptId], references: [id], onDelete: NoAction)
@@ -434,6 +435,7 @@ model Video {
   createdAt        DateTime?         @default(now()) @db.Timestamptz(6)
   updatedAt        DateTime?         @default(now()) @db.Timestamptz(6)
   status           VideoStatus       @default(WAITING)
+  dateRecorded     DateTime?         @db.Timestamptz(6)
   PromptResponse   PromptResponse?
   ProfileSharer    ProfileSharer     @relation(fields: [profileSharerId], references: [id], onDelete: Cascade)
   Prompt           Prompt?           @relation(fields: [promptId], references: [id], onDelete: NoAction)
@@ -448,6 +450,12 @@ model VideoTranscript {
   transcript String
   createdAt  DateTime @default(now()) @db.Timestamptz(6)
   updatedAt  DateTime @db.Timestamptz(6)
+  source     String?
+  type       String?
+  language   String?
+  name       String?
+  muxTrackId String?
+  muxAssetId String?
   Video      Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
 }
 

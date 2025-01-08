@@ -1,10 +1,10 @@
 // components/PromptListPopup.tsx
 // Displays a popup with a list of prompts for a topic category
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogDescription } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { PromptCategory } from "@/types/models"
-import { X, Video } from "lucide-react"
+import { X, Video, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRouter } from 'next/navigation'
 import { cn } from "@/lib/utils"
@@ -27,49 +27,49 @@ export default function PromptListPopup({ promptCategory, isOpen, onClose }: Pro
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl h-[80vh] flex flex-col p-0 gap-0 border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300">
-        <div className="sticky top-0 bg-background rounded-t-lg border-b z-20 px-6 py-4">
-          <div className="flex items-start justify-between mb-4">
-            <div className="space-y-1.5">
-              <DialogTitle>{promptCategory.category}</DialogTitle>
-              {promptCategory.description && (
-                <p className="text-muted-foreground">{promptCategory.description}</p>
-              )}
-            </div>
-            <DialogClose asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="shrink-0 w-6 h-6"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </DialogClose>
-          </div>
-          <Button
-            onClick={() => router.push(`/role-sharer/topics/${promptCategory.id}`)}
-            className="text-sm bg-[#1B4332] hover:bg-[#1B4332]/90 text-white rounded-full font-medium px-4 py-1.5 h-auto whitespace-nowrap flex items-center gap-1.5"
-          >
-            <Video className="h-4 w-4" />
-            Record
-          </Button>
-        </div>
-
+      <DialogContent className="max-w-3xl h-[80vh] flex flex-col gap-0">
+        <DialogHeader className="px-6 pt-6 pb-2">
+          <DialogTitle>{promptCategory.category}</DialogTitle>
+          <DialogDescription>{promptCategory.description}</DialogDescription>
+        </DialogHeader>
         <ScrollArea className="flex-1 p-6">
           <div className="space-y-4">
-            {sortedPrompts.map((prompt, index) => (
-              <div 
-                key={prompt.id} 
-                className="p-4 rounded-lg border"
-              >
-                <div className="flex items-start gap-3">
-                  <span className="text-muted-foreground min-w-[24px]">{index + 1}.</span>
-                  <div>
-                    <p>{prompt.promptText}</p>
+            {sortedPrompts.map((prompt, index) => {
+              const hasResponse = prompt?.promptResponses?.[0]?.videos?.[0]?.muxPlaybackId;
+              
+              return (
+                <div 
+                  key={prompt.id} 
+                  className={cn(
+                    "p-4 rounded-lg border",
+                    hasResponse && "cursor-pointer hover:border-[#8fbc55]"
+                  )}
+                  onClick={(e) => {
+                    if (
+                      e.target instanceof HTMLElement && 
+                      !e.target.closest('button') && 
+                      hasResponse
+                    ) {
+                      window.location.href = `/role-sharer/prompts/${prompt.id}`;
+                      onClose();
+                    }
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-muted-foreground min-w-[24px]">{index + 1}.</span>
+                    <div className="flex-1">
+                      <p>{prompt.promptText}</p>
+                      {hasResponse && (
+                        <div className="mt-2 flex items-center text-sm text-[#8fbc55]">
+                          <CheckCircle2 className="h-4 w-4 mr-1" />
+                          Recorded
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </ScrollArea>
       </DialogContent>

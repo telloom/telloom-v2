@@ -14,6 +14,7 @@ const nextConfig = {
         hostname: 'image.mux.com',
       },
     ],
+    domains: ['edplarkcaozwrivolfgw.supabase.co'],
   },
   webpack: (config) => {
     config.externals = [...config.externals, { canvas: 'canvas' }];  // required by mux-player

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RecordingInterface } from '@/components/RecordingInterface';
@@ -23,13 +23,13 @@ import { toast } from 'sonner';
 import dynamic from 'next/dynamic';
 import { PromptResponseGallery } from '@/components/PromptResponseGallery';
 import { ErrorBoundary } from 'react-error-boundary';
+import { cn } from "@/lib/utils";
 
 // Dynamically import AttachmentUpload with no SSR
 const AttachmentUpload = dynamic(
   () => import('@/components/AttachmentUpload').then(mod => ({ default: mod.AttachmentUpload })),
   { ssr: false }
 );
-
 interface TopicPageContentProps {
   promptCategory: PromptCategory | null;
   viewMode: 'table' | 'grid';
@@ -76,21 +76,21 @@ const logError = (error: any, context: string) => {
 // Error boundary component
 const ErrorFallback = ({ error, resetErrorBoundary }: { error: Error | string; resetErrorBoundary: () => void }) => {
   const errorMessage = error instanceof Error ? error.message : error;
-    return (
-      <div className="container mx-auto py-8">
+  return (
+    <div className="container mx-auto py-8">
       <Card className="p-6 border-2 border-red-500 shadow-[6px_6px_0_0_#ef4444]">
-          <CardHeader>
+        <CardHeader>
           <CardTitle>Something went wrong</CardTitle>
-          </CardHeader>
-          <CardContent>
+        </CardHeader>
+        <CardContent>
           <p className="text-red-500">{errorMessage}</p>
           <Button className="mt-4" onClick={resetErrorBoundary}>
             Try again
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
 };
 
 // Main content component to wrap in error boundary
@@ -201,7 +201,19 @@ const TopicPageContent = ({
             return (
               <Card 
                 key={prompt.id}
-                className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 flex flex-col"
+                className={cn(
+                  "border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 flex flex-col",
+                  hasResponse && "cursor-pointer"
+                )}
+                onClick={(e) => {
+                  if (
+                    e.target instanceof HTMLElement && 
+                    !e.target.closest('button') && 
+                    hasResponse
+                  ) {
+                    window.location.href = `/role-sharer/prompts/${prompt.id}`;
+                  }
+                }}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between gap-4">
@@ -301,7 +313,22 @@ const TopicPageContent = ({
                   const promptResponse = hasResponse ? prompt.promptResponses[0] : null;
                 
                 return (
-                  <TableRow key={prompt.id} className="hover:bg-gray-50/50 border-b border-[#1B4332] last:border-0">
+                  <TableRow 
+                    key={prompt.id} 
+                    className={cn(
+                      "hover:bg-gray-50/50 border-b border-[#1B4332] last:border-0",
+                      hasResponse && "cursor-pointer"
+                    )}
+                    onClick={(e) => {
+                      if (
+                        e.target instanceof HTMLElement && 
+                        !e.target.closest('button') && 
+                        hasResponse
+                      ) {
+                        window.location.href = `/role-sharer/prompts/${prompt.id}`;
+                      }
+                    }}
+                  >
                     <TableCell className="font-medium">{prompt.promptText}</TableCell>
                     <TableCell className="text-center">
                       {hasResponse ? (
@@ -474,6 +501,8 @@ export default function TopicPage() {
   // Move hooks outside of try-catch to maintain hook order
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
+  const promptId = searchParams.get('prompt');
   const [topicId, setTopicId] = useState<string | null>(null);
   const [promptCategory, setPromptCategory] = useState<PromptCategory | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
@@ -659,6 +688,15 @@ export default function TopicPage() {
         };
 
         console.log('[refreshData] Successfully transformed data');
+
+        // After setting promptCategory, find and set the current prompt index if promptId exists
+        if (promptId && transformedData) {
+          const promptIndex = transformedData.prompts.findIndex(p => p.id === promptId);
+          if (promptIndex !== -1) {
+            setCurrentPromptIndex(promptIndex);
+          }
+        }
+
         setPromptCategory(transformedData);
       } catch (error) {
         const e = error as RefreshError;
