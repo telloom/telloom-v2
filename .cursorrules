@@ -5,7 +5,7 @@
 Telloom is a web application that connects generations by preserving and sharing personal histories through video. As an expert full-stack developer, your task is to assist in building this app using the following tech stack:
 
 - TypeScript
-- Next.js 14 (with App Router)
+- Next.js 14 (with App Router and React Server Components)
 - Prisma ORM
 - Supabase for backend and authentication
 - Mux for video handling

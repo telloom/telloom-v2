@@ -105,19 +105,31 @@ export async function POST(request: Request) {
     console.log('Created video record:', videoRecord);
 
     // Create a new direct upload using Mux SDK
-    const upload = await muxClient.video.uploads.create({
+    const uploadConfig = {
       cors_origin: corsOrigin,
       new_asset_settings: {
         playback_policy: ['public'],
+        input: [{
+          generated_subtitles: [{
+            language_code: 'en',
+            name: 'English CC'
+          }]
+        }],
         passthrough: JSON.stringify({
           videoId: videoRecord.id,
           promptId,
           profileSharerId: profile.sharerId
         })
       }
-    });
+    };
 
-    console.log('Created Mux upload:', upload);
+    console.log('Creating Mux upload with config:', uploadConfig);
+    const upload = await muxClient.video.uploads.create(uploadConfig as any);
+
+    console.log('Created Mux upload:', {
+      uploadId: upload.id,
+      config: uploadConfig
+    });
 
     // Update video record with upload ID using admin client
     const { error: updateError } = await supabaseAdmin
