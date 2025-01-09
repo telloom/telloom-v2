@@ -7,7 +7,6 @@ import { createClient } from '@/utils/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
 import { VideoResponseSection } from './video-response-section';
 
 interface PageProps {
@@ -47,16 +46,25 @@ interface Prompt {
   promptType: string;
   isContextEstablishing: boolean;
   promptCategoryId: string;
+  PromptCategory?: {
+    id: string;
+    category: string;
+  };
   PromptResponse: PromptResponse[];
 }
 
 interface GetPromptDataResult {
   prompt: Prompt;
   profileSharer: { id: string };
+  siblingPrompts?: {
+    previousPrompt?: { id: string; promptText: string } | null;
+    nextPrompt?: { id: string; promptText: string } | null;
+  };
 }
 
 interface GetPromptDataError {
   error: string;
+  redirectTo?: string;
 }
 
 async function getPromptData(promptId: string) {
@@ -98,6 +106,10 @@ async function getPromptData(promptId: string) {
       promptType,
       isContextEstablishing,
       promptCategoryId,
+      PromptCategory (
+        id,
+        category
+      ),
       PromptResponse (
         id,
         profileSharerId,
@@ -131,15 +143,42 @@ async function getPromptData(promptId: string) {
     return { error: 'Prompt not found' };
   }
 
-  return { prompt: prompt as unknown as Prompt, profileSharer };
+  console.log('Fetched prompt:', prompt); // Add logging to debug
+
+  // Fetch sibling prompts
+  const { data: siblingPrompts, error: siblingError } = await supabase
+    .from('Prompt')
+    .select('id, promptText, isContextEstablishing')
+    .eq('promptCategoryId', prompt.promptCategoryId)
+    .order('isContextEstablishing', { ascending: false })
+    .order('id');
+
+  if (siblingError) {
+    console.error('Error fetching sibling prompts:', siblingError);
+    return { prompt: prompt as unknown as Prompt, profileSharer };
+  }
+
+  // Find current prompt index and get previous/next
+  const currentIndex = siblingPrompts.findIndex(p => p.id === promptId);
+  const previousPrompt = currentIndex > 0 ? siblingPrompts[currentIndex - 1] : null;
+  const nextPrompt = currentIndex < siblingPrompts.length - 1 ? siblingPrompts[currentIndex + 1] : null;
+
+  return { 
+    prompt: prompt as unknown as Prompt, 
+    profileSharer,
+    siblingPrompts: {
+      previousPrompt,
+      nextPrompt
+    }
+  };
 }
 
 export default function PromptPage() {
-  const params = useParams();
   const router = useRouter();
+  const params = useParams();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [promptData, setPromptData] = useState<{ prompt: Prompt; profileSharer: { id: string } } | null>(null);
+  const [promptData, setPromptData] = useState<GetPromptDataResult | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -152,6 +191,10 @@ export default function PromptPage() {
         const result = await getPromptData(params.id);
         
         if ('error' in result) {
+          if (result.error === 'redirect' && 'redirectTo' in result) {
+            router.push(`/role-sharer/prompts/${result.redirectTo}`);
+            return;
+          }
           setError(result.error || 'Unknown error');
           return;
         }
@@ -214,19 +257,55 @@ export default function PromptPage() {
   return (
     <div className="container mx-auto py-8 space-y-8">
       <div>
-        <Link href="/role-sharer/topics">
-          <Button variant="ghost" className="mb-4">
+        <div className="flex items-center justify-between mb-4">
+          <Button 
+            variant="ghost" 
+            onClick={() => router.push(`/role-sharer/topics/${prompt.promptCategoryId}`)}
+            className="-ml-2 text-gray-600 hover:text-gray-900"
+          >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Topics
+            Back to Topic
           </Button>
-        </Link>
+          <div className="flex gap-2">
+            {promptData?.siblingPrompts?.previousPrompt && (
+              <Button
+                variant="outline"
+                onClick={() => router.push(`/role-sharer/prompts/${promptData?.siblingPrompts?.previousPrompt?.id}`)}
+                className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55]"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Previous Prompt
+              </Button>
+            )}
+            {promptData?.siblingPrompts?.nextPrompt && (
+              <Button
+                variant="outline"
+                onClick={() => router.push(`/role-sharer/prompts/${promptData?.siblingPrompts?.nextPrompt?.id}`)}
+                className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55]"
+              >
+                Next Prompt
+                <ArrowLeft className="ml-2 h-4 w-4 rotate-180" />
+              </Button>
+            )}
+          </div>
+        </div>
         <Card className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
           <CardHeader>
-            <CardTitle className="text-xl">{prompt.promptText}</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xl">{prompt.promptText}</CardTitle>
+              {prompt.isContextEstablishing && (
+                <div className="px-3 py-1 text-sm font-medium bg-[#8fbc55] text-[#1B4332] rounded-full">
+                  Start Here
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <VideoResponseSection 
               promptId={prompt.id}
+              promptCategoryId={prompt.promptCategoryId}
+              promptText={prompt.promptText}
+              promptCategory={prompt.PromptCategory?.category || ""}
               response={transformedResponse}
             />
           </CardContent>

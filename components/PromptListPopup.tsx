@@ -58,7 +58,16 @@ export default function PromptListPopup({ promptCategory, isOpen, onClose }: Pro
                   <div className="flex items-start gap-3">
                     <span className="text-muted-foreground min-w-[24px]">{index + 1}.</span>
                     <div className="flex-1">
-                      <p>{prompt.promptText}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          {prompt.isContextEstablishing && (
+                            <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-[#8fbc55] text-[#1B4332] rounded-full whitespace-nowrap">
+                              Start Here
+                            </span>
+                          )}
+                          <p>{prompt.promptText}</p>
+                        </div>
+                      </div>
                       {hasResponse && (
                         <div className="mt-2 flex items-center text-sm text-[#8fbc55]">
                           <CheckCircle2 className="h-4 w-4 mr-1" />

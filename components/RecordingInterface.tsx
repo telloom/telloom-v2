@@ -19,10 +19,8 @@ import { cn } from "@/lib/utils";
 import { MuxPlayer } from './MuxPlayer';
 
 export interface RecordingInterfaceProps {
-  onComplete?: (videoBlob: Blob) => Promise<void>;
-  onCancel: () => void;
+  promptId: string;
   onClose: () => void;
-  onSave: (videoBlob: Blob) => Promise<string>;
 }
 
 interface MediaDevice {
@@ -30,7 +28,7 @@ interface MediaDevice {
   label: string;
 }
 
-export function RecordingInterface({ onComplete, onCancel, onClose, onSave }: RecordingInterfaceProps) {
+export function RecordingInterface({ promptId, onClose }: RecordingInterfaceProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);

@@ -1,27 +1,60 @@
-// app/page.tsx
+'use client';
+
 import { redirect } from 'next/navigation';
-import { getUser } from '@/utils/supabase/server';
+import { getAuthenticatedUser } from '@/utils/auth';
 import { Role } from '@/types/models';
-import { useCallback, useState } from 'react';
+import { useEffect, useState } from 'react';
+
+interface UserRole {
+  role: Role;
+}
 
 export default function Home() {
-  const [refreshKey, setRefreshKey] = useState(0);
-  
-  const handleUploadSuccess = useCallback(() => {
-    setRefreshKey(prev => prev + 1);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { user, roles } = await getAuthenticatedUser();
+        
+        // Find the user's role
+        const userRole = roles.find((r: UserRole) => [Role.SHARER, Role.LISTENER, Role.EXECUTOR, Role.ADMIN].includes(r.role))?.role;
+
+        if (!userRole) {
+          redirect('/role-selection');
+          return;
+        }
+
+        if (userRole === Role.SHARER) {
+          redirect('/role-sharer/topics');
+        } else if (userRole === Role.LISTENER) {
+          redirect('/role-listener/sharers');
+        } else if (userRole === Role.EXECUTOR) {
+          redirect('/role-executor/sharers');
+        } else if (userRole === Role.ADMIN) {
+          redirect('/admin/dashboard');
+        }
+      } catch (error) {
+        console.error('Authentication error:', error);
+        redirect('/login');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    checkAuth();
   }, []);
 
-  return (
-    <main className="container mx-auto p-4 md:p-6 lg:p-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {prompts.map((prompt) => (
-          <PromptCard
-            key={`${prompt.id}-${refreshKey}`}
-            prompt={prompt}
-            onUploadSuccess={handleUploadSuccess}
-          />
-        ))}
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#1B4332] mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
       </div>
-    </main>
-  );
+    );
+  }
+
+  return null;
 }

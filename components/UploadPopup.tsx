@@ -13,23 +13,13 @@ import {
 } from "@/components/ui/dialog";
 import { UploadInterface } from '@/components/UploadInterface';
 
-interface UploadPopupProps {
-  open: boolean;
+export interface UploadPopupProps {
+  promptId: string;
   onClose: () => void;
-  promptText?: string;
-  promptId?: string;
-  onComplete?: () => void;
-  onUploadSuccess?: () => void;
+  open: boolean;
 }
 
-export function UploadPopup({
-  open,
-  onClose,
-  promptText,
-  promptId,
-  onComplete,
-  onUploadSuccess
-}: UploadPopupProps) {
+export function UploadPopup({ promptId, onClose, open }: UploadPopupProps) {
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="max-w-[95vw] max-h-[95vh] flex flex-col p-0">

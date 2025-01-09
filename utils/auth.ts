@@ -1,15 +1,21 @@
-import { getUser } from '@/utils/supabase/server';
 import { Role } from '@/types/models';
 import { redirect } from 'next/navigation';
 
 export async function getAuthenticatedUser() {
-  const { user, roles, error } = await getUser();
-  
-  if (error || !user) {
+  const response = await fetch('/api/auth/check');
+  if (!response.ok) {
     redirect('/login');
   }
-  
-  return { user, roles };
+
+  const data = await response.json();
+  if (!data.user) {
+    redirect('/login');
+  }
+
+  return {
+    user: data.user,
+    roles: data.roles || []
+  };
 }
 
 export async function checkRole(requiredRole: Role) {
