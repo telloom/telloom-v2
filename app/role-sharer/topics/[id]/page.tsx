@@ -217,9 +217,18 @@ const TopicPageContent = ({
               >
                 <CardHeader>
                   <div className="flex items-start justify-between gap-4">
-                    <CardTitle className="text-lg leading-tight">
-                      {prompt.promptText}
-                    </CardTitle>
+                    <div className="flex-1">
+                      {prompt.isContextEstablishing && (
+                        <div className="mb-2">
+                          <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-[#8fbc55] text-[#1B4332] rounded-full">
+                            Start Here
+                          </span>
+                        </div>
+                      )}
+                      <CardTitle className="text-lg leading-tight">
+                        {prompt.promptText}
+                      </CardTitle>
+                    </div>
                     {hasResponse && (
                       <CheckCircle2 className="h-6 w-6 text-[#8fbc55] flex-shrink-0" />
                     )}
@@ -329,7 +338,16 @@ const TopicPageContent = ({
                       }
                     }}
                   >
-                    <TableCell className="font-medium">{prompt.promptText}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        {prompt.isContextEstablishing && (
+                          <span className="inline-flex shrink-0 px-2 py-0.5 text-xs font-medium bg-[#8fbc55] text-[#1B4332] rounded-full w-fit">
+                            Start Here
+                          </span>
+                        )}
+                        <span className="flex-1">{prompt.promptText}</span>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-center">
                       {hasResponse ? (
                         <CheckCircle2 className="h-6 w-6 text-[#8fbc55] inline-block" />
