@@ -90,7 +90,9 @@ export function PromptActions({ hasVideo, attachmentCount, promptId, responseId 
       {showUploadPopup && (
         <UploadPopup
           promptId={promptId}
+          open={showUploadPopup}
           onClose={() => setShowUploadPopup(false)}
+          onComplete={() => setShowUploadPopup(false)}
         />
       )}
     </>

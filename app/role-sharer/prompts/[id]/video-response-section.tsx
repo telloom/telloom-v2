@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useRouter } from 'next/navigation';
 import { generateAISummary } from '@/utils/generateAISummary';
-import { useToast } from "@/components/ui/use-toast";
+import { cleanTranscript } from '@/utils/cleanTranscript';
 
 // Dynamically import components that could cause hydration issues
 const MuxPlayer = dynamic(
@@ -146,7 +146,6 @@ function AttachmentPreview({ attachment }: {
 
 export function VideoResponseSection({ promptId, promptCategoryId, promptText, promptCategory, response }: VideoResponseSectionProps) {
   const router = useRouter();
-  const { toast } = useToast();
   const [showRecordingInterface, setShowRecordingInterface] = useState(false);
   const [showUploadPopup, setShowUploadPopup] = useState(false);
   const [showAttachmentUpload, setShowAttachmentUpload] = useState(false);
@@ -159,6 +158,10 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
     attachment => attachment.fileType.startsWith('image/')
   ) || [];
   const [gallerySignedUrls, setGallerySignedUrls] = useState<{ [key: string]: string }>({});
+  const [isCleaningTranscript, setIsCleaningTranscript] = useState(false);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [previousTranscript, setPreviousTranscript] = useState('');
+  const [previousSummary, setPreviousSummary] = useState('');
 
   const handleSaveTranscript = async () => {
     if (!response?.video?.VideoTranscript?.[0]?.id) return;
@@ -171,19 +174,12 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
 
     if (error) {
       console.error('Error updating transcript:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update transcript",
-        variant: "destructive",
-      });
+      toast.error("Failed to update transcript");
       return;
     }
 
     setIsEditingTranscript(false);
-    toast({
-      title: "Success",
-      description: "Transcript updated successfully",
-    });
+    toast.success("Transcript updated successfully");
   };
 
   const handleSaveSummary = async () => {
@@ -197,27 +193,18 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
 
     if (error) {
       console.error('Error updating summary:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update summary",
-        variant: "destructive",
-      });
+      toast.error("Failed to update summary");
       return;
     }
 
     setIsEditingSummary(false);
-    toast({
-      title: "Success",
-      description: "Summary updated successfully",
-    });
+    toast.success("Summary updated successfully");
   };
 
   const generateAISummaryHandler = async () => {
     if (!response?.video?.VideoTranscript?.[0]?.transcript) {
-      toast({
-        title: "No transcript available",
-        description: "A transcript is required to generate an AI summary.",
-        variant: "destructive",
+      toast.error("No transcript available", {
+        description: "A transcript is required to generate an AI summary."
       });
       return;
     }
@@ -237,10 +224,8 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
       if (profileError) throw profileError;
 
       if (!profile?.firstName || !promptText || !promptCategory) {
-        toast({
-          title: "Missing information",
-          description: "Some required information is missing. Please try again.",
-          variant: "destructive",
+        toast.error("Missing information", {
+          description: "Some required information is missing. Please try again."
         });
         return;
       }
@@ -249,28 +234,25 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
         promptText,
         promptCategory,
         firstName: profile.firstName,
-        transcript: response.video.VideoTranscript[0].transcript,
+        transcript: response.video.VideoTranscript[0].transcript
       });
 
-      // Update the summary in the database
-      const { error: updateError } = await supabase
+      // Update the local state
+      setSummary(aiSummary);
+
+      // Save to database
+      const { error: saveError } = await supabase
         .from('PromptResponse')
         .update({ summary: aiSummary })
         .eq('id', response.id);
 
-      if (updateError) throw updateError;
+      if (saveError) throw saveError;
 
-      setSummary(aiSummary);
-      toast({
-        title: "Summary generated",
-        description: "The AI summary has been generated and saved.",
-      });
+      toast.success("AI Summary generated successfully");
     } catch (error) {
       console.error('Error generating AI summary:', error);
-      toast({
-        title: "Error",
-        description: "Failed to generate AI summary. Please try again.",
-        variant: "destructive",
+      toast.error("Failed to generate AI summary", {
+        description: error instanceof Error ? error.message : "Please try again."
       });
     }
   };
@@ -303,10 +285,13 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
   }, [selectedImageIndex]);
 
   useEffect(() => {
-    if (selectedImageIndex === null || !imageAttachments[selectedImageIndex]) return;
+    if (selectedImageIndex === null || !imageAttachments || imageAttachments.length === 0) return;
+    const index = selectedImageIndex; // Create a non-null copy
 
     async function getGallerySignedUrl() {
-      const attachment = imageAttachments[selectedImageIndex];
+      if (index >= imageAttachments.length) return;
+      
+      const attachment = imageAttachments[index];
       if (!attachment?.fileName) return;
 
       try {
@@ -368,6 +353,9 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
             promptId={promptId}
             onClose={() => setShowUploadPopup(false)}
             open={showUploadPopup}
+            promptText={promptText}
+            onComplete={() => setShowUploadPopup(false)}
+            onUploadSuccess={() => setShowUploadPopup(false)}
           />
         )}
       </Card>
@@ -393,24 +381,97 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Transcript</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (isEditingTranscript) {
-                    handleSaveTranscript();
-                  } else {
-                    setIsEditingTranscript(true);
-                  }
-                }}
-              >
-                {isEditingTranscript ? (
-                  <Check className="h-4 w-4 mr-2" />
-                ) : (
-                  <Edit className="h-4 w-4 mr-2" />
+              <div className="flex gap-2">
+                {previousTranscript && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setTranscript(previousTranscript);
+                      setPreviousTranscript('');
+                    }}
+                    className="rounded-full"
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Revert
+                  </Button>
                 )}
-                {isEditingTranscript ? 'Save' : 'Edit'}
-              </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      if (!transcript) {
+                        toast.error("No transcript available", {
+                          description: "A transcript is required to clean."
+                        });
+                        return;
+                      }
+
+                      setPreviousTranscript(transcript);
+                      setIsCleaningTranscript(true);
+                      const cleanedTranscript = await cleanTranscript({
+                        transcript,
+                      });
+
+                      // Update the local state first
+                      setTranscript(cleanedTranscript);
+                      
+                      // Then save to the database
+                      if (response?.video?.VideoTranscript?.[0]?.id) {
+                        const supabase = createClient();
+                        const { error: saveError } = await supabase
+                          .from('VideoTranscript')
+                          .update({ transcript: cleanedTranscript })
+                          .eq('id', response.video.VideoTranscript[0].id);
+
+                        if (saveError) {
+                          throw new Error('Failed to save cleaned transcript');
+                        }
+                      }
+                      
+                      toast.success("Transcript cleaned successfully");
+                    } catch (error) {
+                      console.error('Error cleaning transcript:', error);
+                      toast.error("Failed to clean transcript", {
+                        description: error instanceof Error ? error.message : "Please try again."
+                      });
+                    } finally {
+                      setIsCleaningTranscript(false);
+                    }
+                  }}
+                  className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full"
+                  disabled={isCleaningTranscript}
+                >
+                  {isCleaningTranscript ? (
+                    <>
+                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-[#1B4332] border-t-transparent" />
+                      Cleaning...
+                    </>
+                  ) : (
+                    'Clean Transcript with AI'
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (isEditingTranscript) {
+                      handleSaveTranscript();
+                    } else {
+                      setIsEditingTranscript(true);
+                    }
+                  }}
+                  className="rounded-full"
+                >
+                  {isEditingTranscript ? (
+                    <Check className="h-4 w-4 mr-2" />
+                  ) : (
+                    <Edit className="h-4 w-4 mr-2" />
+                  )}
+                  {isEditingTranscript ? 'Save' : 'Edit'}
+                </Button>
+              </div>
             </div>
             <Textarea
               value={transcript}
@@ -425,13 +486,94 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Summary</h3>
               <div className="flex gap-2">
+                {previousSummary && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSummary(previousSummary);
+                      setPreviousSummary('');
+                    }}
+                    className="rounded-full"
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Revert
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={generateAISummaryHandler}
-                  className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55]"
+                  onClick={async () => {
+                    if (!response?.video?.VideoTranscript?.[0]?.transcript) {
+                      toast.error("No transcript available", {
+                        description: "A transcript is required to generate an AI summary."
+                      });
+                      return;
+                    }
+
+                    try {
+                      setIsGeneratingSummary(true);
+                      setPreviousSummary(summary);
+                      
+                      const supabase = createClient();
+                      
+                      // Get user's first name
+                      const { data: { user }, error: userError } = await supabase.auth.getUser();
+                      if (userError) throw userError;
+
+                      const { data: profile, error: profileError } = await supabase
+                        .from('Profile')
+                        .select('firstName')
+                        .eq('id', user?.id)
+                        .single();
+                      if (profileError) throw profileError;
+
+                      if (!profile?.firstName || !promptText || !promptCategory) {
+                        toast.error("Missing information", {
+                          description: "Some required information is missing. Please try again."
+                        });
+                        return;
+                      }
+
+                      const aiSummary = await generateAISummary({
+                        promptText,
+                        promptCategory,
+                        firstName: profile.firstName,
+                        transcript: response.video.VideoTranscript[0].transcript
+                      });
+
+                      // Update the local state
+                      setSummary(aiSummary);
+
+                      // Save to database
+                      const { error: saveError } = await supabase
+                        .from('PromptResponse')
+                        .update({ summary: aiSummary })
+                        .eq('id', response.id);
+
+                      if (saveError) throw saveError;
+
+                      toast.success("AI Summary generated successfully");
+                    } catch (error) {
+                      console.error('Error generating AI summary:', error);
+                      toast.error("Failed to generate AI summary", {
+                        description: error instanceof Error ? error.message : "Please try again."
+                      });
+                    } finally {
+                      setIsGeneratingSummary(false);
+                    }
+                  }}
+                  className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full"
+                  disabled={isGeneratingSummary}
                 >
-                  Generate AI Summary
+                  {isGeneratingSummary ? (
+                    <>
+                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-[#1B4332] border-t-transparent" />
+                      Generating...
+                    </>
+                  ) : (
+                    'Generate AI Summary'
+                  )}
                 </Button>
                 <Button
                   variant="ghost"
@@ -443,6 +585,7 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
                       setIsEditingSummary(true);
                     }
                   }}
+                  className="rounded-full"
                 >
                   {isEditingSummary ? (
                     <Check className="h-4 w-4 mr-2" />
@@ -518,7 +661,7 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
               variant="ghost"
               size="icon"
               onClick={() => setSelectedImageIndex(null)}
-              className="h-10 w-10 rounded-md bg-white hover:bg-gray-100 text-gray-700"
+              className="h-10 w-10 rounded-full bg-white hover:bg-gray-100 text-gray-700"
             >
               <VisuallyHidden>Close gallery</VisuallyHidden>
               <X className="h-4 w-4" />
@@ -538,19 +681,19 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
                 size="icon"
                 onClick={handlePrevious}
                 disabled={selectedImageIndex === null || selectedImageIndex <= 0}
-                className="absolute left-4 z-10 h-10 w-10 rounded-md bg-white hover:bg-gray-100 text-gray-700 disabled:opacity-50 disabled:bg-gray-100"
+                className="absolute left-4 z-10 h-10 w-10 rounded-full bg-white hover:bg-gray-100 text-gray-700 disabled:opacity-50 disabled:bg-gray-100"
               >
                 <VisuallyHidden>Previous image</VisuallyHidden>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
 
-              {selectedImageIndex !== null && (
+              {selectedImageIndex !== null && imageAttachments[selectedImageIndex] && (
                 <div className="w-full h-full flex flex-col">
                   <div className="flex-1 flex items-center justify-center max-h-[70vh]">
-                    {imageAttachments[selectedImageIndex].fileType.startsWith('image/') ? (
+                    {imageAttachments[selectedImageIndex]?.fileType?.startsWith('image/') ? (
                       <img
-                        src={gallerySignedUrls[imageAttachments[selectedImageIndex].id] || imageAttachments[selectedImageIndex].fileUrl}
-                        alt={imageAttachments[selectedImageIndex].description || `Image ${selectedImageIndex + 1} of ${imageAttachments.length}`}
+                        src={gallerySignedUrls[imageAttachments[selectedImageIndex]?.id] || imageAttachments[selectedImageIndex]?.fileUrl}
+                        alt={imageAttachments[selectedImageIndex]?.description || `Image ${selectedImageIndex + 1} of ${imageAttachments.length}`}
                         className="max-h-full w-auto object-contain"
                         loading="lazy"
                       />
@@ -580,7 +723,7 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
                 size="icon"
                 onClick={handleNext}
                 disabled={selectedImageIndex === null || selectedImageIndex >= imageAttachments.length - 1}
-                className="absolute right-4 z-10 h-10 w-10 rounded-md bg-white hover:bg-gray-100 text-gray-700 disabled:opacity-50 disabled:bg-gray-100"
+                className="absolute right-4 z-10 h-10 w-10 rounded-full bg-white hover:bg-gray-100 text-gray-700 disabled:opacity-50 disabled:bg-gray-100"
               >
                 <VisuallyHidden>Next image</VisuallyHidden>
                 <ChevronRight className="h-4 w-4" />
