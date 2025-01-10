@@ -261,7 +261,7 @@ export default function PromptPage() {
           <Button 
             variant="ghost" 
             onClick={() => router.push(`/role-sharer/topics/${prompt.promptCategoryId}`)}
-            className="-ml-2 text-gray-600 hover:text-gray-900"
+            className="-ml-2 text-gray-600 hover:text-gray-900 rounded-full"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Topic
@@ -271,7 +271,7 @@ export default function PromptPage() {
               <Button
                 variant="outline"
                 onClick={() => router.push(`/role-sharer/prompts/${promptData?.siblingPrompts?.previousPrompt?.id}`)}
-                className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55]"
+                className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full"
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Previous Prompt
@@ -281,7 +281,7 @@ export default function PromptPage() {
               <Button
                 variant="outline"
                 onClick={() => router.push(`/role-sharer/prompts/${promptData?.siblingPrompts?.nextPrompt?.id}`)}
-                className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55]"
+                className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full"
               >
                 Next Prompt
                 <ArrowLeft className="ml-2 h-4 w-4 rotate-180" />

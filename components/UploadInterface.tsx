@@ -11,16 +11,17 @@ import { MuxPlayer } from './MuxPlayer';
 import styles from './UploadInterface.module.css';
 
 interface UploadInterfaceProps {
+  promptId: string;
   onUploadSuccess?: () => void;
-  promptId?: string;
-  onClose?: () => void;
   onComplete?: () => void;
   promptText?: string;
 }
 
 export function UploadInterface({
   promptId,
-  onUploadSuccess
+  onUploadSuccess,
+  onComplete,
+  promptText
 }: UploadInterfaceProps) {
   const supabase = createClient();
   const [isUploading, setIsUploading] = useState(false);
