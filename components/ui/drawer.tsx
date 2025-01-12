@@ -1,3 +1,11 @@
+/**
+ * File: components/ui/drawer.tsx
+ * Description: A sliding drawer component built on Vaul primitives.
+ * Provides a responsive drawer interface that can slide in from any edge of the screen.
+ * Includes Drawer, DrawerContent, DrawerHeader, DrawerFooter, DrawerTitle, and DrawerDescription
+ * components for building mobile-friendly navigation and content panels.
+ */
+
 import * as React from "react"
 import { Drawer as DrawerPrimitive } from "vaul"
 

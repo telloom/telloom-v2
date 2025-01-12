@@ -104,7 +104,7 @@ export default async function SharerPage() {
           id: response.id,
           profileSharerId: '',
           videoId: '',
-          responseText: '',
+          responseNotes: '',
           privacyLevel: ''
         }))
       }))

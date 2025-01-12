@@ -27,10 +27,10 @@ export default function PromptListPopup({ promptCategory, isOpen, onClose }: Pro
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl h-[80vh] flex flex-col gap-0">
-        <DialogHeader className="px-6 pt-6 pb-2">
-          <DialogTitle>{promptCategory.category}</DialogTitle>
-          <DialogDescription>{promptCategory.description}</DialogDescription>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col" aria-describedby="prompt-list-description">
+        <DialogHeader>
+          <DialogTitle>{promptCategory.name}</DialogTitle>
+          <DialogDescription id="prompt-list-description">Select a prompt to record your response.</DialogDescription>
         </DialogHeader>
         <ScrollArea className="flex-1 p-6">
           <div className="space-y-4">

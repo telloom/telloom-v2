@@ -1,3 +1,11 @@
+/**
+ * File: components/ui/menubar.tsx
+ * Description: A menubar component system built on Radix UI primitives.
+ * Provides accessible dropdown menus with keyboard navigation, submenus, and various menu item types.
+ * Includes Menubar, MenubarMenu, MenubarTrigger, MenubarContent, MenubarItem, MenubarSeparator,
+ * MenubarCheckboxItem, MenubarRadioGroup, and other components for building complex menu interfaces.
+ */
+
 import * as React from "react"
 import {
   CheckIcon,

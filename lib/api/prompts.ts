@@ -27,7 +27,7 @@ export async function getPrompts() {
       promptResponses (
         id,
         profileSharerId,
-        responseText
+        responseNotes
       )
     `);
 

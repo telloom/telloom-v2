@@ -1,6 +1,14 @@
+/**
+ * File: components/PromptResponseGallery.tsx
+ * Description: A gallery component for displaying and managing prompt response attachments.
+ * Features include image/file preview, navigation between attachments, metadata editing (description, dates),
+ * person tag display, and file download capabilities. Handles signed URLs and loading states for secure
+ * file access through Supabase storage.
+ */
+
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, X, Tag, Calendar, FileText, ImageOff, Download, Edit2 } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
+import AttachmentThumbnail from '@/components/AttachmentThumbnail';
 
 interface PromptResponseGallery {
   promptResponseId: string;
@@ -111,26 +120,26 @@ export function PromptResponseGallery({ promptResponseId }: PromptResponseGaller
         const attachmentsWithUrls = await Promise.all(
           (data || []).map(async (attachment) => {
             try {
-              // Always get a signed URL, even if it's already a full URL
+              // The fileUrl is already just the filename
               const { data: signedUrl } = await supabase
                 .storage
                 .from('attachments')
-                .createSignedUrl(attachment.fileName, 3600);
+                .createSignedUrl(attachment.fileUrl, 3600);
 
               console.log('Got signed URL for attachment:', {
                 id: attachment.id,
-                fileName: attachment.fileName,
+                fileName: attachment.fileUrl,
                 signedUrl: signedUrl?.signedUrl
               });
 
               return {
                 ...attachment,
-                fileUrl: signedUrl?.signedUrl || attachment.fileUrl
+                signedUrl: signedUrl?.signedUrl
               };
             } catch (error) {
               console.error('Error getting signed URL for attachment:', {
                 id: attachment.id,
-                fileName: attachment.fileName,
+                fileName: attachment.fileUrl,
                 error
               });
               return attachment;
@@ -153,6 +162,11 @@ export function PromptResponseGallery({ promptResponseId }: PromptResponseGaller
   const handleImageError = (attachmentId: string) => {
     console.log('Image failed to load:', attachmentId);
     setImageErrors(prev => ({ ...prev, [attachmentId]: true }));
+  };
+
+  const handleAttachmentClick = (attachment: Attachment) => {
+    const index = attachments.findIndex(a => a.id === attachment.id);
+    setSelectedIndex(index);
   };
 
   const handlePrevious = () => {
@@ -235,40 +249,23 @@ export function PromptResponseGallery({ promptResponseId }: PromptResponseGaller
 
   return (
     <div className="w-full flex justify-end">
-      <div className="flex gap-0.5">
-        {attachments.map((attachment, index) => (
-          <div
-            key={attachment.id}
-            className="relative group cursor-pointer w-[32px] h-[32px] rounded-md overflow-hidden bg-gray-100"
-            onClick={() => setSelectedIndex(index)}
-          >
-            {attachment.fileType.startsWith('image/') ? (
-              imageErrors[attachment.id] ? (
-                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                  <ImageOff className="h-2.5 w-2.5" />
-                </div>
-              ) : (
-                <div className="w-full h-full relative">
-                  <img
-                    src={attachment.fileUrl}
-                    alt={attachment.fileName}
-                    className="w-full h-full object-cover"
-                    onError={() => handleImageError(attachment.id)}
-                    loading="lazy"
-                  />
-                </div>
-              )
-            ) : attachment.fileType === 'application/pdf' ? (
-              <div className="w-full h-full relative">
-                <div className="absolute inset-0 bg-gray-100 flex flex-col items-center justify-center">
-                  <FileText className="h-2.5 w-2.5 text-gray-400" />
-                </div>
-              </div>
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <FileText className="h-2.5 w-2.5 text-gray-400" />
-              </div>
-            )}
+      <div className="inline-flex -space-x-1">
+        {attachments.map((attachment) => (
+          <div key={attachment.id} className="relative group hover:z-10">
+            <button
+              onClick={() => handleAttachmentClick(attachment)}
+              className="rounded-lg overflow-hidden"
+              aria-label={`View ${attachment.fileName}`}
+            >
+              <AttachmentThumbnail 
+                attachment={{
+                  ...attachment,
+                  signedUrl: attachment.signedUrl
+                }}
+                size="lg"
+                className="w-full h-full"
+              />
+            </button>
           </div>
         ))}
       </div>
@@ -277,12 +274,13 @@ export function PromptResponseGallery({ promptResponseId }: PromptResponseGaller
         setSelectedIndex(null);
         setIsEditing(false);
       }}>
-        <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-6 m-4 overflow-y-auto gallery-dialog">
-          <VisuallyHidden>
-            <DialogTitle>
-              {selectedIndex !== null ? `Viewing ${attachments[selectedIndex].fileName}` : 'File Preview'}
-            </DialogTitle>
-          </VisuallyHidden>
+        <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-6 m-4 overflow-y-auto gallery-dialog" aria-describedby="gallery-dialog-description">
+          <DialogTitle>
+            {selectedIndex !== null ? `Viewing ${attachments[selectedIndex].fileName}` : 'File Preview'}
+          </DialogTitle>
+          <DialogDescription id="gallery-dialog-description">
+            View and manage your uploaded files and their details
+          </DialogDescription>
 
           <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
             <Button

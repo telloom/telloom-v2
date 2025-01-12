@@ -1,3 +1,11 @@
+/**
+ * File: components/ui/form.tsx
+ * Description: A comprehensive form component system built with React Hook Form integration.
+ * Provides form validation, error handling, and accessible form controls with proper labeling
+ * and descriptions. Includes Form, FormField, FormItem, FormLabel, FormControl, FormDescription,
+ * and FormMessage components for building complex forms with proper validation feedback.
+ */
+
 "use client"
 
 import * as React from "react"

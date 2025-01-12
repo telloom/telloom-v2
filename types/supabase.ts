@@ -783,7 +783,7 @@ export type Database = {
           privacyLevel: string
           profileSharerId: string
           promptId: string | null
-          responseText: string | null
+          responseNotes: string | null
           search_vector: unknown | null
           updatedAt: string | null
           videoId: string | null
@@ -795,7 +795,7 @@ export type Database = {
           privacyLevel?: string
           profileSharerId: string
           promptId?: string | null
-          responseText?: string | null
+          responseNotes?: string | null
           search_vector?: unknown | null
           updatedAt?: string | null
           videoId?: string | null
@@ -807,7 +807,7 @@ export type Database = {
           privacyLevel?: string
           profileSharerId?: string
           promptId?: string | null
-          responseText?: string | null
+          responseNotes?: string | null
           search_vector?: unknown | null
           updatedAt?: string | null
           videoId?: string | null

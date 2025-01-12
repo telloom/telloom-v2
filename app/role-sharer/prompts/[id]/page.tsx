@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
@@ -8,71 +8,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from 'lucide-react';
 import { VideoResponseSection } from './video-response-section';
+import { GetPromptDataResult, GetPromptDataError, Prompt } from '@/types/models';
 
 interface PageProps {
   params: { id: string }
 }
 
-interface Video {
-  id: string;
-  muxPlaybackId: string;
-  muxAssetId: string;
-  VideoTranscript: Array<{
-    id: string;
-    transcript: string;
-  }>;
-}
-
-interface PromptResponse {
-  id: string;
-  profileSharerId: string;
-  summary: string | null;
-  createdAt: string;
-  Video: Video | null;
-  PromptResponseAttachment: Array<{
-    id: string;
-    fileUrl: string;
-    fileType: string;
-    fileName: string;
-    description?: string | null;
-    dateCaptured?: string | null;
-    yearCaptured?: number | null;
-  }>;
-}
-
-interface Prompt {
-  id: string;
-  promptText: string;
-  promptType: string;
-  isContextEstablishing: boolean;
-  promptCategoryId: string;
-  PromptCategory?: {
-    id: string;
-    category: string;
-  };
-  PromptResponse: PromptResponse[];
-}
-
-interface GetPromptDataResult {
-  prompt: Prompt;
-  profileSharer: { id: string };
-  siblingPrompts?: {
-    previousPrompt?: { id: string; promptText: string } | null;
-    nextPrompt?: { id: string; promptText: string } | null;
-  };
-}
-
-interface GetPromptDataError {
-  error: string;
-  redirectTo?: string;
-}
-
-async function getPromptData(promptId: string) {
+async function getPromptData(promptId: string): Promise<GetPromptDataResult | GetPromptDataError> {
+  console.log('getPromptData: Starting to fetch data for prompt ID:', promptId);
+  
   const supabase = createClient();
 
   // Verify authentication
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
+    console.log('getPromptData: Authentication error:', userError);
     return { error: 'Unauthorized' };
   }
 
@@ -83,6 +33,7 @@ async function getPromptData(promptId: string) {
     .eq('profileId', user.id);
 
   if (rolesError || !userRoles?.some(({ role }) => role === 'SHARER' || role === 'ADMIN')) {
+    console.log('getPromptData: Role validation error:', rolesError);
     return { error: 'Unauthorized' };
   }
 
@@ -94,6 +45,7 @@ async function getPromptData(promptId: string) {
     .single();
 
   if (sharerError || !profileSharer) {
+    console.log('getPromptData: Profile sharer error:', sharerError);
     return { error: 'Profile not found' };
   }
 
@@ -119,6 +71,7 @@ async function getPromptData(promptId: string) {
           id,
           muxPlaybackId,
           muxAssetId,
+          dateRecorded,
           VideoTranscript (
             id,
             transcript
@@ -139,11 +92,24 @@ async function getPromptData(promptId: string) {
     .single();
 
   if (promptError) {
-    console.error('Error fetching prompt:', promptError);
+    console.error('getPromptData: Error fetching prompt:', promptError);
     return { error: 'Prompt not found' };
   }
 
-  console.log('Fetched prompt:', prompt); // Add logging to debug
+  console.log('getPromptData: Fetched prompt:', {
+    id: prompt.id,
+    promptText: prompt.promptText,
+    promptType: prompt.promptType,
+    promptCategoryId: prompt.promptCategoryId,
+    responseCount: prompt.PromptResponse?.length || 0,
+    attachmentCount: prompt.PromptResponse?.reduce((acc, r) => acc + (r.PromptResponseAttachment?.length || 0), 0) || 0,
+    attachments: prompt.PromptResponse?.map(r => r.PromptResponseAttachment?.map(a => ({
+      id: a.id,
+      fileUrl: a.fileUrl,
+      fileType: a.fileType,
+      fileName: a.fileName
+    })))
+  });
 
   // Fetch sibling prompts
   const { data: siblingPrompts, error: siblingError } = await supabase
@@ -182,15 +148,20 @@ export default function PromptPage() {
 
   useEffect(() => {
     async function fetchData() {
+      console.log('PromptPage: Starting fetchData with params:', params);
+      
       if (!params?.id || typeof params.id !== 'string') {
+        console.log('PromptPage: Invalid params, redirecting to topics');
         router.push('/role-sharer/topics');
         return;
       }
 
       try {
+        console.log('PromptPage: Fetching prompt data for ID:', params.id);
         const result = await getPromptData(params.id);
         
         if ('error' in result) {
+          console.log('PromptPage: Error in result:', result.error);
           if (result.error === 'redirect' && 'redirectTo' in result) {
             router.push(`/role-sharer/prompts/${result.redirectTo}`);
             return;
@@ -199,9 +170,21 @@ export default function PromptPage() {
           return;
         }
 
+        console.log('PromptPage: Successfully fetched prompt data:', {
+          promptId: result.prompt.id,
+          responseCount: result.prompt.PromptResponse?.length || 0,
+          attachmentCount: result.prompt.PromptResponse?.reduce((acc, r) => acc + (r.PromptResponseAttachment?.length || 0), 0) || 0,
+          attachments: result.prompt.PromptResponse?.map(r => r.PromptResponseAttachment?.map(a => ({
+            id: a.id,
+            fileUrl: a.fileUrl,
+            fileType: a.fileType,
+            fileName: a.fileName
+          })))
+        });
+
         setPromptData(result);
       } catch (err) {
-        console.error('Error fetching prompt:', err);
+        console.error('PromptPage: Error fetching prompt:', err);
         setError('Failed to load prompt');
       } finally {
         setIsLoading(false);
@@ -237,22 +220,59 @@ export default function PromptPage() {
     response => response.profileSharerId === profileSharer.id
   );
 
+  // Log the raw user response data
+  console.log('Raw user response:', {
+    id: userResponse?.id,
+    hasVideo: !!userResponse?.Video,
+    attachmentCount: userResponse?.PromptResponseAttachment?.length || 0,
+    rawAttachments: userResponse?.PromptResponseAttachment
+  });
+
   // Transform the response to match the VideoResponseSection props
+  console.log('Starting response transformation:', {
+    userResponseId: userResponse?.id,
+    hasVideo: !!userResponse?.Video,
+    attachmentCount: userResponse?.PromptResponseAttachment?.length || 0
+  });
+
   const transformedResponse = userResponse ? {
     id: userResponse.id,
     summary: userResponse.summary || undefined,
+    dateRecorded: userResponse.Video?.dateRecorded ? new Date(userResponse.Video.dateRecorded) : undefined,
     video: userResponse.Video ? {
       id: userResponse.Video.id,
       muxPlaybackId: userResponse.Video.muxPlaybackId,
-      VideoTranscript: userResponse.Video.VideoTranscript || undefined
+      VideoTranscript: userResponse.Video.VideoTranscript || undefined,
+      dateRecorded: userResponse.Video.dateRecorded ? new Date(userResponse.Video.dateRecorded) : undefined
     } : undefined,
-    PromptResponseAttachment: userResponse.PromptResponseAttachment?.map(attachment => ({
-      ...attachment,
-      description: attachment.description || undefined,
-      dateCaptured: attachment.dateCaptured || undefined,
-      yearCaptured: attachment.yearCaptured || undefined
-    }))
+    PromptResponseAttachment: userResponse.PromptResponseAttachment?.map(attachment => {
+      // Log each attachment's raw data
+      console.log('Raw attachment data:', attachment);
+      
+      console.log('Transforming attachment:', {
+        id: attachment.id,
+        fileUrl: attachment.fileUrl,
+        fileType: attachment.fileType,
+        fileName: attachment.fileName,
+        description: attachment.description || undefined,
+        dateCaptured: attachment.dateCaptured || undefined,
+        yearCaptured: attachment.yearCaptured || undefined
+      });
+      return {
+        ...attachment,
+        description: attachment.description || undefined,
+        dateCaptured: attachment.dateCaptured || undefined,
+        yearCaptured: attachment.yearCaptured || undefined
+      };
+    })
   } : null;
+
+  console.log('Final transformed response:', {
+    id: transformedResponse?.id,
+    hasVideo: !!transformedResponse?.video,
+    attachmentCount: transformedResponse?.PromptResponseAttachment?.length || 0,
+    attachments: transformedResponse?.PromptResponseAttachment
+  });
 
   return (
     <div className="container mx-auto py-8 space-y-8">
@@ -293,9 +313,9 @@ export default function PromptPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-xl">{prompt.promptText}</CardTitle>
-              {prompt.isContextEstablishing && (
-                <div className="px-3 py-1 text-sm font-medium bg-[#8fbc55] text-[#1B4332] rounded-full">
-                  Start Here
+              {prompt.PromptCategory?.category && (
+                <div className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+                  {prompt.PromptCategory.category}
                 </div>
               )}
             </div>

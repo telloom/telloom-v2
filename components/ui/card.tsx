@@ -1,3 +1,10 @@
+/**
+ * File: components/ui/card.tsx
+ * Description: A versatile card component system that provides structured content containers.
+ * Includes Card, CardHeader, CardTitle, CardDescription, CardContent, and CardFooter components
+ * for flexible and consistent card layouts with proper styling and accessibility features.
+ */
+
 import * as React from "react"
 
 import { cn } from "@/lib/utils"

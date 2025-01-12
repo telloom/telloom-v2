@@ -6,17 +6,22 @@ const replicate = new Replicate({
 });
 
 export async function POST(request: Request) {
+  const startTime = Date.now();
   try {
     const { transcript } = await request.json();
 
     if (!transcript) {
+      console.error('Clean transcript API: Missing transcript');
       return NextResponse.json(
         { error: 'Transcript is required' },
         { status: 400 }
       );
     }
 
-    console.log('Cleaning transcript:', { length: transcript.length });
+    console.log('Clean transcript API: Starting cleaning process', { 
+      transcriptLength: transcript.length,
+      timestamp: new Date().toISOString()
+    });
 
     const input = {
       top_p: 0.9,
@@ -32,16 +37,23 @@ ${transcript}`,
       presence_penalty: 1.15
     };
 
-    console.log('Calling Replicate API with prompt length:', input.prompt.length);
+    console.log('Clean transcript API: Calling Replicate API', { 
+      promptLength: input.prompt.length,
+      timestamp: new Date().toISOString()
+    });
 
     const output = await replicate.run(
       "meta/meta-llama-3-70b-instruct",
       { input }
     );
 
-    console.log('Replicate API response:', { output });
+    console.log('Clean transcript API: Received Replicate response', { 
+      outputReceived: !!output,
+      timestamp: new Date().toISOString()
+    });
 
     if (!output) {
+      console.error('Clean transcript API: No output from Replicate');
       throw new Error('No output received from Replicate API');
     }
 
@@ -49,11 +61,24 @@ ${transcript}`,
     const cleanedTranscript = Array.isArray(output) ? output.join('') : String(output || '');
     const finalTranscript = cleanedTranscript.replace(/^(here'?s? (?:is )?(?:the )?(?:cleaned )?transcript[,:\s]*|cleaned transcript[,:\s]*|transcript[,:\s]*|let'?s? clean (?:up )?this transcript[,:\s]*|step [0-9]+[:.]\s*|here'?s? (?:what|how) (?:i|we) (?:did|cleaned)[,:\s]*)/i, '');
 
-    console.log('Cleaned transcript:', { length: finalTranscript.length });
+    const processingTime = Date.now() - startTime;
+    console.log('Clean transcript API: Cleaning completed', { 
+      originalLength: transcript.length,
+      cleanedLength: finalTranscript.length,
+      processingTimeMs: processingTime,
+      timestamp: new Date().toISOString()
+    });
 
     return NextResponse.json({ transcript: finalTranscript.trim() });
   } catch (error) {
-    console.error('Error in clean-transcript route:', error);
+    const processingTime = Date.now() - startTime;
+    console.error('Clean transcript API: Error occurred', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      processingTimeMs: processingTime,
+      timestamp: new Date().toISOString()
+    });
+
     if (error instanceof Error) {
       return NextResponse.json(
         { error: error.message },

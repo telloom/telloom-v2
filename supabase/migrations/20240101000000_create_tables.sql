@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS "PromptResponse" (
     "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     "profileSharerId" UUID NOT NULL REFERENCES "ProfileSharer"(id) ON DELETE CASCADE,
     "videoId" UUID REFERENCES "Video"(id) ON DELETE SET NULL ON UPDATE NO ACTION,
-    "responseText" TEXT,
+    "responseNotes" TEXT,
     "privacyLevel" TEXT DEFAULT 'Private',
     "createdAt" TIMESTAMPTZ DEFAULT now(),
     "updatedAt" TIMESTAMPTZ DEFAULT now(),
