@@ -1,19 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Video as VideoIcon, Play, Upload, Paperclip, Edit, Check, ImageOff, ChevronLeft, ChevronRight, X, FileText, ArrowLeft, Download, Trash2 } from 'lucide-react';
-import { VideoPopup } from '@/components/VideoPopup';
+import { Video as VideoIcon, Upload, Paperclip, Edit, Check, ArrowLeft, Download, Trash2 } from 'lucide-react';
 import { RecordingInterface } from '@/components/RecordingInterface';
 import { UploadPopup } from '@/components/UploadPopup';
 import dynamic from 'next/dynamic';
 import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
-import Image from 'next/image';
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useRouter } from 'next/navigation';
 import { generateAISummary } from '@/utils/generateAISummary';
 import { cleanTranscript } from '@/utils/cleanTranscript';
@@ -32,7 +29,7 @@ const AttachmentUpload = dynamic(
   { ssr: false }
 );
 
-export function VideoResponseSection({ promptId, promptCategoryId, promptText, promptCategory, response }: VideoResponseSectionProps) {
+export function VideoResponseSection({ promptId, promptText, promptCategory, response }: VideoResponseSectionProps) {
   const router = useRouter();
   const [showRecordingInterface, setShowRecordingInterface] = useState(false);
   const [showUploadPopup, setShowUploadPopup] = useState(false);
@@ -45,9 +42,7 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
   const [responseNotes, setResponseNotes] = useState(response?.responseNotes || '');
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
   const [attachments, setAttachments] = useState(response?.PromptResponseAttachment || []);
-  const imageAttachments = attachments.filter(
-    attachment => attachment.fileType.startsWith('image/')
-  ) || [];
+  const [imageAttachments, setImageAttachments] = useState<typeof attachments>([]);
   const [gallerySignedUrls, setGallerySignedUrls] = useState<{ [key: string]: string }>({});
   const [isCleaningTranscript, setIsCleaningTranscript] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
@@ -57,6 +52,8 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
   const [summarySuccess, setSummarySuccess] = useState(false);
   const [isEditingDate, setIsEditingDate] = useState(false);
   const [dateRecorded, setDateRecorded] = useState<Date | null>(response?.dateRecorded ? new Date(response.dateRecorded) : null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [attachmentToDelete, setAttachmentToDelete] = useState<string | null>(null);
 
   // Function to fetch updated response data
   const fetchUpdatedResponse = async () => {
@@ -87,10 +84,8 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
       return;
     }
 
-    // Update the local state with new data
     if (updatedResponse?.PromptResponseAttachment) {
       setAttachments(updatedResponse.PromptResponseAttachment);
-      // Clear signed URLs cache to force re-fetch for new attachments
       setGallerySignedUrls({});
     }
   };
@@ -102,173 +97,111 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
     }
   }, [response?.PromptResponseAttachment]);
 
+  // Add a useEffect to update imageAttachments when attachments change
+  useEffect(() => {
+    setImageAttachments(attachments);
+  }, [attachments]);
+
   const handleSaveTranscript = async () => {
     if (!response?.video?.VideoTranscript?.[0]?.id) {
-      console.error('No transcript ID found for update');
       toast.error("No transcript ID found");
       return;
     }
 
-    console.log('Attempting to save transcript:', {
-      transcriptId: response.video.VideoTranscript[0].id,
-      transcript,
-      currentResponse: response
-    });
-
     const supabase = createClient();
-    console.log('Making Supabase request to update transcript...');
     
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('VideoTranscript')
         .update({ transcript })
         .eq('id', response.video.VideoTranscript[0].id)
         .select();
 
-      console.log('Supabase response:', { data, error });
-
       if (error) {
-        console.error('Error updating transcript - full details:', {
-          error,
-          errorCode: error.code,
-          errorMessage: error.message,
-          errorDetails: error.details,
-          requestData: { transcript, transcriptId: response.video.VideoTranscript[0].id }
-        });
+        console.error('Error updating transcript:', error);
         toast.error("Failed to update transcript");
         return;
       }
 
-      console.log('Transcript updated successfully:', data);
       setIsEditingTranscript(false);
       toast.success("Transcript updated successfully");
     } catch (e) {
-      console.error('Unexpected error in handleSaveTranscript:', e);
+      console.error('Error in handleSaveTranscript:', e);
       toast.error("An unexpected error occurred");
     }
   };
 
   const handleSaveSummary = async () => {
     if (!response?.id) {
-      console.error('No response ID found for summary update');
       toast.error("No response ID found");
       return;
     }
 
-    console.log('Attempting to save summary:', {
-      responseId: response.id,
-      summary,
-      currentResponse: response
-    });
-
     const supabase = createClient();
-    console.log('Making Supabase request to update summary...');
     
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('PromptResponse')
         .update({ summary })
         .eq('id', response.id)
         .select();
 
-      console.log('Supabase response:', { data, error });
-
       if (error) {
-        console.error('Error updating summary - full details:', {
-          error,
-          errorCode: error.code,
-          errorMessage: error.message,
-          errorDetails: error.details,
-          requestData: { summary, responseId: response.id }
-        });
+        console.error('Error updating summary:', error);
         toast.error("Failed to update summary");
         return;
       }
 
-      console.log('Summary updated successfully:', data);
       setIsEditingSummary(false);
       toast.success("Summary updated successfully");
     } catch (e) {
-      console.error('Unexpected error in handleSaveSummary:', e);
+      console.error('Error in handleSaveSummary:', e);
       toast.error("An unexpected error occurred");
     }
   };
 
   const handleSaveNotes = async () => {
     if (!response?.id) {
-      console.error('No response ID found for notes update');
       toast.error("No response ID found");
       return;
     }
 
-    console.log('Attempting to save notes:', {
-      responseId: response.id,
-      notes: responseNotes,
-      currentResponse: response
-    });
-
     const supabase = createClient();
-    console.log('Making Supabase request to update notes...');
     
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('PromptResponse')
         .update({ responseNotes })
         .eq('id', response.id)
         .select();
 
-      console.log('Supabase response:', { data, error });
-
       if (error) {
-        console.error('Error updating notes - full details:', {
-          error,
-          errorCode: error.code,
-          errorMessage: error.message,
-          errorDetails: error.details,
-          requestData: { responseNotes, responseId: response.id }
-        });
+        console.error('Error updating notes:', error);
         toast.error("Failed to update notes");
         return;
       }
 
-      console.log('Notes updated successfully:', data);
       setIsEditingNotes(false);
       toast.success("Notes updated successfully");
     } catch (e) {
-      console.error('Unexpected error in handleSaveNotes:', e);
+      console.error('Error in handleSaveNotes:', e);
       toast.error("An unexpected error occurred");
     }
   };
 
-  const handlePrevious = () => {
+  // Add useCallback for the handlers
+  const handlePrevious = useCallback(() => {
     if (selectedImageIndex === null || selectedImageIndex <= 0) return;
     setSelectedImageIndex(selectedImageIndex - 1);
-  };
-
-  const handleNext = () => {
-    if (selectedImageIndex === null || selectedImageIndex >= imageAttachments.length - 1) return;
-    setSelectedImageIndex(selectedImageIndex + 1);
-  };
-
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (selectedImageIndex === null) return;
-      
-      if (e.key === 'ArrowLeft') {
-        handlePrevious();
-      } else if (e.key === 'ArrowRight') {
-        handleNext();
-      } else if (e.key === 'Escape') {
-        setSelectedImageIndex(null);
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedImageIndex]);
 
+  const handleNext = useCallback(() => {
+    if (selectedImageIndex === null || selectedImageIndex >= imageAttachments.length - 1) return;
+    setSelectedImageIndex(selectedImageIndex + 1);
+  }, [selectedImageIndex, imageAttachments.length]);
+
   // Function to get signed URL
-  const getSignedUrl = async (fileUrl: string) => {
+  const getSignedUrl = useCallback(async (fileUrl: string) => {
     const supabase = createClient();
     const filePath = fileUrl.includes('attachments/') 
       ? fileUrl.split('attachments/')[1]
@@ -285,100 +218,74 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
     }
 
     return data?.signedUrl;
-  };
+  }, []); // No dependencies needed as createClient is stable
 
-  useEffect(() => {
-    if (selectedImageIndex === null || !imageAttachments || imageAttachments.length === 0) return;
-    const index = selectedImageIndex;
-
-    async function getGallerySignedUrl() {
-      if (index >= imageAttachments.length) return;
-      
-      const attachment = imageAttachments[index];
-      if (!attachment?.fileUrl) return;
-
-      try {
-        const signedUrl = await getSignedUrl(attachment.fileUrl);
-        if (signedUrl) {
-          setGallerySignedUrls(prev => ({
-            ...prev,
-            [attachment.id]: signedUrl
-          }));
+  // Add useCallback for warmUrlCache
+  const warmUrlCache = useCallback(async (attachmentIds: string[]) => {
+    const newUrls: { [key: string]: string } = {};
+    
+    await Promise.all(
+      attachmentIds.map(async (id) => {
+        const attachment = attachments.find(a => a.id === id);
+        if (attachment?.fileUrl && !gallerySignedUrls[id]) {
+          const signedUrl = await getSignedUrl(attachment.fileUrl);
+          if (signedUrl) {
+            newUrls[id] = signedUrl;
+          }
         }
-      } catch (error) {
-        console.error('Error getting signed URL:', error);
+      })
+    );
+
+    if (Object.keys(newUrls).length > 0) {
+      setGallerySignedUrls(prev => ({
+        ...prev,
+        ...newUrls
+      }));
+    }
+  }, [attachments, gallerySignedUrls, getSignedUrl]);
+
+  // Update the keyboard navigation useEffect
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (selectedImageIndex === null) return;
+      
+      if (e.key === 'ArrowLeft') {
+        handlePrevious();
+      } else if (e.key === 'ArrowRight') {
+        handleNext();
+      } else if (e.key === 'Escape') {
+        setSelectedImageIndex(null);
       }
     }
 
-    getGallerySignedUrl();
-  }, [selectedImageIndex, imageAttachments]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedImageIndex, handlePrevious, handleNext]);
+
+  // Update the URL cache warming useEffect
+  useEffect(() => {
+    if (selectedImageIndex === null || !imageAttachments || imageAttachments.length === 0) return;
+
+    const surroundingImageIds = imageAttachments
+      .slice(Math.max(0, selectedImageIndex - 1), Math.min(imageAttachments.length, selectedImageIndex + 2))
+      .map(a => a.id);
+    
+    warmUrlCache(surroundingImageIds);
+  }, [selectedImageIndex, imageAttachments, warmUrlCache]);
 
   // Function to handle attachment deletion
   const handleDeleteAttachment = async (attachmentId: string) => {
-    console.log('handleDeleteAttachment called with ID:', attachmentId);
-    
-    if (!response?.id) {
-      console.log('No response ID found, returning early');
-      return;
-    }
+    setAttachmentToDelete(attachmentId);
+    setShowDeleteConfirm(true);
+  };
 
-    // Show confirmation dialog using a simpler toast approach
-    const confirmed = await new Promise<boolean>((resolveConfirm) => {
-      toast.custom(
-        (t) => (
-          <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full">
-            <div className="flex flex-col gap-4">
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Delete Attachment</h3>
-                <p className="text-gray-600">Are you sure you want to delete this attachment? This action cannot be undone.</p>
-              </div>
-              <div className="flex justify-end gap-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    toast.dismiss(t);
-                    resolveConfirm(false);
-                  }}
-                  className="rounded-full border-[#1B4332] text-[#1B4332] hover:bg-gray-100"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => {
-                    toast.dismiss(t);
-                    resolveConfirm(true);
-                  }}
-                  className="rounded-full bg-red-600 hover:bg-red-700"
-                >
-                  Delete
-                </Button>
-              </div>
-            </div>
-          </div>
-        ),
-        {
-          duration: Infinity,
-          className: "w-full max-w-md"
-        }
-      );
-    });
-
-    console.log('Confirmation result:', confirmed);
-
-    if (!confirmed) {
-      console.log('User cancelled deletion');
-      return;
-    }
+  const handleConfirmDelete = async () => {
+    if (!attachmentToDelete) return;
 
     try {
-      console.log('Starting deletion process...');
       const supabase = createClient();
+      const attachment = attachments.find(a => a.id === attachmentToDelete);
       
-      // First delete the file from storage
-      const attachment = attachments.find(a => a.id === attachmentId);
       if (attachment?.fileUrl) {
         const filePath = attachment.fileUrl.includes('attachments/') 
           ? attachment.fileUrl.split('attachments/')[1]
@@ -392,28 +299,23 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
         if (storageError) throw storageError;
       }
 
-      // Then delete the database record
       const { error: dbError } = await supabase
         .from('PromptResponseAttachment')
         .delete()
-        .eq('id', attachmentId);
+        .eq('id', attachmentToDelete);
 
       if (dbError) throw dbError;
 
-      // Update local state
-      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
-      setGallerySignedUrls(prev => {
-        const newUrls = { ...prev };
-        delete newUrls[attachmentId];
-        return newUrls;
-      });
+      setShowDeleteConfirm(false);
+      setSelectedImageIndex(null);
+      setAttachmentToDelete(null);
+      setAttachments([]);
+      setImageAttachments([]);
+      setGallerySignedUrls({});
       
-      // Close dialog if the deleted attachment was being viewed
-      if (selectedImageIndex !== null && imageAttachments[selectedImageIndex]?.id === attachmentId) {
-        setSelectedImageIndex(null);
-      }
-
       toast.success('Attachment deleted successfully');
+      window.location.reload();
+      
     } catch (error) {
       console.error('Error deleting attachment:', error);
       toast.error('Failed to delete attachment');
@@ -436,12 +338,10 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
         throw new Error('Failed to get download URL');
       }
 
-      // Fetch the file as a blob to force download
       const response = await fetch(signedUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
 
-      // Create temporary link and trigger download
       const link = document.createElement('a');
       link.href = url;
       link.download = attachment.fileName;
@@ -449,7 +349,6 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
       link.click();
       document.body.removeChild(link);
 
-      // Clean up the blob URL
       window.URL.revokeObjectURL(url);
 
       toast.success('Download started');
@@ -930,7 +829,7 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
           </div>
           
           {attachments && attachments.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
               {attachments.map((attachment, index) => (
                 <div
                   key={attachment.id}
@@ -985,9 +884,9 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
         </div>
       </div>
 
-      {/* Image Gallery Dialog */}
+      {/* Image/PDF Gallery Dialog */}
       <AttachmentDialog
-        attachment={selectedImageIndex !== null ? {
+        attachment={selectedImageIndex !== null && imageAttachments[selectedImageIndex] ? {
           ...imageAttachments[selectedImageIndex],
           displayUrl: gallerySignedUrls[imageAttachments[selectedImageIndex]?.id]
         } : null}
@@ -997,23 +896,12 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
         onPrevious={() => selectedImageIndex !== null && selectedImageIndex > 0 && setSelectedImageIndex(selectedImageIndex - 1)}
         hasNext={selectedImageIndex !== null && selectedImageIndex < imageAttachments.length - 1}
         hasPrevious={selectedImageIndex !== null && selectedImageIndex > 0}
-        signedUrl={selectedImageIndex !== null ? gallerySignedUrls[imageAttachments[selectedImageIndex].id] : undefined}
+        signedUrl={selectedImageIndex !== null && imageAttachments[selectedImageIndex] ? gallerySignedUrls[imageAttachments[selectedImageIndex].id] : undefined}
         onSave={async () => {
           router.refresh();
         }}
-        onDelete={async (attachmentId: string) => {
-          await handleDeleteAttachment(attachmentId);
-          setSelectedImageIndex(null);
-        }}
-        onDownload={async (attachment: {
-          id: string;
-          fileUrl: string;
-          fileName: string;
-          fileType: string;
-          description?: string;
-          dateCaptured?: string;
-          yearCaptured?: number;
-        }) => {
+        onDelete={handleDeleteAttachment}
+        onDownload={async (attachment) => {
           await handleDownloadAttachment(attachment);
         }}
       />
@@ -1029,6 +917,36 @@ export function VideoResponseSection({ promptId, promptCategoryId, promptText, p
           }}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Delete Attachment</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this attachment? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDeleteConfirm(false)}
+              className="rounded-full border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] transition-colors duration-200"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleConfirmDelete}
+              className="rounded-full bg-red-600 hover:bg-red-700 transition-colors duration-200"
+            >
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

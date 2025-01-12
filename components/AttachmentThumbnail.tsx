@@ -89,7 +89,7 @@ export default function AttachmentThumbnail({
           .createSignedUrl(filePath, 3600);
 
         if (error) {
-          console.error('Error getting signed URL:', {
+          console.log('[AttachmentThumbnail] Error getting signed URL:', {
             error: {
               message: error.message,
               name: error.name
@@ -114,7 +114,7 @@ export default function AttachmentThumbnail({
           setSignedUrl(data.signedUrl);
           setError(false);
         } else {
-          console.error('[AttachmentThumbnail] No signed URL in response:', {
+          console.log('[AttachmentThumbnail] No signed URL in response:', {
             data,
             attachment: {
               id: attachment.id,
@@ -125,7 +125,7 @@ export default function AttachmentThumbnail({
           setError(true);
         }
       } catch (error) {
-        console.error('[AttachmentThumbnail] Unexpected error getting signed URL:', {
+        console.log('[AttachmentThumbnail] Unexpected error getting signed URL:', {
           error: error instanceof Error ? {
             message: error.message,
             stack: error.stack
@@ -200,6 +200,22 @@ export default function AttachmentThumbnail({
   }
 
   // For non-image files, show an icon
+  if (attachment.fileType === 'application/pdf' && signedUrl) {
+    return (
+      <div className={containerClasses} style={{ position: 'relative' }}>
+        <iframe
+          src={signedUrl + '#toolbar=0&view=FitH&page=1'}
+          className="w-full h-full pointer-events-none"
+          title="PDF preview"
+          style={{ backgroundColor: 'white' }}
+        />
+        {/* Transparent overlay to handle clicks */}
+        <div className="absolute inset-0" />
+      </div>
+    );
+  }
+
+  // For other non-image files, show an icon
   return (
     <div className={containerClasses}>
       <FileText className={cn(iconSizes[size], 'text-gray-400')} />
