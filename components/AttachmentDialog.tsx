@@ -132,10 +132,10 @@ export function AttachmentDialog({
   const [isAddingNewTag, setIsAddingNewTag] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [newTagRelation, setNewTagRelation] = useState<PersonRelationType>(PersonRelation.Other);
-  const [open, setOpen] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
   const [currentSignedUrl, setCurrentSignedUrl] = useState<string | undefined>(initialSignedUrl);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Function to get signed URL
   const getSignedUrl = async (fileUrl: string) => {
@@ -191,8 +191,6 @@ export function AttachmentDialog({
     if (!hasNext && !hasPrevious) return;
 
     const prefetchUrls = async () => {
-      // We can't actually pre-fetch the URLs since we don't have the next/previous attachments
-      // But we can ensure the current signed URL is fresh
       if (attachment && !initialSignedUrl && !currentSignedUrl) {
         const newSignedUrl = await getSignedUrl(attachment.fileUrl);
         if (newSignedUrl) {
@@ -202,7 +200,7 @@ export function AttachmentDialog({
     };
 
     prefetchUrls();
-  }, [hasNext, hasPrevious, attachment?.id]);
+  }, [hasNext, hasPrevious, attachment?.fileUrl, initialSignedUrl, currentSignedUrl]);
 
   // Handle navigation
   const handleNavigation = async (direction: 'next' | 'previous') => {
@@ -294,7 +292,7 @@ export function AttachmentDialog({
 
     try {
       // Update attachment metadata
-      const { data: updateData, error: updateError } = await supabase
+      const { error: updateError } = await supabase
         .from('PromptResponseAttachment')
         .update({
           description,
@@ -396,34 +394,51 @@ export function AttachmentDialog({
     }
   };
 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onDelete && attachment) {
+      onDelete(attachment.id);
+      onClose();
+    }
+  };
+
   if (!attachment) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent 
-        className="max-w-5xl h-[90vh] flex flex-col p-6 m-4" 
-        onOpenAutoFocus={(e) => {
-          e.preventDefault();
-        }}
-      >
-        <DialogHeader>
-          <DialogTitle className="sr-only">View Attachment</DialogTitle>
-          <DialogDescription id="attachment-dialog-description" className="text-sm text-muted-foreground">
-            View and edit attachment details including description, date, and tags.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent 
+          className="max-w-5xl h-[90vh] flex flex-col p-0 lg:p-6 m-0 lg:m-4 overflow-y-auto lg:overflow-hidden" 
+        >
+          <div className="sr-only">
+            <DialogHeader>
+              <DialogTitle>View Attachment</DialogTitle>
+              <DialogDescription>
+                View and edit attachment details including description, date, and tags.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
 
-        <div className="overflow-y-auto flex-1 -mx-6 px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-[3fr_1fr] gap-8 mt-4">
-            {/* Image Preview */}
-            <div className="flex flex-col gap-4">
-              <div className="relative bg-gray-100 rounded-xl flex items-center justify-center overflow-hidden min-h-[300px]">
-                <div className="flex items-center justify-center w-full h-full">
-                  {imageLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                      <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                    </div>
-                  )}
+          {/* Main Content */}
+          <div className="flex flex-col lg:grid lg:grid-cols-[3fr_1fr] h-full">
+            {/* Left Side - Image/PDF */}
+            <div className="w-full lg:h-full flex flex-col">
+              {/* Content Container */}
+              <div className="relative bg-gray-100 w-full h-[75vh] lg:h-[78vh] overflow-hidden">
+                {imageLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                    <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                  </div>
+                )}
+                {attachment.fileType === 'application/pdf' ? (
+                  <iframe
+                    src={currentSignedUrl + '#toolbar=0'}
+                    className="w-full h-full"
+                    title="PDF viewer"
+                    style={{ backgroundColor: 'white' }}
+                  />
+                ) : (
                   <AttachmentThumbnail 
                     attachment={{
                       ...attachment,
@@ -433,11 +448,11 @@ export function AttachmentDialog({
                     size="lg"
                     className="w-full h-full object-contain"
                   />
-                </div>
+                )}
               </div>
 
-              {/* Navigation and Action Buttons */}
-              <div className="flex justify-between items-center gap-2">
+              {/* Navigation Buttons - Full Width on Mobile, Bottom Fixed on Desktop */}
+              <div className="flex justify-between items-center gap-2 p-4 bg-white border-b lg:border-t lg:border-b-0">
                 <div className="flex gap-2">
                   {hasPrevious && (
                     <Button
@@ -482,7 +497,7 @@ export function AttachmentDialog({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => onDelete(attachment.id)}
+                      onClick={handleDeleteClick}
                       className="rounded-full text-red-600 hover:bg-red-50"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
@@ -493,9 +508,10 @@ export function AttachmentDialog({
               </div>
             </div>
 
-            {/* Metadata */}
-            <div className="flex flex-col">
-              <div className="flex items-center justify-between pb-4 border-b">
+            {/* Right Side - Metadata */}
+            <div className="w-full lg:h-[calc(100vh-8rem)] lg:border-l flex flex-col">
+              {/* Metadata Header */}
+              <div className="flex items-center justify-between p-4 border-b lg:sticky lg:top-0 lg:z-10">
                 <h3 className="font-medium">Details</h3>
                 <Button
                   variant="outline"
@@ -517,7 +533,9 @@ export function AttachmentDialog({
                   )}
                 </Button>
               </div>
-              <div className="space-y-6 pt-4">
+
+              {/* Scrollable Metadata Content */}
+              <div className="p-4 space-y-6 lg:overflow-y-auto lg:flex-1">
                 {/* Description */}
                 <div className="space-y-2">
                   <Label htmlFor="attachment-description">Description</Label>
@@ -711,8 +729,8 @@ export function AttachmentDialog({
               </div>
             </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 } 
