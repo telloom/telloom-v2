@@ -1,3 +1,11 @@
+/**
+ * File: components/VideoUploader.tsx
+ * Description: A video upload component that handles direct-to-Mux video uploads.
+ * Features drag-and-drop functionality, upload progress tracking, file validation,
+ * and integration with Mux for video processing. Supports various video formats
+ * and provides real-time feedback on upload status.
+ */
+
 'use client';
 
 import React, { useState, useCallback } from 'react';

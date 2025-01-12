@@ -45,6 +45,8 @@ export enum Role {
     description: string;
     theme: string | null;
     prompts: Prompt[];
+    isFavorite?: boolean;
+    isInQueue?: boolean;
   }
   
   export interface Prompt {
@@ -53,8 +55,26 @@ export enum Role {
     promptType: string;
     isContextEstablishing: boolean;
     promptCategoryId: string;
-    videos: Video[];
-    promptResponses: PromptResponse[];
+    PromptCategory?: {
+      id: string;
+      category: string;
+    };
+    PromptResponse: Array<{
+      id: string;
+      profileSharerId: string;
+      summary: string | null;
+      createdAt: string;
+      Video: Video | null;
+      PromptResponseAttachment: Array<{
+        id: string;
+        fileUrl: string;
+        fileType: string;
+        fileName: string;
+        description?: string | null;
+        dateCaptured?: string | null;
+        yearCaptured?: number | null;
+      }>;
+    }>;
   }
   
   export interface PromptResponseAttachment {
@@ -100,15 +120,42 @@ export enum Role {
   
   export interface PromptResponse {
     id: string;
-    summary: string;
-    transcription: string;
-    videos: Video[];
-    attachments?: PromptResponseAttachment[];
+    profileSharerId: string;
+    summary: string | null;
+    responseNotes?: string | null;
+    transcription?: string;
+    dateRecorded?: Date | null;
+    createdAt: string;
+    Video: {
+      id: string;
+      muxPlaybackId: string;
+      muxAssetId: string | null;
+      VideoTranscript?: Array<{
+        id: string;
+        transcript: string;
+      }>;
+    } | null;
+    PromptResponseAttachment: Array<{
+      id: string;
+      promptResponseId: string;
+      fileUrl: string;
+      fileType: string;
+      fileName: string;
+      description?: string | null;
+      dateCaptured?: string | null;
+      yearCaptured?: number | null;
+    }>;
   }
   
   export interface Video {
     id: string;
-    muxPlaybackId: string | null;
+    muxPlaybackId: string;
+    muxAssetId: string;
+    dateRecorded?: string | null;
+    VideoTranscript?: Array<{
+      id: string;
+      transcript: string;
+    }>;
   }
   
   export interface VideoTranscript {
@@ -202,6 +249,50 @@ export enum Role {
     createdAt: Date;
     updatedAt?: Date;
     promptResponses: PromptResponse[];
+  }
+  
+  export interface VideoResponseSectionProps {
+    promptId: string;
+    promptCategoryId: string;
+    promptText: string;
+    promptCategory: string;
+    response: {
+      id: string;
+      summary?: string | null;
+      responseNotes?: string | null;
+      dateRecorded?: Date | null;
+      video?: {
+        id: string;
+        muxPlaybackId: string;
+        VideoTranscript?: Array<{
+          id: string;
+          transcript: string;
+        }>;
+      } | null;
+      PromptResponseAttachment?: Array<{
+        id: string;
+        fileUrl: string;
+        fileType: string;
+        fileName: string;
+        description?: string;
+        dateCaptured?: string;
+        yearCaptured?: number;
+      }>;
+    } | null;
+  }
+  
+  export interface GetPromptDataResult {
+    prompt: Prompt;
+    profileSharer: { id: string };
+    siblingPrompts?: {
+      previousPrompt?: { id: string; promptText: string } | null;
+      nextPrompt?: { id: string; promptText: string } | null;
+    };
+  }
+  
+  export interface GetPromptDataError {
+    error: string;
+    redirectTo?: string;
   }
   
   // Include other interfaces as needed, such as Invitation, ResponsePermission, VideoTranscript, etc.

@@ -1,3 +1,10 @@
+/**
+ * File: components/dashboard-header.tsx
+ * Description: A dashboard-specific header component that displays personalized welcome message
+ * and navigation options for authenticated users. Designed to be used in dashboard layouts
+ * and requires a ProfileSharer object for user context.
+ */
+
 'use client';
 
 import { ProfileSharer as Sharer } from '@/types/models';

@@ -1,4 +1,9 @@
-// components/Header.tsx
+/**
+ * File: components/Header.tsx
+ * Description: The main header component for the application that handles user authentication state,
+ * profile display, and navigation. Features include a logo, user avatar with dropdown menu for profile
+ * actions, role switching, settings, and logout functionality.
+ */
 
 'use client';
 

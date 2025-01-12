@@ -1,3 +1,10 @@
+/**
+ * File: components/AttachmentUpload.tsx
+ * Description: A comprehensive attachment upload component that handles image and PDF file uploads,
+ * including HEIC/HEIF conversion, file previews, metadata management (dates, descriptions), and person tagging.
+ * Supports drag-and-drop, integrates with Supabase storage, and provides real-time upload status feedback.
+ */
+
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
@@ -31,6 +38,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import AttachmentThumbnail from '@/components/AttachmentThumbnail';
 
 interface PersonTag {
   id: string;
@@ -374,17 +382,13 @@ const AttachmentUpload = ({
         throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
       }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('attachments')
-        .getPublicUrl(fileName);
-
-      // Create attachment record
+      // Create attachment record - store just the fileName instead of the public URL
       const { data: attachment, error: dbError } = await supabase
         .from('PromptResponseAttachment')
         .insert({
           promptResponseId,
           profileSharerId: profileSharer.id,
-          fileUrl: publicUrl,
+          fileUrl: fileName, // Just store the fileName instead of the public URL
           fileType: file.type,
           fileName,
           fileSize: file.size,
@@ -460,12 +464,12 @@ const AttachmentUpload = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col" aria-describedby="upload-dialog-description">
         <DialogHeader>
-          <DialogTitle>Upload Attachments</DialogTitle>
-          <DialogDescription>
-            Add photos and documents to share with your family
+          <DialogTitle>Upload Files</DialogTitle>
+          <DialogDescription id="upload-dialog-description">
+            Add images or PDFs to your response. You can add descriptions and tag people in them.
           </DialogDescription>
         </DialogHeader>
 
@@ -532,17 +536,17 @@ const AttachmentUpload = ({
               <div className="max-w-md mx-auto">
                 <div className="relative group">
                   <div className="rounded-lg overflow-hidden bg-gray-100 border h-[300px] flex items-center justify-center p-4">
-                    {previews[0] === 'pdf' ? (
-                      <div className="flex items-center justify-center">
-                        <FileText className="h-12 w-12 text-gray-400" />
-                      </div>
-                    ) : (
-                      <img
-                        src={previews[0]}
-                        alt={files[0].name}
-                        className="max-h-[280px] w-auto object-contain"
-                      />
-                    )}
+                    <AttachmentThumbnail 
+                      attachment={{
+                        id: 'preview',
+                        fileUrl: previews[0] === 'pdf' ? files[0].name : previews[0],
+                        fileType: files[0].type,
+                        fileName: files[0].name,
+                        signedUrl: previews[0] === 'pdf' ? undefined : previews[0]
+                      }}
+                      size="lg"
+                      className="w-full h-full"
+                    />
                   </div>
                   <p className="text-xs text-gray-500 mt-1 text-center">
                     {files[0].name}

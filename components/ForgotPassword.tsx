@@ -1,3 +1,10 @@
+/**
+ * File: components/ForgotPassword.tsx
+ * Description: A password recovery form component that allows users to request a password reset link.
+ * Features email input validation, loading states, success/error notifications, and integration
+ * with Supabase Auth for secure password reset functionality.
+ */
+
 'use client';
 
 import { useState } from 'react';

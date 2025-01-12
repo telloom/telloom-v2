@@ -1,3 +1,11 @@
+/**
+ * File: components/ui/accordion.tsx
+ * Description: An accessible accordion component built on Radix UI primitives.
+ * Provides collapsible content sections with smooth animations, keyboard navigation,
+ * and proper ARIA attributes for enhanced accessibility. Includes Accordion, AccordionItem,
+ * and AccordionTrigger components for building expandable content interfaces.
+ */
+
 import * as React from "react"
 import * as AccordionPrimitive from "@radix-ui/react-accordion"
 import { ChevronDownIcon } from "@radix-ui/react-icons"

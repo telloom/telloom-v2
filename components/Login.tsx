@@ -1,4 +1,9 @@
-// components/Login.tsx
+/**
+ * File: components/Login.tsx
+ * Description: A login form component that handles user authentication using Supabase Auth.
+ * Features email/password authentication, loading states, error handling, and automatic
+ * redirection after successful login.
+ */
 
 'use client';
 

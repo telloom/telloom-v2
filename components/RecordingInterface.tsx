@@ -1,5 +1,10 @@
-// components/RecordingInterface.tsx
-// This component provides the user interface for recording videos, including device selection and recording controls.
+/**
+ * File: components/RecordingInterface.tsx
+ * Description: A comprehensive video recording interface component that handles camera/microphone selection,
+ * video recording with pause/resume functionality, audio visualization, preview playback, and video upload.
+ * Supports high-quality video recording with fallback options and provides real-time audio level monitoring.
+ */
+
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -21,6 +26,7 @@ import { MuxPlayer } from './MuxPlayer';
 export interface RecordingInterfaceProps {
   promptId: string;
   onClose: () => void;
+  onSave: (blob: Blob) => Promise<string>;
 }
 
 interface MediaDevice {
@@ -28,7 +34,7 @@ interface MediaDevice {
   label: string;
 }
 
-export function RecordingInterface({ promptId, onClose }: RecordingInterfaceProps) {
+export function RecordingInterface({ promptId, onClose, onSave }: RecordingInterfaceProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);

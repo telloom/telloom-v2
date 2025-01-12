@@ -1,3 +1,11 @@
+/**
+ * File: components/ui/table.tsx
+ * Description: A table component system for displaying structured data.
+ * Provides accessible, styled table elements with proper semantic markup and responsive design.
+ * Includes Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell,
+ * and TableCaption components for building data tables with consistent styling.
+ */
+
 import * as React from "react"
 
 import { cn } from "@/utils/utils"

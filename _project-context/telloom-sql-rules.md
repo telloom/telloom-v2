@@ -851,7 +851,7 @@ UPDATE public."Prompt"
 SET "search_vector" = to_tsvector('english', coalesce("promptText", ''));
 
 UPDATE public."PromptResponse"
-SET "search_vector" = to_tsvector('english', coalesce("responseText", ''));
+SET "search_vector" = to_tsvector('english', coalesce("responseNotes", ''));
 
 -- Create Functions and Triggers to Update tsvector on Data Change
 
@@ -869,7 +869,7 @@ FOR EACH ROW EXECUTE FUNCTION update_prompt_search_vector();
 -- For PromptResponse
 CREATE OR REPLACE FUNCTION update_prompt_response_search_vector() RETURNS TRIGGER AS $$
 BEGIN
-    NEW."search_vector" := to_tsvector('english', coalesce(NEW."responseText", ''));
+    NEW."search_vector" := to_tsvector('english', coalesce(NEW."responseNotes", ''));
     RETURN NEW;
 END; $$ LANGUAGE plpgsql;
 

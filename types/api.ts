@@ -46,7 +46,7 @@ export interface SignUpResponse {
 
 export interface PromptResponsePayload {
   promptId: string;
-  responseText?: string;
+  responseNotes?: string;
   videoFile?: File;
   attachments?: File[];
 }

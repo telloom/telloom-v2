@@ -2,15 +2,23 @@ import { NextResponse } from 'next/server';
 import Replicate from "replicate";
 
 export async function POST(request: Request) {
+  const startTime = Date.now();
   try {
     const { promptText, promptCategory, firstName, transcript } = await request.json();
 
     if (!process.env.REPLICATE_API_TOKEN) {
+      console.error('Generate summary API: Missing Replicate API token');
       return NextResponse.json(
         { error: "Replicate API token not configured" },
         { status: 500 }
       );
     }
+
+    console.log('Generate summary API: Starting summary generation', {
+      promptCategory,
+      transcriptLength: transcript.length,
+      timestamp: new Date().toISOString()
+    });
 
     const replicate = new Replicate({
       auth: process.env.REPLICATE_API_TOKEN,
@@ -32,14 +40,41 @@ ${transcript}`;
       presence_penalty: 1.15
     };
 
+    console.log('Generate summary API: Calling Replicate API', {
+      promptLength: input.prompt.length,
+      timestamp: new Date().toISOString()
+    });
+
     let fullResponse = "";
-    for await (const event of replicate.stream("meta/meta-llama-3-70b-instruct", { input })) {
-      fullResponse += event;
+    try {
+      for await (const event of replicate.stream("meta/meta-llama-3-70b-instruct", { input })) {
+        fullResponse += event;
+      }
+    } catch (streamError) {
+      console.error('Generate summary API: Stream error', {
+        error: streamError instanceof Error ? streamError.message : 'Unknown stream error',
+        timestamp: new Date().toISOString()
+      });
+      throw streamError;
     }
+
+    const processingTime = Date.now() - startTime;
+    console.log('Generate summary API: Summary generation completed', {
+      summaryLength: fullResponse.length,
+      processingTimeMs: processingTime,
+      timestamp: new Date().toISOString()
+    });
 
     return NextResponse.json({ summary: fullResponse.trim() });
   } catch (error) {
-    console.error("Error generating AI summary:", error);
+    const processingTime = Date.now() - startTime;
+    console.error('Generate summary API: Error occurred', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      processingTimeMs: processingTime,
+      timestamp: new Date().toISOString()
+    });
+
     return NextResponse.json(
       { error: "Failed to generate summary" },
       { status: 500 }

@@ -39,14 +39,10 @@ export function VideoPopup({
 }: VideoPopupProps) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95vw] max-h-[95vh] flex flex-col p-0 gap-0">
-        <DialogHeader className="p-4 pr-14 relative">
-          <DialogTitle className="text-lg font-semibold text-left pr-8">
-            {promptText}
-          </DialogTitle>
-          <DialogDescription className="sr-only">
-            Video playback for the prompt: {promptText}
-          </DialogDescription>
+      <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-6 m-4" aria-describedby="video-dialog-description">
+        <DialogHeader>
+          <DialogTitle>{promptText}</DialogTitle>
+          <DialogDescription id="video-dialog-description">Watch and respond to the video prompt.</DialogDescription>
         </DialogHeader>
         <div className="flex items-center justify-center p-4 relative overflow-hidden">
           {/* Navigation buttons */}

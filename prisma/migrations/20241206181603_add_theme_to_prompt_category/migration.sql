@@ -239,7 +239,7 @@ CREATE TABLE "PromptResponse" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "profileSharerId" UUID NOT NULL,
     "videoId" UUID,
-    "responseText" TEXT,
+    "responseNotes" TEXT,
     "privacyLevel" TEXT NOT NULL DEFAULT 'Private',
     "createdAt" TIMESTAMPTZ(6) DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMPTZ(6),

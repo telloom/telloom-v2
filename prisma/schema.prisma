@@ -241,7 +241,6 @@ model PromptResponse {
   id                            String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   profileSharerId               String                          @db.Uuid
   videoId                       String?                         @unique @db.Uuid
-  responseText                  String?
   privacyLevel                  String                          @default("Private")
   createdAt                     DateTime?                       @default(now()) @db.Timestamptz(6)
   updatedAt                     DateTime?                       @db.Timestamptz(6)
@@ -249,6 +248,7 @@ model PromptResponse {
   promptId                      String?                         @db.Uuid
   search_vector                 Unsupported("tsvector")?
   summary                       String?
+  responseNotes                 String?
   Object                        Object[]
   ProfileSharer                 ProfileSharer                   @relation(fields: [profileSharerId], references: [id], onDelete: Cascade)
   Prompt                        Prompt?                         @relation(fields: [promptId], references: [id], onDelete: NoAction)
@@ -268,7 +268,7 @@ model PromptResponseAttachment {
   id                                String                              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   promptResponseId                  String                              @db.Uuid
   profileSharerId                   String                              @db.Uuid
-  fileUrl                           String
+  fileUrl                           String                              // This field now stores the fileName in the attachments bucket
   fileType                          String
   fileName                          String
   fileSize                          Int?

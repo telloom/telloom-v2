@@ -89,7 +89,7 @@ export async function fetchPromptCategories(): Promise<PromptCategory[]> {
             id,
             profileSharerId,
             videoId,
-            responseText,
+            responseNotes,
             privacyLevel,
             createdAt,
             updatedAt

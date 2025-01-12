@@ -1,5 +1,9 @@
-// components/UploadInterface.tsx
-// This component handles the video upload interface
+/**
+ * File: components/UploadInterface.tsx
+ * Description: A video upload interface component that handles direct-to-Mux video uploads with progress tracking,
+ * status polling, and error handling. Supports upload cancellation, duplicate video detection, and provides
+ * real-time feedback on upload and processing status. Integrates with Supabase for video metadata storage.
+ */
 
 'use client';
 

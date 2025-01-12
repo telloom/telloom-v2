@@ -1,3 +1,11 @@
+/**
+ * File: components/ui/resizable.tsx
+ * Description: A resizable panel component system built on React-Resizable-Panels.
+ * Provides draggable handles for resizing adjacent panels with smooth animations and
+ * persistence. Includes ResizablePanelGroup, ResizablePanel, and ResizableHandle
+ * components for building flexible layout systems with adjustable panel sizes.
+ */
+
 import { DragHandleDots2Icon } from "@radix-ui/react-icons"
 import * as ResizablePrimitive from "react-resizable-panels"
 
