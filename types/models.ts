@@ -176,18 +176,22 @@ export enum Role {
   
   export interface Profile {
     id: string;
+    userId: string;
     firstName: string;
     lastName: string;
     email: string;
-    avatarUrl: string | null;
-    roles: ProfileRole[];
     createdAt: Date;
     updatedAt: Date;
+    roles?: ProfileRole[];
   }
   
   export interface ProfileRole {
+    id: string;
     profileId: string;
-    role: 'SHARER' | 'LISTENER' | 'EXECUTOR' | 'ADMIN';
+    role: Role;
+    createdAt: Date;
+    updatedAt: Date;
+    profile: Profile;
   }
   
   export interface ProfileExecutor {
@@ -293,6 +297,74 @@ export enum Role {
   export interface GetPromptDataError {
     error: string;
     redirectTo?: string;
+  }
+  
+  export enum PersonRelation {
+    Spouse = 'Spouse',
+    Partner = 'Partner',
+    Mother = 'Mother',
+    Father = 'Father',
+    Sister = 'Sister',
+    Brother = 'Brother',
+    Daughter = 'Daughter',
+    Son = 'Son',
+    Grandmother = 'Grandmother',
+    Grandfather = 'Grandfather',
+    GreatGrandmother = 'GreatGrandmother',
+    GreatGrandfather = 'GreatGrandfather',
+    Granddaughter = 'Granddaughter',
+    Grandson = 'Grandson',
+    GreatGranddaughter = 'GreatGranddaughter',
+    GreatGrandson = 'GreatGrandson',
+    Aunt = 'Aunt',
+    Uncle = 'Uncle',
+    GreatAunt = 'GreatAunt',
+    GreatUncle = 'GreatUncle',
+    Niece = 'Niece',
+    Nephew = 'Nephew',
+    Cousin = 'Cousin',
+    Friend = 'Friend',
+    Coworker = 'Coworker',
+    Mentor = 'Mentor',
+    Teacher = 'Teacher',
+    Boss = 'Boss',
+    MotherInLaw = 'MotherInLaw',
+    FatherInLaw = 'FatherInLaw',
+    SisterInLaw = 'SisterInLaw',
+    BrotherInLaw = 'BrotherInLaw',
+    StepMother = 'StepMother',
+    StepFather = 'StepFather',
+    StepSister = 'StepSister',
+    StepBrother = 'StepBrother',
+    StepDaughter = 'StepDaughter',
+    StepSon = 'StepSon',
+    Godmother = 'Godmother',
+    Godfather = 'Godfather',
+    Godchild = 'Godchild',
+    Other = 'Other'
+  }
+  
+  export interface PersonTag {
+    id: string;
+    name: string;
+    relation: PersonRelation;
+    profileSharerId: string;
+    createdAt?: Date;
+    updatedAt?: Date;
+    // Relationships
+    ProfileSharer?: ProfileSharer;
+    PromptResponseAttachmentPersonTag?: PromptResponseAttachmentPersonTag[];
+  }
+  
+  export interface PromptResponseAttachmentPersonTag {
+    id: string;
+    promptResponseAttachmentId: string;
+    personTagId: string;
+    createdAt?: Date;
+    updatedAt?: Date;
+    // Relationships
+    PromptResponseAttachment?: PromptResponseAttachment;
+    PersonTag?: PersonTag;
   }
   
   // Include other interfaces as needed, such as Invitation, ResponsePermission, VideoTranscript, etc.

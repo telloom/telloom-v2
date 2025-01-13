@@ -132,12 +132,22 @@ export function UploadInterface({
         setProcessingState('uploading');
 
         // Get session for auth
-        const {
-          data: { session },
-          error: sessionError
-        } = await supabase.auth.getSession();
-        if (sessionError || !session) {
-          throw new Error('Not authenticated');
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+          console.error('Authentication error:', authError);
+          return;
+        }
+
+        // Get ProfileSharer record
+        const { data: profileSharer } = await supabase
+          .from('ProfileSharer')
+          .select('id')
+          .eq('profileId', user.id)
+          .single();
+
+        if (!profileSharer) {
+          toast.error('Profile not found');
+          return;
         }
 
         // Check for existing video first
@@ -167,7 +177,7 @@ export function UploadInterface({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`
+            Authorization: `Bearer ${user.id}`
           },
           body: JSON.stringify({
             promptId

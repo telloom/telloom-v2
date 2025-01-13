@@ -3,7 +3,7 @@
 
 import { create } from 'zustand';
 import { User } from '@supabase/supabase-js';
-import { Profile } from '@prisma/client';
+import { Profile } from '@/types/models';
 
 interface UserState {
   user: User | null;

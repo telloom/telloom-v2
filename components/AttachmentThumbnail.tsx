@@ -1,8 +1,7 @@
 /**
  * File: components/AttachmentThumbnail.tsx
  * Description: A versatile thumbnail component that displays image or file previews with signed URL support.
- * Handles loading states, error states, and different size variants. Automatically manages Supabase signed URLs
- * for secure file access and provides fallback icons for non-image files.
+ * Handles loading states, error states, and different size variants.
  */
 
 'use client';
@@ -11,6 +10,7 @@ import { useState, useEffect } from 'react';
 import { ImageOff, FileText, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/utils/supabase/client';
+import { urlCache } from '@/utils/url-cache';
 import Image from 'next/image';
 
 interface AttachmentThumbnailProps {
@@ -30,27 +30,16 @@ export default function AttachmentThumbnail({
   size = 'md',
   className 
 }: AttachmentThumbnailProps) {
-  console.log('AttachmentThumbnail render:', {
-    id: attachment.id,
-    fileUrl: attachment.fileUrl,
-    fileType: attachment.fileType,
-    fileName: attachment.fileName,
-    hasSignedUrl: !!attachment.signedUrl,
-    size
-  });
-
   const [signedUrl, setSignedUrl] = useState<string | undefined>(attachment.signedUrl);
   const [isLoading, setIsLoading] = useState(!attachment.signedUrl);
   const [error, setError] = useState(false);
 
-  // Size classes for different thumbnail sizes
   const sizeClasses = {
     sm: 'w-2.5 h-2.5',
     md: 'w-4 h-4',
     lg: 'w-10 h-10'
   };
 
-  // Icon sizes for different thumbnail sizes
   const iconSizes = {
     sm: 'h-1 w-1',
     md: 'h-1.5 w-1.5',
@@ -59,96 +48,65 @@ export default function AttachmentThumbnail({
 
   useEffect(() => {
     async function getSignedUrl() {
-      console.log('[AttachmentThumbnail] Starting signed URL generation', {
-        attachmentId: attachment?.id,
-        fileUrl: attachment?.fileUrl,
-        fileType: attachment?.fileType
-      });
-
       if (!attachment?.fileUrl) {
-        console.log('[AttachmentThumbnail] No fileUrl provided');
         setError(true);
         setIsLoading(false);
         return;
       }
 
       try {
+        // Check cache first
+        const cachedUrl = urlCache.get(attachment.id);
+        if (cachedUrl) {
+          setSignedUrl(cachedUrl);
+          setError(false);
+          setIsLoading(false);
+          return;
+        }
+
+        // Only create client if needed
         const supabase = createClient();
         
-        // Extract just the file path from the fileUrl
-        // Remove any storage URLs or 'attachments/' prefix
         const filePath = attachment.fileUrl.includes('attachments/') 
           ? attachment.fileUrl.split('attachments/')[1]
           : attachment.fileUrl;
-
-        console.log('[AttachmentThumbnail] Getting signed URL for path:', filePath);
         
         const { data, error } = await supabase
           .storage
           .from('attachments')
-          .createSignedUrl(filePath, 3600);
+          .createSignedUrl(filePath, 3600); // 1 hour expiry
 
         if (error) {
-          console.log('[AttachmentThumbnail] Error getting signed URL:', {
-            error: {
-              message: error.message,
-              name: error.name
-            },
-            attachment: {
-              id: attachment.id,
-              fileUrl: attachment.fileUrl,
-              filePath: filePath,
-              fileType: attachment.fileType
-            }
-          });
+          console.error('Error getting signed URL:', error);
           setError(true);
           setIsLoading(false);
           return;
         }
 
         if (data?.signedUrl) {
-          console.log('[AttachmentThumbnail] Successfully got signed URL:', {
-            id: attachment.id,
-            hasSignedUrl: true
-          });
+          // Cache the URL with expiry time slightly less than the signed URL expiry
+          urlCache.set(attachment.id, data.signedUrl, 3500); // Cache for slightly less than 1 hour
           setSignedUrl(data.signedUrl);
           setError(false);
         } else {
-          console.log('[AttachmentThumbnail] No signed URL in response:', {
-            data,
-            attachment: {
-              id: attachment.id,
-              fileUrl: attachment.fileUrl,
-              filePath: filePath
-            }
-          });
           setError(true);
         }
       } catch (error) {
-        console.log('[AttachmentThumbnail] Unexpected error getting signed URL:', {
-          error: error instanceof Error ? {
-            message: error.message,
-            stack: error.stack
-          } : error,
-          attachment: {
-            id: attachment.id,
-            fileUrl: attachment.fileUrl,
-            fileType: attachment.fileType
-          }
-        });
+        console.error('Error in getSignedUrl:', error);
         setError(true);
       } finally {
         setIsLoading(false);
       }
     }
 
-    if (!attachment.signedUrl) {
+    // Only fetch if we don't have a signed URL and there's a fileUrl
+    if (!attachment.signedUrl && attachment.fileUrl) {
       getSignedUrl();
-    } else {
+    } else if (attachment.signedUrl) {
       setSignedUrl(attachment.signedUrl);
       setIsLoading(false);
     }
-  }, [attachment]);
+  }, [attachment.id, attachment.fileUrl, attachment.signedUrl]);
 
   const containerClasses = cn(
     'relative rounded-md overflow-hidden bg-gray-100 flex items-center justify-center',
@@ -166,23 +124,12 @@ export default function AttachmentThumbnail({
     }
 
     if (error || !signedUrl) {
-      console.log('Showing error state:', {
-        id: attachment.id,
-        hasError: error,
-        hasSignedUrl: !!signedUrl
-      });
       return (
         <div className={containerClasses}>
           <ImageOff className={cn(iconSizes[size], 'text-gray-400')} />
         </div>
       );
     }
-
-    console.log('Rendering image:', {
-      id: attachment.id,
-      signedUrl,
-      size
-    });
 
     return (
       <div className={containerClasses} style={{ aspectRatio: '1' }}>

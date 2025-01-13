@@ -25,7 +25,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { person_relation } from '@prisma/client';
+import { useToast } from "@/components/ui/use-toast";
+import { cn } from "@/lib/utils";
+import { PersonRelation, PersonTag } from "@/types/models";
 import {
   Command,
   CommandEmpty,
@@ -40,12 +42,6 @@ import {
 } from "@/components/ui/popover";
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
 
-interface PersonTag {
-  id: string;
-  name: string;
-  relation: person_relation;
-}
-
 interface AttachmentUploadProps {
   promptResponseId: string;
   isOpen: boolean;
@@ -54,136 +50,42 @@ interface AttachmentUploadProps {
 }
 
 // Export as default for dynamic import
-const AttachmentUpload = ({
+export default function AttachmentUpload({
   promptResponseId,
   isOpen,
   onClose,
   onUploadSuccess
-}: AttachmentUploadProps) => {
+}: AttachmentUploadProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [description, setDescription] = useState('');
   const [dateCaptured, setDateCaptured] = useState('');
   const [yearCaptured, setYearCaptured] = useState('');
-  const [existingTags, setExistingTags] = useState<PersonTag[]>([]);
   const [selectedTags, setSelectedTags] = useState<PersonTag[]>([]);
+  const [existingTags, setExistingTags] = useState<PersonTag[]>([]);
   const [newTagName, setNewTagName] = useState('');
-  const [newTagRelation, setNewTagRelation] = useState<person_relation | ''>('');
+  const [newTagRelation, setNewTagRelation] = useState<PersonRelation | ''>('');
   const [isAddingTag, setIsAddingTag] = useState(false);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [profileSharerId, setProfileSharerId] = useState<string>('');
 
-  // Fetch existing tags
   useEffect(() => {
-    const fetchTags = async () => {
-      console.log('Starting fetchTags...');
-      try {
-        const supabase = createClient();
-        console.log('Supabase client created');
-        
-        // Log the current auth state
-        const { data: authData, error: authError } = await supabase.auth.getSession();
-        console.log('Auth state:', {
-          hasSession: !!authData.session,
-          accessToken: authData.session?.access_token ? 'present' : 'missing',
-          userId: authData.session?.user?.id,
-          headers: await supabase.auth.getSession().then(x => x.data.session?.access_token ? 
-            { Authorization: `Bearer ${x.data.session.access_token}` } : 'no auth headers'),
-          role: authData.session?.user?.role,
-          aud: authData.session?.user?.aud
-        });
-        
-        if (authError) {
-          console.error('Auth check error:', authError);
-          return;
-        }
-
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          return;
-        }
-        
-        if (!session) {
-          console.log('No active session found');
-          return;
-        }
-        console.log('Session found:', { userId: session.user.id });
-
-        console.log('Fetching ProfileSharer...');
-        const { data: profileSharer, error: sharerError } = await supabase
+    const fetchProfileSharerId = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
           .from('ProfileSharer')
           .select('id')
-          .eq('profileId', session.user.id)
+          .eq('profileId', user.id)
           .single();
-
-        if (sharerError) {
-          console.error('Error fetching profile sharer:', sharerError);
-          console.error('Full error details:', {
-            message: sharerError.message,
-            details: sharerError.details,
-            hint: sharerError.hint,
-            code: sharerError.code
-          });
-          return;
-        }
-
-        if (!profileSharer) {
-          console.log('No profile sharer found for user:', session.user.id);
-          return;
-        }
-        console.log('ProfileSharer found:', profileSharer);
-
-        console.log('Preparing PersonTag query...');
-        const query = supabase
-          .from('PersonTag')
-          .select('*')
-          .eq('profileSharerId', profileSharer.id);
-          
-        console.log('Query details:', {
-          table: 'PersonTag',
-          filter: { profileSharerId: profileSharer.id },
-          url: query.url?.toString(),
-          headers: await supabase.auth.getSession().then(x => x.data.session?.access_token ? 
-            { Authorization: `Bearer ${x.data.session.access_token}` } : 'no auth headers')
-        });
-
-        console.log('Executing PersonTag query...');
-        const { data: tags, error: tagsError } = await query;
-
-        if (tagsError) {
-          console.error('Error fetching tags:', tagsError);
-          console.error('Full error details:', {
-            message: tagsError.message,
-            details: tagsError.details,
-            hint: tagsError.hint,
-            code: tagsError.code,
-            status: tagsError.status || 'no status'
-          });
-          return;
-        }
-
-        console.log('Tags fetched successfully:', tags);
-        setExistingTags(tags || []);
-      } catch (error) {
-        console.error('Unexpected error in fetchTags:');
-        if (error instanceof Error) {
-          console.error('Error details:', {
-            name: error.name,
-            message: error.message,
-            stack: error.stack
-          });
-        } else {
-          console.error('Unknown error type:', error);
+        if (profile) {
+          setProfileSharerId(profile.id);
         }
       }
     };
-
-    if (isOpen) {
-      console.log('Dialog opened, initiating tag fetch...');
-      fetchTags();
-    }
-  }, [isOpen]);
+    fetchProfileSharerId();
+  }, []);
 
   const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLDivElement>) => {
     let selectedFiles: File[] = [];
@@ -262,91 +164,32 @@ const AttachmentUpload = ({
     setPreviews(newPreviews);
   }, [previews]);
 
-  const handleAddTag = async () => {
-    console.log('Starting handleAddTag...');
-    if (!newTagName || !newTagRelation) {
-      console.log('Missing required fields:', { newTagName, newTagRelation });
-      return;
-    }
+  const handleAddNewTag = async () => {
+    if (!newTagName || !newTagRelation || !profileSharerId) return;
 
     const supabase = createClient();
-    console.log('Checking session for tag creation...');
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError) {
-      console.error('Session error during tag creation:', sessionError);
-      toast.error('Authentication error');
-      return;
-    }
-
-    if (!session) {
-      console.log('No active session found during tag creation');
-      toast.error('Not authenticated');
-      return;
-    }
-    console.log('Session found for tag creation:', { userId: session.user.id });
-
-    console.log('Fetching ProfileSharer for tag creation...');
-    const { data: profileSharer, error: profileError } = await supabase
-      .from('ProfileSharer')
-      .select('id')
-      .eq('profileId', session.user.id)
-      .single();
-
-    if (profileError) {
-      console.error('Error fetching profile for tag creation:', profileError);
-      console.error('Full profile error details:', {
-        message: profileError.message,
-        details: profileError.details,
-        hint: profileError.hint,
-        code: profileError.code
-      });
-      toast.error('Profile not found');
-      return;
-    }
-
-    if (!profileSharer) {
-      console.log('No profile sharer found for tag creation, user:', session.user.id);
-      toast.error('Profile not found');
-      return;
-    }
-    console.log('ProfileSharer found for tag creation:', profileSharer);
-
-    console.log('Creating new tag...');
-    const { data: tag, error } = await supabase
+    const { data: newTag, error } = await supabase
       .from('PersonTag')
       .insert({
         name: newTagName,
         relation: newTagRelation,
-        profileSharerId: profileSharer.id
+        profileSharerId
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Error creating tag:', error);
-      console.error('Full tag creation error details:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code
-      });
-      console.error('Attempted tag data:', {
-        name: newTagName,
-        relation: newTagRelation,
-        profileSharerId: profileSharer.id
-      });
-      toast.error('Failed to create tag');
+      toast.error('Failed to create new tag');
       return;
     }
 
-    console.log('Tag created successfully:', tag);
-    setExistingTags(prev => [...prev, tag]);
-    setSelectedTags(prev => [...prev, tag]);
-    setNewTagName('');
-    setNewTagRelation('');
-    setIsAddingTag(false);
-    toast.success('Tag created successfully');
+    if (newTag) {
+      setSelectedTags(prev => [...prev, newTag]);
+      setExistingTags(prev => [...prev, newTag]);
+      setNewTagName('');
+      setNewTagRelation('');
+      setIsAddingTag(false);
+    }
   };
 
   const handleUpload = async (shouldClose: boolean = true) => {
@@ -356,14 +199,18 @@ const AttachmentUpload = ({
     const supabase = createClient();
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No active session');
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error('Authentication error:', authError);
+        toast.error('Not authenticated');
+        return;
+      }
 
       // Get ProfileSharer record
       const { data: profileSharer } = await supabase
         .from('ProfileSharer')
         .select('id')
-        .eq('profileId', session.user.id)
+        .eq('profileId', user.id)
         .single();
 
       if (!profileSharer) throw new Error('Profile sharer not found');
@@ -382,13 +229,13 @@ const AttachmentUpload = ({
         throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
       }
 
-      // Create attachment record - store just the fileName instead of the public URL
+      // Create attachment record
       const { data: attachment, error: dbError } = await supabase
         .from('PromptResponseAttachment')
         .insert({
           promptResponseId,
           profileSharerId: profileSharer.id,
-          fileUrl: fileName, // Just store the fileName instead of the public URL
+          fileUrl: fileName,
           fileType: file.type,
           fileName,
           fileSize: file.size,
@@ -465,7 +312,10 @@ const AttachmentUpload = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col" aria-describedby="upload-dialog-description">
+      <DialogContent 
+        className="max-w-2xl max-h-[90vh] flex flex-col" 
+        aria-describedby="upload-dialog-description"
+      >
         <DialogHeader>
           <DialogTitle>Upload Files</DialogTitle>
           <DialogDescription id="upload-dialog-description">
@@ -647,13 +497,13 @@ const AttachmentUpload = ({
                   <Label htmlFor="tagRelation">Relationship</Label>
                   <Select
                     value={newTagRelation}
-                    onValueChange={(value) => setNewTagRelation(value as person_relation)}
+                    onValueChange={(value) => setNewTagRelation(value as PersonRelation)}
                   >
                     <SelectTrigger className="mt-2">
                       <SelectValue placeholder="Select relationship" />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.values(person_relation).map((relation) => (
+                      {Object.values(PersonRelation).map((relation) => (
                         <SelectItem key={relation} value={relation}>
                           {relation}
                         </SelectItem>
@@ -673,11 +523,11 @@ const AttachmentUpload = ({
                   </Button>
                   <Button
                     size="sm"
-                    onClick={handleAddTag}
+                    onClick={handleAddNewTag}
                     disabled={!newTagName || !newTagRelation}
                     className="rounded-full"
                   >
-                    Add
+                    Add Person
                   </Button>
                 </div>
               </div>
@@ -758,10 +608,25 @@ const AttachmentUpload = ({
             </>
           )}
         </div>
+
+        {/* New Tag Dialog */}
+        {isAddingTag && (
+          <Dialog open={isAddingTag} onOpenChange={(open) => !open && setIsAddingTag(false)}>
+            <DialogContent 
+              className="max-w-md" 
+              aria-describedby="new-tag-dialog-description"
+            >
+              <DialogHeader>
+                <DialogTitle>Add New Person</DialogTitle>
+                <DialogDescription id="new-tag-dialog-description">
+                  Add a new person to tag in your attachments.
+                </DialogDescription>
+              </DialogHeader>
+              {/* ... rest of the new tag dialog content ... */}
+            </DialogContent>
+          </Dialog>
+        )}
       </DialogContent>
     </Dialog>
   );
-};
-
-export { AttachmentUpload };
-export default AttachmentUpload; 
+} 

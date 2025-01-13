@@ -7,9 +7,9 @@ export default async function AuthLayout({
   children: React.ReactNode;
 }) {
   const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user }, error } = await supabase.auth.getUser();
 
-  if (session) {
+  if (user) {
     redirect('/role-sharer/topics');
   }
 

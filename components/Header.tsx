@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -18,58 +18,55 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import { useAuth } from '@/hooks/useAuth';
+import { useUserStore } from '@/stores/userStore';
+import { createClient } from '@/utils/supabase/client';
 
 export default function Header() {
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const { user } = useAuth();
+  const { profile, setProfile } = useUserStore();
   const router = useRouter();
+  const supabase = createClient();
 
-  // Fetch the authenticated user's data
+  // Fetch the user's profile when user changes
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        console.log('Fetching user data...');
-        const res = await fetch('/api/auth/user', {
-          credentials: 'include', // Include credentials (cookies) in the request
-        });
-        console.log('User API response status:', res.status);
-        
-        if (res.ok) {
-          const data = await res.json();
-          console.log('User data:', data);
-          setUser(data.user);
-          setProfile(data.profile);
-        } else {
-          console.log('Failed to fetch user data:', await res.text());
-          setUser(null);
-          setProfile(null);
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        setUser(null);
+    const fetchProfile = async () => {
+      if (!user) {
         setProfile(null);
+        return;
+      }
+
+      try {
+        const { data: profile, error } = await supabase
+          .from('Profile')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (error) {
+          console.error('Error fetching profile:', error);
+          return;
+        }
+
+        setProfile(profile);
+      } catch (error) {
+        console.error('Error fetching profile:', error);
       }
     };
 
-    fetchUser();
-  }, []);
+    fetchProfile();
+  }, [user, setProfile, supabase]);
 
   const handleSignOut = async () => {
     try {
-      console.log('Signing out...');
-      const res = await fetch('/api/auth/logout', {
-        method: 'POST',
-      });
-
-      console.log('Logout response:', res.status);
-
-      if (res.ok) {
-        setUser(null);
-        setProfile(null);
-        router.replace('/login');
-      } else {
-        console.error('Error signing out:', await res.text());
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error signing out:', error);
+        return;
       }
+      
+      setProfile(null);
+      router.replace('/login');
     } catch (error) {
       console.error('Error during sign out:', error);
     }

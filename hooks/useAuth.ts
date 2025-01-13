@@ -1,41 +1,50 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import type { User, AuthChangeEvent } from '@supabase/supabase-js';
 
 export function useAuth() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
   useEffect(() => {
-    // Use getUser instead of getSession
-    const checkUser = async () => {
+    let mounted = true;
+
+    const verifyUser = async () => {
       try {
         const { data: { user }, error } = await supabase.auth.getUser();
         if (error) throw error;
-        setUser(user);
+        if (mounted) {
+          setUser(user);
+        }
       } catch (error) {
-        console.error('Error checking auth:', error);
-        setUser(null);
+        console.error('Error verifying user:', error);
+        if (mounted) {
+          setUser(null);
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
-    checkUser();
+    verifyUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent) => {
+      if (!mounted) return;
+
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        const { data: { user }, error } = await supabase.auth.getUser();
-        if (!error) {
-          setUser(user);
-        }
+        await verifyUser();
       }
       if (event === 'SIGNED_OUT') {
         setUser(null);
+        setLoading(false);
       }
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, [supabase]);
