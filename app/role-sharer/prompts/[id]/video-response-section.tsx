@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Video as VideoIcon, Upload, Paperclip, Edit, Check, ArrowLeft, Download, Trash2 } from 'lucide-react';
+import { Video as VideoIcon, Upload, Paperclip, Edit, Check, ArrowLeft, Download, Trash2, AlertTriangle } from 'lucide-react';
 import { RecordingInterface } from '@/components/RecordingInterface';
 import { UploadPopup } from '@/components/UploadPopup';
 import dynamic from 'next/dynamic';
@@ -54,6 +54,8 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
   const [dateRecorded, setDateRecorded] = useState<Date | null>(response?.dateRecorded ? new Date(response.dateRecorded) : null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [attachmentToDelete, setAttachmentToDelete] = useState<string | null>(null);
+  const [showVideoDeleteConfirm, setShowVideoDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Function to fetch updated response data
   const fetchUpdatedResponse = async () => {
@@ -358,6 +360,57 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
     }
   };
 
+  const handleDeleteVideo = async () => {
+    if (!response?.video?.id || !response?.id) return;
+
+    try {
+      setIsDeleting(true);
+      const supabase = createClient();
+
+      // First delete the video from Mux if there's a Mux asset ID
+      if (response.video.muxAssetId) {
+        const res = await fetch('/api/mux/delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            muxAssetId: response.video.muxAssetId,
+          }),
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to delete video from Mux');
+        }
+      }
+
+      // Delete the video record from the database
+      const { error: videoError } = await supabase
+        .from('Video')
+        .delete()
+        .eq('id', response.video.id);
+
+      if (videoError) throw videoError;
+
+      // Delete the prompt response
+      const { error: responseError } = await supabase
+        .from('PromptResponse')
+        .delete()
+        .eq('id', response.id);
+
+      if (responseError) throw responseError;
+
+      setShowVideoDeleteConfirm(false);
+      toast.success('Video deleted successfully');
+      window.location.reload();
+    } catch (error) {
+      console.error('Error deleting video:', error);
+      toast.error('Failed to delete video');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (!response?.video) {
     return (
       <Card className="p-8 flex flex-col items-center justify-center gap-6 bg-gray-50">
@@ -429,12 +482,14 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
         {/* Video and Text Content */}
         <div className="lg:col-span-2 space-y-4">
           {/* Video Player */}
-          <div className="aspect-video bg-black rounded-lg overflow-hidden">
-            {response.video.muxPlaybackId && (
-              <div suppressHydrationWarning>
-                <MuxPlayer playbackId={response.video.muxPlaybackId} />
-              </div>
-            )}
+          <div className="relative">
+            <div className="aspect-video bg-black rounded-lg overflow-hidden">
+              {response.video.muxPlaybackId && (
+                <div suppressHydrationWarning>
+                  <MuxPlayer playbackId={response.video.muxPlaybackId} />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Date Section */}
@@ -947,6 +1002,64 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Video Delete Confirmation Dialog */}
+      <Dialog open={showVideoDeleteConfirm} onOpenChange={setShowVideoDeleteConfirm}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Delete Video Response</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this video response? This action cannot be undone and will remove the video, transcript, summary, and notes.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowVideoDeleteConfirm(false)}
+              className="rounded-full border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] transition-colors duration-200"
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteVideo}
+              className="rounded-full bg-red-600 hover:bg-red-700 transition-colors duration-200"
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Video Section - Added at the bottom */}
+      <div className="mt-8 pt-8 border-t border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-red-600" />
+            <span className="text-sm font-medium text-red-600">Danger zone!</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowVideoDeleteConfirm(true)}
+            className="bg-white hover:bg-red-50 hover:text-red-600 text-red-600 rounded-full border border-red-200"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete video response
+          </Button>
+        </div>
+      </div>
     </div>
   );
 } 

@@ -32,6 +32,21 @@ export const createClient = () => {
           }
         },
       },
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        flowType: 'pkce',
+        debug: process.env.NODE_ENV === 'development'
+      },
+      global: {
+        headers: {
+          'x-client-info': `@supabase/auth-helpers-nextjs/0.0.0`
+        }
+      },
+      db: {
+        schema: 'public'
+      }
     }
   );
 };

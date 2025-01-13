@@ -362,7 +362,7 @@ export function UploadInterface({
                     </div>
                   </div>
                   <div className="text-sm text-[#16A34A] bg-[#DCFCE7] p-3 rounded-md text-center mt-4 w-full">
-                    Video uploaded and processed successfully!
+                    Video uploaded and processed successfully! You can close this popup when you're done reviewing your video.
                   </div>
                 </div>
               </div>

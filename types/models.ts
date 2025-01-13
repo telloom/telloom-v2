@@ -253,22 +253,22 @@ export enum Role {
   
   export interface VideoResponseSectionProps {
     promptId: string;
-    promptCategoryId: string;
     promptText: string;
     promptCategory: string;
-    response: {
+    response?: {
       id: string;
-      summary?: string | null;
-      responseNotes?: string | null;
-      dateRecorded?: Date | null;
+      summary?: string;
+      responseNotes?: string;
+      dateRecorded?: string | null;
       video?: {
         id: string;
         muxPlaybackId: string;
+        muxAssetId: string;
         VideoTranscript?: Array<{
           id: string;
           transcript: string;
         }>;
-      } | null;
+      };
       PromptResponseAttachment?: Array<{
         id: string;
         fileUrl: string;
@@ -278,7 +278,7 @@ export enum Role {
         dateCaptured?: string;
         yearCaptured?: number;
       }>;
-    } | null;
+    };
   }
   
   export interface GetPromptDataResult {
