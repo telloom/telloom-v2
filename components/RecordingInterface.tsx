@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { MuxPlayer } from './MuxPlayer';
+import { createClient } from '@/utils/supabase/client';
 
 export interface RecordingInterfaceProps {
   promptId: string;
@@ -180,37 +181,46 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
       }
       cleanupAudioVisualization();
 
-      // Try to get the highest quality, but allow fallback
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          deviceId: videoDeviceId ? { exact: videoDeviceId } : undefined,
-          width: { ideal: 1920, min: 1280 },
-          height: { ideal: 1080, min: 720 },
-          frameRate: { ideal: 30, min: 24 },
-          aspectRatio: { ideal: 16/9 }
-        },
-        audio: { 
-          deviceId: audioDeviceId ? { exact: audioDeviceId } : undefined,
-          sampleRate: { ideal: 48000 },
-          channelCount: { ideal: 2 },
-          echoCancellation: { ideal: true },
-          noiseSuppression: { ideal: true },
-          autoGainControl: { ideal: true }
-        }
-      }).catch(async (err) => {
-        console.warn('Failed to get high quality stream, falling back:', err);
-        // Fallback to more basic constraints
-        return navigator.mediaDevices.getUserMedia({
-          video: { 
-            deviceId: videoDeviceId ? { exact: videoDeviceId } : undefined,
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: { 
-            deviceId: audioDeviceId ? { exact: audioDeviceId } : undefined
+      // Define 16:9 resolutions in descending order of preference
+      const resolutions = [
+        { width: 1920, height: 1080 }, // 1080p
+        { width: 1280, height: 720 },  // 720p
+        { width: 854, height: 480 }    // 480p
+      ];
+
+      let stream = null;
+      for (const resolution of resolutions) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { 
+              deviceId: videoDeviceId ? { exact: videoDeviceId } : undefined,
+              width: { ideal: resolution.width },
+              height: { ideal: resolution.height },
+              aspectRatio: { exact: 16/9 },
+              frameRate: { ideal: 30, min: 24 }
+            },
+            audio: { 
+              deviceId: audioDeviceId ? { exact: audioDeviceId } : undefined,
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+              sampleRate: 48000,
+              sampleSize: 16
+            }
+          });
+          break; // If we get here, we successfully got a stream
+        } catch (e) {
+          if (resolution === resolutions[resolutions.length - 1]) {
+            throw e; // If we've tried all resolutions, throw the error
           }
-        });
-      });
+          // Otherwise continue to next resolution
+          continue;
+        }
+      }
+
+      if (!stream) {
+        throw new Error('Could not initialize video stream');
+      }
 
       streamRef.current = stream;
       setupAudioVisualization(stream);
@@ -263,7 +273,7 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
       const mediaRecorder = new MediaRecorder(streamRef.current, {
         mimeType,
         videoBitsPerSecond: 8000000,     // 8 Mbps for high quality video
-        audioBitsPerSecond: 256000       // 256 kbps for high quality audio
+        audioBitsPerSecond: 128000       // 128 kbps for high quality audio
       });
       
       mediaRecorderRef.current = mediaRecorder;
@@ -291,8 +301,8 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
         setRecordingTime(elapsedSeconds);
       }, 1000);
 
-      // Use smaller chunks for better quality control
-      mediaRecorder.start(100); // 100ms chunks for finer granularity
+      // Request smaller chunks for better quality control
+      mediaRecorder.start(1000); // 1-second chunks for reliable quality
       setIsRecording(true);
       setError(null);
     } catch (err) {
@@ -408,12 +418,71 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
         type: 'video/webm'
       });
 
-      // Call onSave and wait for the MuxPlaybackId
-      const muxPlaybackId = await onSave(blob);
-      setMuxPlaybackId(muxPlaybackId);
-      setProcessingState('ready');
+      try {
+        // Wait for the save operation to complete
+        const videoId = await onSave(blob);
+        
+        if (videoId) {
+          setProcessingState('processing');
+          
+          // Poll for video status until it's ready
+          let attempts = 0;
+          const maxAttempts = 30; // 30 seconds
+          const pollInterval = 1000; // 1 second
+
+          const checkVideoStatus = async () => {
+            const supabase = createClient();
+            const { data: video, error } = await supabase
+              .from('Video')
+              .select('status, muxPlaybackId')
+              .eq('id', videoId)
+              .single();
+
+            if (error) {
+              console.error('Error checking video status:', error);
+              return false;
+            }
+
+            if (video?.status === 'READY' && video?.muxPlaybackId) {
+              setMuxPlaybackId(video.muxPlaybackId);
+              setProcessingState('ready');
+              return true;
+            }
+
+            if (video?.status === 'ERRORED') {
+              setError('Video processing failed');
+              setProcessingState('error');
+              return true;
+            }
+
+            return false;
+          };
+
+          const pollStatus = async () => {
+            while (attempts < maxAttempts) {
+              const isComplete = await checkVideoStatus();
+              if (isComplete) return;
+              
+              await new Promise(resolve => setTimeout(resolve, pollInterval));
+              attempts++;
+            }
+
+            setError('Video processing timed out');
+            setProcessingState('error');
+          };
+
+          await pollStatus();
+        } else {
+          throw new Error('No video ID returned');
+        }
+      } catch (error) {
+        console.error('Error saving video:', error);
+        setError('Failed to save video. Please try again.');
+        setProcessingState('error');
+        throw error;
+      }
     } catch (error) {
-      console.error('Error saving video:', error);
+      console.error('Error in handleSave:', error);
       setError('Failed to save video. Please try again.');
       setProcessingState('error');
     }
@@ -460,12 +529,8 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
       timerRef.current = null;
     }
 
-    // Call parent handlers
-    onCancel();
+    // Call parent handler to close
     onClose();
-
-    // Force a page refresh to ensure camera is fully stopped
-    window.location.reload();
   };
 
   const handleRetake = useCallback(() => {

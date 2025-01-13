@@ -32,12 +32,12 @@ export function UploadPopup({
 }: UploadPopupProps) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col" aria-describedby="upload-popup-description">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden" aria-describedby="upload-popup-description">
         <DialogHeader>
           <DialogTitle>Upload Video</DialogTitle>
           <DialogDescription id="upload-popup-description">Record or upload a video response to share with your family.</DialogDescription>
         </DialogHeader>
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           <UploadInterface
             promptId={promptId}
             onUploadSuccess={onUploadSuccess}

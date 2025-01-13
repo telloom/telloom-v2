@@ -39,12 +39,14 @@ export function VideoPopup({
 }: VideoPopupProps) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-6 m-4" aria-describedby="video-dialog-description">
+      <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-6 m-4 overflow-hidden" aria-describedby="video-dialog-description">
         <DialogHeader>
           <DialogTitle>{promptText}</DialogTitle>
-          <DialogDescription id="video-dialog-description">Watch and respond to the video prompt.</DialogDescription>
+          <DialogDescription id="video-dialog-description">
+            {videoId ? "Watch and respond to the video prompt." : "Record your video response."}
+          </DialogDescription>
         </DialogHeader>
-        <div className="flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="flex items-center justify-center p-4 relative flex-1 min-h-0 overflow-auto">
           {/* Navigation buttons */}
           {hasPrevious && (
             <Button

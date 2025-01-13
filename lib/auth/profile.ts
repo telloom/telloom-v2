@@ -4,8 +4,11 @@ export async function getProfile(authHeader: string) {
   try {
     const supabase = createClient();
     
+    // Extract just the token from the Authorization header
+    const token = authHeader.replace('Bearer ', '');
+    
     // Get the current user's session
-    const { data: { user }, error: userError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     if (userError || !user) {
       console.error('Error getting user:', userError);
       return null;
