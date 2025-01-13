@@ -14,9 +14,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useRouter } from 'next/navigation';
 import { generateAISummary } from '@/utils/generateAISummary';
 import { cleanTranscript } from '@/utils/cleanTranscript';
-import { VideoResponseSectionProps } from '@/types/models';
+import { VideoResponseSectionProps, PersonRelation } from '@/types/models';
 import { AttachmentDialog } from '@/components/AttachmentDialog';
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
+import { urlCache } from '@/utils/url-cache';
 
 // Dynamically import components that could cause hydration issues
 const MuxPlayer = dynamic(
@@ -28,6 +29,25 @@ const AttachmentUpload = dynamic(
   () => import('@/components/AttachmentUpload').then(mod => mod.default),
   { ssr: false }
 );
+
+// Add this type definition near the top of the file
+interface Attachment {
+  id: string;
+  fileUrl: string;
+  fileType: string;
+  fileName: string;
+  description?: string;
+  dateCaptured?: string;
+  yearCaptured?: number;
+  signedUrl?: string;
+  PromptResponseAttachmentPersonTag?: Array<{
+    PersonTag: {
+      id: string;
+      name: string;
+      relation: PersonRelation;
+    };
+  }>;
+}
 
 export function VideoResponseSection({ promptId, promptText, promptCategory, response }: VideoResponseSectionProps) {
   const router = useRouter();
@@ -41,8 +61,8 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
   const [summary, setSummary] = useState(response?.summary || '');
   const [responseNotes, setResponseNotes] = useState(response?.responseNotes || '');
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
-  const [attachments, setAttachments] = useState(response?.PromptResponseAttachment || []);
-  const [imageAttachments, setImageAttachments] = useState<typeof attachments>([]);
+  const [attachments, setAttachments] = useState<Attachment[]>(response?.PromptResponseAttachment || []);
+  const [imageAttachments, setImageAttachments] = useState<Attachment[]>([]);
   const [gallerySignedUrls, setGallerySignedUrls] = useState<{ [key: string]: string }>({});
   const [isCleaningTranscript, setIsCleaningTranscript] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
@@ -75,7 +95,14 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
           fileName,
           description,
           dateCaptured,
-          yearCaptured
+          yearCaptured,
+          PromptResponseAttachmentPersonTag (
+            PersonTag (
+              id,
+              name,
+              relation
+            )
+          )
         )
       `)
       .eq('id', response.id)
@@ -87,14 +114,28 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
     }
 
     if (updatedResponse?.PromptResponseAttachment) {
+      // Clear URL cache for removed attachments
+      const newAttachmentIds = new Set(updatedResponse.PromptResponseAttachment.map(a => a.id));
+      attachments.forEach(oldAttachment => {
+        if (!newAttachmentIds.has(oldAttachment.id)) {
+          urlCache.clear();
+        }
+      });
+
       setAttachments(updatedResponse.PromptResponseAttachment);
-      setGallerySignedUrls({});
     }
   };
 
-  // Initial setup of attachments
+  // Initial setup of attachments with caching
   useEffect(() => {
     if (response?.PromptResponseAttachment) {
+      // Pre-cache any existing signed URLs
+      response.PromptResponseAttachment.forEach(attachment => {
+        if (attachment.signedUrl) {
+          urlCache.set(attachment.id, attachment.signedUrl);
+        }
+      });
+      
       setAttachments(response.PromptResponseAttachment);
     }
   }, [response?.PromptResponseAttachment]);
@@ -293,6 +334,7 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
           ? attachment.fileUrl.split('attachments/')[1]
           : attachment.fileUrl;
           
+        // Delete from storage
         const { error: storageError } = await supabase
           .storage
           .from('attachments')
@@ -301,6 +343,7 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
         if (storageError) throw storageError;
       }
 
+      // Delete from database
       const { error: dbError } = await supabase
         .from('PromptResponseAttachment')
         .delete()
@@ -308,16 +351,17 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
 
       if (dbError) throw dbError;
 
+      // Clear cache and update state
+      urlCache.clear();
       setShowDeleteConfirm(false);
       setSelectedImageIndex(null);
       setAttachmentToDelete(null);
-      setAttachments([]);
-      setImageAttachments([]);
-      setGallerySignedUrls({});
+      
+      // Update local state to avoid a full page reload
+      setAttachments(prev => prev.filter(a => a.id !== attachmentToDelete));
+      setImageAttachments(prev => prev.filter(a => a.id !== attachmentToDelete));
       
       toast.success('Attachment deleted successfully');
-      window.location.reload();
-      
     } catch (error) {
       console.error('Error deleting attachment:', error);
       toast.error('Failed to delete attachment');
@@ -335,9 +379,25 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
     yearCaptured?: number;
   }) => {
     try {
-      const signedUrl = await getSignedUrl(attachment.fileUrl);
+      // Check cache first
+      let signedUrl = urlCache.get(attachment.id);
+      
       if (!signedUrl) {
-        throw new Error('Failed to get download URL');
+        const filePath = attachment.fileUrl.includes('attachments/') 
+          ? attachment.fileUrl.split('attachments/')[1]
+          : attachment.fileUrl;
+        
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .storage
+          .from('attachments')
+          .createSignedUrl(filePath, 3600);
+
+        if (error) throw error;
+        if (!data?.signedUrl) throw new Error('Failed to get download URL');
+        
+        signedUrl = data.signedUrl;
+        urlCache.set(attachment.id, signedUrl);
       }
 
       const response = await fetch(signedUrl);
@@ -352,7 +412,6 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
       document.body.removeChild(link);
 
       window.URL.revokeObjectURL(url);
-
       toast.success('Download started');
     } catch (error) {
       console.error('Error downloading attachment:', error);

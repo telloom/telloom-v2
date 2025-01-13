@@ -4,7 +4,7 @@
  * date captured, year, and person tags. Supports image preview and navigation between multiple attachments.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import { createClient } from '@/utils/supabase/client';
 import { FileText, Tag, X, Edit, Check, ChevronLeft, ChevronRight, PlusCircle, Loader2, ImageOff, Download, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from "@/components/ui/badge";
-import { person_relation } from '@prisma/client';
+import { PersonRelation, PersonTag, PromptResponseAttachmentPersonTag as PromptResponseAttachmentPersonTagType } from '@/types/models';
 import {
   Select,
   SelectContent,
@@ -36,30 +36,10 @@ import {
 } from "@/components/ui/popover";
 import NextImage from 'next/image';
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
+import { urlCache } from '@/utils/url-cache';
 
-// Define the enum values since they might not be available at runtime
-const PersonRelation = {
-  Mother: 'Mother',
-  Father: 'Father',
-  Sister: 'Sister',
-  Brother: 'Brother',
-  Daughter: 'Daughter',
-  Son: 'Son',
-  Grandmother: 'Grandmother',
-  Grandfather: 'Grandfather',
-  Spouse: 'Spouse',
-  Partner: 'Partner',
-  Friend: 'Friend',
-  Other: 'Other'
-} as const;
-
-type PersonRelationType = typeof PersonRelation[keyof typeof PersonRelation];
-
-interface PersonTag {
-  id: string;
-  name: string;
-  relation: PersonRelationType;
-}
+// Remove the local PersonRelation constant and update the type
+type PersonRelationType = PersonRelation;
 
 interface Attachment {
   id: string;
@@ -67,10 +47,10 @@ interface Attachment {
   displayUrl?: string;
   fileType: string;
   fileName: string;
-  description?: string;
-  dateCaptured?: string;
-  yearCaptured?: number;
-  PersonTags?: PersonTag[];
+  description: string | null;
+  dateCaptured: string | null;
+  yearCaptured: number | null;
+  PersonTags: PersonTag[];
 }
 
 interface PromptResponseAttachmentPersonTag {
@@ -78,7 +58,7 @@ interface PromptResponseAttachmentPersonTag {
 }
 
 interface AttachmentWithNestedTags extends Omit<Attachment, 'PersonTags'> {
-  PersonTags: PromptResponseAttachmentPersonTag[];
+  PersonTags: PromptResponseAttachmentPersonTagType[];
 }
 
 interface AttachmentWithTags {
@@ -87,11 +67,7 @@ interface AttachmentWithTags {
   dateCaptured: string | null;
   yearCaptured: number | null;
   PromptResponseAttachmentPersonTag: Array<{
-    PersonTag: {
-      id: string;
-      name: string;
-      relation: PersonRelationType;
-    };
+    PersonTag: PersonTag;
   }>;
 }
 
@@ -104,7 +80,7 @@ interface AttachmentDialogProps {
   hasNext?: boolean;
   hasPrevious?: boolean;
   signedUrl?: string;
-  onSave?: () => Promise<void>;
+  onSave?: (attachment: Attachment) => Promise<void>;
   onDelete?: (attachmentId: string) => Promise<void>;
   onDownload?: (attachment: Attachment) => Promise<void>;
 }
@@ -123,84 +99,323 @@ export function AttachmentDialog({
   onDownload
 }: AttachmentDialogProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [description, setDescription] = useState(attachment?.description || '');
-  const [dateCaptured, setDateCaptured] = useState(attachment?.dateCaptured || '');
-  const [yearCaptured, setYearCaptured] = useState(attachment?.yearCaptured?.toString() || '');
-  const [selectedTags, setSelectedTags] = useState<PersonTag[]>(attachment?.PersonTags || []);
-  const [existingTags, setExistingTags] = useState<PersonTag[]>([]);
+  const [editingAttachment, setEditingAttachment] = useState<Attachment | null>(null);
+  const [imageLoading, setImageLoading] = useState(true);
+  const [signedUrl, setSignedUrl] = useState<string | undefined>(initialSignedUrl);
   const [isLoading, setIsLoading] = useState(false);
   const [isAddingNewTag, setIsAddingNewTag] = useState(false);
   const [newTagName, setNewTagName] = useState('');
-  const [newTagRelation, setNewTagRelation] = useState<PersonRelationType>(PersonRelation.Other);
-  const [imageLoading, setImageLoading] = useState(true);
-  const [imageError, setImageError] = useState(false);
-  const [currentSignedUrl, setCurrentSignedUrl] = useState<string | undefined>(initialSignedUrl);
+  const [newTagRelation, setNewTagRelation] = useState<PersonRelation | ''>('');
+  const [existingTags, setExistingTags] = useState<PersonTag[]>([]);
+  const [selectedTags, setSelectedTags] = useState<PersonTag[]>([]);
+  const [profileSharerId, setProfileSharerId] = useState<string>('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Function to get signed URL
-  const getSignedUrl = async (fileUrl: string) => {
-    const supabase = createClient();
-    const filePath = fileUrl.includes('attachments/') 
-      ? fileUrl.split('attachments/')[1]
-      : fileUrl;
-    
-    const { data, error } = await supabase
-      .storage
-      .from('attachments')
-      .createSignedUrl(filePath, 3600);
+  // Create client instance once
+  const supabase = useMemo(() => createClient(), []);
 
-    if (error) {
-      console.error('Error getting signed URL:', error);
-      return null;
+  // Reset state when attachment changes
+  useEffect(() => {
+    if (attachment) {
+      const personTags = attachment.PersonTags || [];
+      const safeAttachment: Attachment = {
+        ...attachment,
+        description: attachment.description || null,
+        dateCaptured: attachment.dateCaptured || null,
+        yearCaptured: attachment.yearCaptured || null,
+        PersonTags: personTags
+      };
+      setEditingAttachment(safeAttachment);
+      setSignedUrl(initialSignedUrl);
+      setImageLoading(!initialSignedUrl);
+      setSelectedTags(personTags);
+      setIsEditing(false); // Reset editing state
+    }
+  }, [attachment, initialSignedUrl]);
+
+  // Combine user and profile data fetching into a single effect
+  useEffect(() => {
+    let mounted = true;
+    
+    async function fetchData() {
+      if (!isOpen || !attachment?.id) return;
+
+      try {
+        const supabase = createClient();
+        
+        // Get user and profile data first
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError) throw userError;
+        if (!user || !mounted) return;
+
+        // Get profile data
+        const { data: profileSharer, error: profileError } = await supabase
+          .from('ProfileSharer')
+          .select('id')
+          .eq('profileId', user.id)
+          .single();
+
+        if (profileError) throw profileError;
+        if (!profileSharer || !mounted) return;
+
+        setProfileSharerId(profileSharer.id);
+
+        // Fetch attachment data with all related information
+        const { data: attachmentData, error: attachmentError } = await supabase
+          .from('PromptResponseAttachment')
+          .select(`
+            *,
+            PromptResponseAttachmentPersonTag (
+              PersonTag (
+                id,
+                name,
+                relation,
+                profileSharerId
+              )
+            )
+          `)
+          .eq('id', attachment.id)
+          .single();
+
+        if (attachmentError) throw attachmentError;
+        if (!mounted) return;
+
+        // Fetch all available tags for this profile
+        const { data: tags, error: tagsError } = await supabase
+          .from('PersonTag')
+          .select('*')
+          .eq('profileSharerId', profileSharer.id);
+
+        if (tagsError) throw tagsError;
+        if (!mounted) return;
+
+        if (tags) {
+          setExistingTags(tags);
+        }
+
+        // Process attachment data
+        if (attachmentData) {
+          const personTags = attachmentData.PromptResponseAttachmentPersonTag
+            ?.map((pt: { PersonTag: PersonTag }) => pt.PersonTag)
+            .filter(Boolean) || [];
+
+          const processedAttachment: Attachment = {
+            ...attachmentData,
+            PersonTags: personTags,
+            description: attachmentData.description || null,
+            dateCaptured: attachmentData.dateCaptured || null,
+            yearCaptured: attachmentData.yearCaptured || null
+          };
+
+          setEditingAttachment(processedAttachment);
+          setSelectedTags(personTags);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast.error('Failed to load data');
+      }
     }
 
-    return data?.signedUrl;
-  };
+    fetchData();
+    return () => { mounted = false; };
+  }, [isOpen, attachment?.id]);
 
-  // Handle attachment change
+  // Optimize URL handling
   useEffect(() => {
-    const updateAttachment = async () => {
-      if (!attachment) return;
+    let mounted = true;
 
-      setImageLoading(true);
-      setImageError(false);
+    async function getSignedUrl() {
+      if (!attachment?.fileUrl || signedUrl) return;
 
-      // If we have an initial signed URL, use it
-      if (initialSignedUrl) {
-        setCurrentSignedUrl(initialSignedUrl);
-        setImageLoading(false);
-        return;
+      try {
+        const cachedUrl = urlCache.get(attachment.id);
+        if (cachedUrl) {
+          setSignedUrl(cachedUrl);
+          setImageLoading(false);
+          return;
+        }
+
+        const filePath = attachment.fileUrl.includes('attachments/') 
+          ? attachment.fileUrl.split('attachments/')[1]
+          : attachment.fileUrl;
+        
+        const { data, error } = await supabase
+          .storage
+          .from('attachments')
+          .createSignedUrl(filePath, 3600);
+
+        if (!mounted) return;
+
+        if (error) throw error;
+
+        if (data?.signedUrl) {
+          urlCache.set(attachment.id, data.signedUrl, 3500);
+          setSignedUrl(data.signedUrl);
+        }
+      } catch (error) {
+        console.error('Error getting signed URL:', error);
+        toast.error('Failed to load image');
+      } finally {
+        if (mounted) {
+          setImageLoading(false);
+        }
       }
+    }
 
-      // Otherwise get a new signed URL
-      const newSignedUrl = await getSignedUrl(attachment.fileUrl);
-      if (newSignedUrl) {
-        setCurrentSignedUrl(newSignedUrl);
-        setImageError(false);
-      } else {
-        setImageError(true);
-      }
-      setImageLoading(false);
-    };
+    getSignedUrl();
+    return () => { mounted = false; };
+  }, [attachment?.id, attachment?.fileUrl, signedUrl, supabase]);
 
-    updateAttachment();
-  }, [attachment?.id, initialSignedUrl]);
+  const removeTag = useCallback((tagId: string) => {
+    setSelectedTags(prev => prev.filter(tag => tag.id !== tagId));
+  }, []);
 
-  // Pre-fetch next and previous signed URLs
   useEffect(() => {
-    if (!hasNext && !hasPrevious) return;
-
-    const prefetchUrls = async () => {
-      if (attachment && !initialSignedUrl && !currentSignedUrl) {
-        const newSignedUrl = await getSignedUrl(attachment.fileUrl);
-        if (newSignedUrl) {
-          setCurrentSignedUrl(newSignedUrl);
+    const fetchProfileSharerId = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('ProfileSharer')
+          .select('id')
+          .eq('profileId', user.id)
+          .single();
+        if (profile) {
+          setProfileSharerId(profile.id);
         }
       }
     };
+    fetchProfileSharerId();
+  }, []);
 
-    prefetchUrls();
-  }, [hasNext, hasPrevious, attachment?.fileUrl, initialSignedUrl, currentSignedUrl]);
+  const handleAddNewTag = async () => {
+    if (!newTagName || !newTagRelation || !profileSharerId) return;
+
+    const supabase = createClient();
+    const { data: newTag, error } = await supabase
+      .from('PersonTag')
+      .insert({
+        name: newTagName,
+        relation: newTagRelation,
+        profileSharerId
+      })
+      .select()
+      .single();
+
+    if (error) {
+      toast.error('Failed to create new tag');
+      return;
+    }
+
+    if (newTag) {
+      setSelectedTags(prev => [...prev, newTag]);
+      setExistingTags(prev => [...prev, newTag]);
+      setNewTagName('');
+      setNewTagRelation('');
+      setIsAddingNewTag(false);
+    }
+  };
+
+  const handleSave = useCallback(async () => {
+    if (!editingAttachment || !onSave) return;
+
+    try {
+      setIsLoading(true);
+      const supabase = createClient();
+
+      // Update attachment metadata
+      const { error: updateError } = await supabase
+        .from('PromptResponseAttachment')
+        .update({
+          description: editingAttachment.description,
+          dateCaptured: editingAttachment.dateCaptured,
+          yearCaptured: editingAttachment.yearCaptured
+        })
+        .eq('id', editingAttachment.id);
+
+      if (updateError) throw updateError;
+
+      // Remove existing tags
+      const { error: deleteError } = await supabase
+        .from('PromptResponseAttachmentPersonTag')
+        .delete()
+        .eq('promptResponseAttachmentId', editingAttachment.id);
+
+      if (deleteError) throw deleteError;
+
+      // Add new tags
+      if (selectedTags.length > 0) {
+        const { error: tagError } = await supabase
+          .from('PromptResponseAttachmentPersonTag')
+          .insert(
+            selectedTags.map(tag => ({
+              promptResponseAttachmentId: editingAttachment.id,
+              personTagId: tag.id
+            }))
+          );
+
+        if (tagError) throw tagError;
+      }
+
+      const updatedAttachment: Attachment = {
+        ...editingAttachment,
+        PersonTags: selectedTags
+      };
+
+      // Call onSave without awaiting to prevent dialog close
+      onSave(updatedAttachment);
+      
+      // Refetch the data to ensure we have the latest state
+      const { data: refreshedData, error: refreshError } = await supabase
+        .from('PromptResponseAttachment')
+        .select(`
+          *,
+          PromptResponseAttachmentPersonTag (
+            PersonTag (
+              id,
+              name,
+              relation,
+              profileSharerId
+            )
+          )
+        `)
+        .eq('id', editingAttachment.id)
+        .single();
+
+      if (!refreshError && refreshedData) {
+        const personTags = refreshedData.PromptResponseAttachmentPersonTag
+          ?.map((pt: { PersonTag: PersonTag }) => pt.PersonTag)
+          .filter(Boolean) || [];
+
+        const processedAttachment: Attachment = {
+          ...refreshedData,
+          PersonTags: personTags,
+          description: refreshedData.description || null,
+          dateCaptured: refreshedData.dateCaptured || null,
+          yearCaptured: refreshedData.yearCaptured || null
+        };
+
+        setEditingAttachment(processedAttachment);
+        setSelectedTags(personTags);
+      }
+
+      setIsEditing(false);
+      toast.success('Changes saved successfully');
+    } catch (error) {
+      console.error('Error saving attachment:', error);
+      toast.error('Failed to save changes');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [editingAttachment, onSave, selectedTags]);
+
+  const handleClose = useCallback(() => {
+    if (!isLoading) {
+      setIsEditing(false);
+      setEditingAttachment(null);
+      onClose();
+    }
+  }, [onClose, isLoading]);
 
   // Handle navigation
   const handleNavigation = async (direction: 'next' | 'previous') => {
@@ -212,206 +427,37 @@ export function AttachmentDialog({
     }
   };
 
-  useEffect(() => {
-    const fetchAttachmentData = async () => {
-      if (!attachment?.id || !isOpen) return;
-
-      const supabase = createClient();
-      
-      // Fetch the attachment with its tags
-      const { data: attachmentData, error } = await supabase
-        .from('PromptResponseAttachment')
-        .select(`
-          *,
-          PromptResponseAttachmentPersonTag (
-            PersonTag (
-              id,
-              name,
-              relation
-            )
-          )
-        `)
-        .eq('id', attachment.id)
-        .single();
-
-      if (error) {
-        console.error('Error fetching attachment data:', error);
-        return;
-      }
-
-      if (attachmentData) {
-        // Transform the nested tags data
-        const personTags = (attachmentData as AttachmentWithTags).PromptResponseAttachmentPersonTag
-          ?.map((pt: { PersonTag: PersonTag }) => pt.PersonTag)
-          .filter(Boolean) || [];
-
-        setDescription(attachmentData.description || '');
-        setDateCaptured(attachmentData.dateCaptured || '');
-        setYearCaptured(attachmentData.yearCaptured?.toString() || '');
-        setSelectedTags(personTags);
-      }
-    };
-
-    fetchAttachmentData();
-  }, [attachment?.id, isOpen]);
-
-  useEffect(() => {
-    const fetchTags = async () => {
-      if (!isOpen) return;
-
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const { data: profileSharer } = await supabase
-        .from('ProfileSharer')
-        .select('id')
-        .eq('profileId', session.user.id)
-        .single();
-
-      if (!profileSharer) return;
-
-      const { data: tags } = await supabase
-        .from('PersonTag')
-        .select('*')
-        .eq('profileSharerId', profileSharer.id);
-
-      if (tags) {
-        setExistingTags(tags);
-      }
-    };
-
-    fetchTags();
-  }, [isOpen]);
-
-  const handleSave = async () => {
-    if (!attachment) return;
-
-    setIsLoading(true);
-    const supabase = createClient();
-
-    try {
-      // Update attachment metadata
-      const { error: updateError } = await supabase
-        .from('PromptResponseAttachment')
-        .update({
-          description,
-          dateCaptured: dateCaptured || null,
-          yearCaptured: yearCaptured ? parseInt(yearCaptured) : null
-        })
-        .eq('id', attachment.id);
-
-      if (updateError) {
-        console.error('Error updating attachment metadata:', updateError.message, updateError.details);
-        throw new Error(`Failed to update attachment: ${updateError.message}`);
-      }
-
-      // Delete existing tags
-      const { error: deleteError } = await supabase
-        .from('PromptResponseAttachmentPersonTag')
-        .delete()
-        .eq('promptResponseAttachmentId', attachment.id);
-
-      if (deleteError) {
-        console.error('Error deleting existing tags:', deleteError.message, deleteError.details);
-        throw new Error(`Failed to delete existing tags: ${deleteError.message}`);
-      }
-
-      // Add new tags
-      if (selectedTags.length > 0) {
-        const { error: tagError } = await supabase
-          .from('PromptResponseAttachmentPersonTag')
-          .insert(
-            selectedTags.map(tag => ({
-              promptResponseAttachmentId: attachment.id,
-              personTagId: tag.id
-            }))
-          );
-
-        if (tagError) {
-          console.error('Error adding new tags:', tagError.message, tagError.details);
-          throw new Error(`Failed to add new tags: ${tagError.message}`);
-        }
-      }
-
-      // Call onSave to refresh parent data
-      if (onSave) {
-        await onSave();
-      }
-
-      toast.success('Attachment updated successfully');
-      setIsEditing(false);
-
-    } catch (error) {
-      console.error('Error updating attachment:', error instanceof Error ? error.message : 'Unknown error');
-      toast.error(error instanceof Error ? error.message : 'Failed to update attachment');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const removeTag = (tagId: string) => {
-    setSelectedTags(prev => prev.filter(tag => tag.id !== tagId));
-  };
-
-  const handleAddNewTag = async () => {
-    if (!newTagName.trim()) return;
-
-    const supabase = createClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
-    const { data: profileSharer } = await supabase
-      .from('ProfileSharer')
-      .select('id')
-      .eq('profileId', session.user.id)
-      .single();
-
-    if (!profileSharer) return;
-
-    try {
-      const { data: newTag, error } = await supabase
-        .from('PersonTag')
-        .insert({
-          name: newTagName.trim(),
-          relation: newTagRelation,
-          profileSharerId: profileSharer.id
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      setExistingTags(prev => [...prev, newTag]);
-      setSelectedTags(prev => [...prev, newTag]);
-      setNewTagName('');
-      setNewTagRelation(PersonRelation.Other);
-      setIsAddingNewTag(false);
-      toast.success('Person added successfully');
-    } catch (error) {
-      console.error('Error adding new person:', error);
-      toast.error('Failed to add person');
-    }
-  };
-
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = () => {
     if (onDelete && attachment) {
       onDelete(attachment.id);
       onClose();
     }
+    setShowDeleteConfirm(false);
   };
 
   if (!attachment) return null;
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={onClose}>
+      <Dialog 
+        open={isOpen} 
+        onOpenChange={(open) => {
+          if (!isLoading && !open) {
+            handleClose();
+          }
+        }}
+      >
         <DialogContent 
-          className="max-w-5xl h-[90vh] flex flex-col p-0 lg:p-6 m-0 lg:m-4 overflow-y-auto lg:overflow-hidden" 
+          className="max-w-5xl h-[90vh] flex flex-col p-0 lg:p-6 m-0 lg:m-4 overflow-y-auto lg:overflow-hidden"
+          aria-describedby="dialog-description"
         >
-          <div className="sr-only">
+          <div className="sr-only" id="dialog-description">
             <DialogHeader>
               <DialogTitle>View Attachment</DialogTitle>
               <DialogDescription>
@@ -433,7 +479,7 @@ export function AttachmentDialog({
                 )}
                 {attachment.fileType === 'application/pdf' ? (
                   <iframe
-                    src={currentSignedUrl + '#toolbar=0'}
+                    src={signedUrl + '#toolbar=0'}
                     className="w-full h-full"
                     title="PDF viewer"
                     style={{ backgroundColor: 'white' }}
@@ -443,7 +489,7 @@ export function AttachmentDialog({
                     attachment={{
                       ...attachment,
                       fileUrl: attachment.displayUrl || attachment.fileUrl,
-                      signedUrl: currentSignedUrl
+                      signedUrl: signedUrl
                     }}
                     size="lg"
                     className="w-full h-full object-contain"
@@ -482,23 +528,51 @@ export function AttachmentDialog({
                   )}
                 </div>
                 <div className="flex gap-2">
-                  {onDownload && attachment && (
+                  {onDownload && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => onDownload(attachment)}
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        try {
+                          const filePath = attachment.fileUrl.includes('attachments/') 
+                            ? attachment.fileUrl.split('attachments/')[1]
+                            : attachment.fileUrl;
+                          
+                          const { data, error } = await supabase.storage
+                            .from('attachments')
+                            .download(filePath);
+
+                          if (error) throw error;
+
+                          if (data) {
+                            const url = URL.createObjectURL(data);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = attachment.fileName;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            URL.revokeObjectURL(url);
+                          }
+                        } catch (error) {
+                          console.error('Error downloading file:', error);
+                          toast.error('Failed to download file');
+                        }
+                      }}
                       className="rounded-full"
                     >
                       <Download className="h-4 w-4 mr-2" />
                       Download
                     </Button>
                   )}
-                  {onDelete && attachment && (
+                  {onDelete && (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={handleDeleteClick}
-                      className="rounded-full text-red-600 hover:bg-red-50"
+                      className="rounded-full text-red-500 hover:text-white hover:bg-red-500 hover:border-red-500"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
                       Delete
@@ -541,8 +615,14 @@ export function AttachmentDialog({
                   <Label htmlFor="attachment-description">Description</Label>
                   <Textarea
                     id="attachment-description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    value={editingAttachment?.description || ''}
+                    onChange={(e) => setEditingAttachment(prev => {
+                      if (!prev) return prev;
+                      return {
+                        ...prev,
+                        description: e.target.value
+                      };
+                    })}
                     disabled={!isEditing}
                     tabIndex={isEditing ? 0 : -1}
                   />
@@ -558,8 +638,14 @@ export function AttachmentDialog({
                     <Input
                       id="attachment-date"
                       type="date"
-                      value={dateCaptured}
-                      onChange={(e) => setDateCaptured(e.target.value)}
+                      value={editingAttachment?.dateCaptured || ''}
+                      onChange={(e) => setEditingAttachment(prev => {
+                        if (!prev) return prev;
+                        return {
+                          ...prev,
+                          dateCaptured: e.target.value
+                        };
+                      })}
                       disabled={!isEditing}
                       style={{ colorScheme: 'light' }}
                       tabIndex={isEditing ? 0 : -1}
@@ -576,8 +662,14 @@ export function AttachmentDialog({
                       type="number"
                       min="1800"
                       max={new Date().getFullYear()}
-                      value={yearCaptured}
-                      onChange={(e) => setYearCaptured(e.target.value)}
+                      value={editingAttachment?.yearCaptured?.toString() || ''}
+                      onChange={(e) => setEditingAttachment(prev => {
+                        if (!prev) return prev;
+                        return {
+                          ...prev,
+                          yearCaptured: e.target.value ? parseInt(e.target.value) : null
+                        };
+                      })}
                       disabled={!isEditing}
                       placeholder="e.g., 1999"
                       tabIndex={isEditing ? 0 : -1}
@@ -635,10 +727,15 @@ export function AttachmentDialog({
                   {/* New Tag Dialog */}
                   {isAddingNewTag && (
                     <Dialog open={isAddingNewTag} onOpenChange={(open) => !open && setIsAddingNewTag(false)}>
-                      <DialogContent className="max-w-md" aria-describedby="new-tag-dialog-description">
+                      <DialogContent 
+                        className="max-w-md" 
+                        aria-describedby="new-tag-dialog-description"
+                      >
                         <DialogHeader>
                           <DialogTitle>Add New Person</DialogTitle>
-                          <DialogDescription id="new-tag-dialog-description">Add a new person to tag in your attachments.</DialogDescription>
+                          <DialogDescription id="new-tag-dialog-description">
+                            Add a new person to tag in your attachments.
+                          </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4">
                           <div>
@@ -728,6 +825,36 @@ export function AttachmentDialog({
                 </div>
               </div>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Delete Attachment</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this attachment? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDeleteConfirm(false)}
+              className="rounded-full border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] transition-colors duration-200"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleConfirmDelete}
+              className="rounded-full bg-red-600 hover:bg-red-700 transition-colors duration-200"
+            >
+              Delete
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

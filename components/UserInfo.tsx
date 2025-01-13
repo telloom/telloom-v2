@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { User } from '@supabase/supabase-js';
+import { User, AuthChangeEvent } from '@supabase/supabase-js';
 
 export default function UserInfo() {
   const [user, setUser] = useState<User | null>(null);
@@ -19,8 +19,12 @@ export default function UserInfo() {
     getUser();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setUser(session?.user ?? null);
+      async (event: AuthChangeEvent) => {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          await getUser();
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+        }
       }
     );
 

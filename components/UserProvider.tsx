@@ -5,7 +5,8 @@
 import { useUserStore } from '@/stores/userStore';
 import { User } from '@supabase/supabase-js';
 import { useEffect } from 'react';
-import { Profile } from '@prisma/client';
+import { Profile } from '@/types/models';
+import { createClient } from '@/utils/supabase/client';
 
 interface UserProviderProps {
   initialUser: User | null;

@@ -10,7 +10,7 @@ import { RecordingInterface } from '@/components/RecordingInterface';
 import { VideoPopup } from '@/components/VideoPopup';
 import { UploadPopup } from '@/components/UploadPopup';
 import { ArrowLeft, Video as VideoIcon, Play, CheckCircle2, LayoutGrid, Table as TableIcon, Upload, Paperclip } from 'lucide-react';
-import { PromptCategory, Prompt, PromptResponse, PromptResponseAttachment, Video } from '@/types/models';
+import { PromptCategory, Prompt, PromptResponse, PromptResponseAttachment, Video, PersonTag, PersonRelation } from '@/types/models';
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -30,11 +30,21 @@ import Image from 'next/image';
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
 import { AttachmentDialog } from '@/components/AttachmentDialog';
 
-// Dynamically import AttachmentUpload with no SSR
-const AttachmentUpload = dynamic(
-  () => import('@/components/AttachmentUpload').then(mod => ({ default: mod.AttachmentUpload })),
-  { ssr: false }
-);
+interface Attachment {
+  id: string;
+  fileUrl: string;
+  displayUrl?: string;
+  fileType: string;
+  fileName: string;
+  description: string | null;
+  dateCaptured: string | null;
+  yearCaptured: number | null;
+  PersonTags: PersonTag[];
+}
+
+const AttachmentUpload = dynamic(() => import('@/components/AttachmentUpload'), {
+  ssr: false
+});
 
 interface SupabaseVideoTranscript {
   id: string;
@@ -55,7 +65,7 @@ interface SupabasePromptResponseAttachment {
   fileName: string;
   description: string | null;
   dateCaptured: string | null;
-  yearCaptured: number | null;
+  yearCaptured?: number | null;
 }
 
 interface SupabasePromptResponse {
@@ -213,6 +223,60 @@ const TopicPageContent = ({
 
       const attachments = promptResponse.PromptResponseAttachment as PromptResponseAttachment[];
 
+      const handleDownload = async (attachment: Attachment) => {
+        try {
+          const supabase = createClient();
+          const filePath = attachment.fileUrl.includes('attachments/') 
+            ? attachment.fileUrl.split('attachments/')[1]
+            : attachment.fileUrl;
+          
+          const { data, error } = await supabase.storage
+            .from('attachments')
+            .createSignedUrl(filePath, 60);
+
+          if (error) throw error;
+
+          if (data?.signedUrl) {
+            const link = document.createElement('a');
+            link.href = data.signedUrl;
+            link.download = attachment.fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }
+        } catch (error) {
+          console.error('Error downloading file:', error);
+          toast.error('Failed to download file');
+        }
+      };
+
+      const handleDelete = async (attachmentId: string) => {
+        try {
+          const supabase = createClient();
+          const { error } = await supabase
+            .from('PromptResponseAttachment')
+            .delete()
+            .eq('id', attachmentId);
+
+          if (error) throw error;
+          
+          toast.success('Attachment deleted successfully');
+          refreshData();
+          setSelectedAttachment(null);
+        } catch (error) {
+          console.error('Error deleting attachment:', error);
+          toast.error('Failed to delete attachment');
+        }
+      };
+
+      const handleSave = async (updatedAttachment: Attachment) => {
+        try {
+          await refreshData();
+        } catch (error) {
+          console.error('Error refreshing data after save:', error);
+        }
+      };
+
       return (
         <>
           <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
@@ -284,15 +348,9 @@ const TopicPageContent = ({
                         }) : undefined}
                       hasNext={selectedAttachment.currentIndex < selectedAttachment.attachments.length - 1}
                       hasPrevious={selectedAttachment.currentIndex > 0}
-                      onSave={async () => {
-                        try {
-                          await refreshData();
-                          toast.success('Changes saved successfully');
-                        } catch (error) {
-                          console.error('Error refreshing data after save:', error);
-                          toast.error('Changes saved but refresh failed');
-                        }
-                      }}
+                      onSave={handleSave}
+                      onDownload={handleDownload}
+                      onDelete={handleDelete}
                     />
                   </div>
                 </div>
@@ -826,293 +884,137 @@ export default function TopicPage() {
   const [selectedPromptResponse, setSelectedPromptResponse] = useState<PromptResponse | null>(null);
   const [currentPromptIndex, setCurrentPromptIndex] = useState<number>(0);
 
-  const refreshData = useCallback(async () => {
-    if (!topicId) {
-      console.error('[refreshData] No topicId provided');
-      return;
-    }
-    
-    try {
-      console.log('[refreshData] Starting refresh for topic:', topicId);
-      const supabase = createClient();
-      
-      // Get session with error handling
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
-        console.error('[refreshData] Session error:', sessionError);
-        throw new Error(`Authentication error: ${sessionError.message}`);
-      }
-
-      if (!session) {
-        console.log('[refreshData] No session found, redirecting to login');
-        router.push('/login');
-        return;
-      }
-
-      console.log('[refreshData] Session found:', session.user.id);
-
-      // Get ProfileSharer record with error handling
-      const { data: profileSharer, error: sharerError } = await supabase
-        .from('ProfileSharer')
-        .select('id')
-        .eq('profileId', session.user.id)
-        .single();
-
-      if (sharerError) {
-        console.error('[refreshData] ProfileSharer error:', sharerError);
-        throw new Error(`Could not find your sharer profile: ${sharerError.message}`);
-      }
-
-      if (!profileSharer) {
-        console.error('[refreshData] No ProfileSharer found for user:', session.user.id);
-        throw new Error('Could not find your sharer profile');
-      }
-
-      console.log('[refreshData] ProfileSharer found:', profileSharer.id);
-
-      // Fetch PromptCategory with error handling
-      const { data: categoryData, error: promptError } = await supabase
-        .from('PromptCategory')
-        .select(`
-          id,
-          category,
-          description,
-          theme,
-          Prompt!inner (
-            id,
-            promptText,
-            promptType,
-            isContextEstablishing,
-            promptCategoryId,
-            PromptResponse!left (
-              id,
-              profileSharerId,
-              responseNotes,
-              createdAt,
-              Video!left (
-                id,
-                muxPlaybackId,
-                muxAssetId,
-                VideoTranscript!left (
-                  id,
-                  transcript
-                )
-              ),
-              PromptResponseAttachment!left (
-                id,
-                fileUrl,
-                fileType,
-                fileName,
-                description,
-                dateCaptured,
-                yearCaptured
-              )
-            )
-          )
-        `)
-        .eq('id', topicId)
-        .throwOnError()
-        .single();
-
-      if (!categoryData) {
-        throw new Error('Topic not found');
-      }
-
-      // Transform the data with error handling
-      try {
-        const transformedData: PromptCategory = {
-          id: categoryData.id,
-          category: categoryData.category || '',
-          description: categoryData.description || '',
-          theme: categoryData.theme || '',
-          prompts: (categoryData.Prompt || []).map((prompt: any): Prompt => {
-            console.log('Fetched prompt:', {
-              id: prompt.id,
-              promptText: prompt.promptText,
-              promptType: prompt.promptType,
-              isContextEstablishing: prompt.isContextEstablishing,
-              promptCategoryId: prompt.promptCategoryId
-            });
-
-            const promptResponses = (prompt.PromptResponse || [])
-              .filter((response: any) => {
-                const matches = response.profileSharerId === profileSharer.id;
-                console.log('Checking response:', {
-                  responseId: response.id,
-                  profileSharerId: response.profileSharerId,
-                  expectedId: profileSharer.id,
-                  matches,
-                  attachments: response.PromptResponseAttachment?.map((att: any) => ({
-                    id: att.id,
-                    fileUrl: att.fileUrl,
-                    fileType: att.fileType,
-                    fileName: att.fileName
-                  }))
-                });
-                return matches;
-              })
-              .map((response: any): PromptResponse => {
-                console.log('Processing response attachments:', {
-                  responseId: response.id,
-                  attachmentCount: response.PromptResponseAttachment?.length,
-                  attachments: response.PromptResponseAttachment?.map((att: any) => ({
-                    id: att.id,
-                    fileUrl: att.fileUrl,
-                    fileType: att.fileType,
-                    fileName: att.fileName
-                  }))
-                });
-
-                return {
-                  id: response.id,
-                  profileSharerId: response.profileSharerId,
-                  summary: response.responseNotes || '',
-                  responseNotes: response.responseNotes || '',
-                  transcription: response.Video?.VideoTranscript?.[0]?.transcript || '',
-                  dateRecorded: null,
-                  createdAt: response.createdAt,
-                  Video: response.Video ? {
-                    id: response.Video.id,
-                    muxPlaybackId: response.Video.muxPlaybackId,
-                    muxAssetId: response.Video.muxAssetId || response.Video.muxPlaybackId,
-                    VideoTranscript: response.Video.VideoTranscript ? [{
-                      id: response.Video.VideoTranscript[0]?.id || '',
-                      transcript: response.Video.VideoTranscript[0]?.transcript || ''
-                    }] : []
-                  } : null,
-                  PromptResponseAttachment: (response.PromptResponseAttachment || []).map((att: DatabasePromptResponseAttachment) => {
-                    console.log('Processing attachment:', {
-                      id: att.id,
-                      fileUrl: att.fileUrl,
-                      fileType: att.fileType,
-                      fileName: att.fileName
-                    });
-                    return {
-                      id: att.id,
-                      promptResponseId: response.id,
-                      fileUrl: att.fileUrl,
-                      fileType: att.fileType,
-                      fileName: att.fileName,
-                      promptResponse: null
-                    };
-                  })
-                };
-              });
-
-            return {
-              id: prompt.id,
-              promptText: prompt.promptText || '',
-              promptType: prompt.promptType || '',
-              isContextEstablishing: prompt.isContextEstablishing || false,
-              promptCategoryId: prompt.promptCategoryId || '',
-              PromptResponse: promptResponses
-            };
-          })
-        };
-
-        console.log('[refreshData] Final transformed data:', {
-          categoryId: transformedData.id,
-          promptCount: transformedData.prompts.length,
-          prompts: transformedData.prompts.map(p => ({
-            id: p.id,
-            responseCount: p.PromptResponse?.length,
-            responses: p.PromptResponse?.map(r => ({
-              id: r.id,
-              hasVideo: !!r.Video,
-              videoId: r.Video?.id,
-              muxPlaybackId: r.Video?.muxPlaybackId
-            }))
-          }))
-        });
-
-        setPromptCategory(transformedData);
-
-        // After setting promptCategory, find and set the current prompt index if promptId exists
-        if (promptId) {
-          const index = transformedData.prompts.findIndex(p => p.id === promptId);
-          if (index !== -1) {
-            setCurrentPromptIndex(index);
-          }
-        }
-      } catch (error) {
-        const e = error as RefreshError;
-        console.error('[refreshData] Error transforming data:', e);
-        throw new Error(`Error transforming data: ${e.message}`);
-      }
-    } catch (error) {
-      const e = error as RefreshError;
-      console.error('[refreshData] Fatal error:', e);
-      throw e;
-    }
-  }, [topicId, router]);
-
   const fetchData = useCallback(async () => {
     if (!topicId) {
       console.error('[fetchData] No topicId provided');
       return;
     }
-    
-    setIsLoading(true);
-    setError(null);
-    
+
     try {
-      console.log('[fetchData] Starting initial fetch for topic:', topicId);
-      await refreshData();
-    } catch (error) {
-      const e = error as RefreshError;
-      console.error('[fetchData] Error:', e);
-      setError(e.message || 'An unexpected error occurred');
+      const supabase = createClient();
       
-      // If it's a 404, redirect to topics page
-      if (e.code === 'PGRST116') {
-        console.log('[fetchData] Topic not found, redirecting');
+      // Get authenticated user with getUser() instead of getSession()
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        console.error('[fetchData] Auth error:', userError);
+        router.push('/auth/signin');
+        return;
+      }
+
+      // Get ProfileSharer record with proper error handling
+      const { data: profileSharerData, error: profileError } = await supabase
+        .from('ProfileSharer')
+        .select('*')
+        .eq('profileId', user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('[fetchData] Profile error:', profileError);
+        if (profileError.code === 'PGRST116' || !profileSharerData) {
+          console.error('[fetchData] No profile found for user');
+          router.push('/role-sharer/topics');
+          return;
+        }
+        throw new Error(`Failed to fetch profile: ${profileError.message}`);
+      }
+
+      if (!profileSharerData) {
+        console.error('[fetchData] No profile found for user');
         router.push('/role-sharer/topics');
         return;
+      }
+
+      // Fetch topic data with all related data in a single query
+      const { data: topicData, error: topicError } = await supabase
+        .from('PromptCategory')
+        .select(`
+          *,
+          prompts:Prompt(
+            *,
+            PromptResponse(
+              *,
+              Video(
+                *,
+                VideoTranscript(*)
+              ),
+              PromptResponseAttachment(*)
+            )
+          )
+        `)
+        .eq('id', topicId)
+        .single();
+
+      if (topicError) {
+        console.error('[fetchData] Topic error:', topicError);
+        throw new Error(`Failed to fetch topic: ${topicError.message}`);
+      }
+
+      setPromptCategory(topicData);
+      setError(null);
+
+    } catch (error) {
+      const e = error as Error;
+      console.error('[fetchData] Error:', e);
+      setError(e.message || 'An unexpected error occurred');
+      if (e.message.includes('Authentication failed')) {
+        router.push('/auth/signin');
       }
     } finally {
       setIsLoading(false);
     }
-  }, [topicId, refreshData, router]);
+  }, [topicId, router]);
 
+  // Initialize data loading when topicId is set
   useEffect(() => {
-    try {
-      if (params && typeof params.id === 'string') {
-        console.log('[useEffect-params] Setting topicId:', params.id);
-        setTopicId(params.id);
-      } else {
-        console.log('[useEffect-params] Invalid params, redirecting');
-        router.push('/role-sharer/topics');
-      }
-    } catch (error) {
-      const e = error as RefreshError;
-      console.error('[useEffect-params] Error:', e);
+    if (params && typeof params.id === 'string') {
+      setTopicId(params.id);
+      setIsLoading(true); // Set loading state when topicId changes
+    } else {
       router.push('/role-sharer/topics');
     }
   }, [params, router]);
 
+  // Fetch data when topicId changes
   useEffect(() => {
-    if (!topicId) {
-      console.log('[useEffect-fetchData] No topicId yet, skipping fetch');
-      return;
+    let mounted = true;
+
+    if (topicId && isLoading) {
+      fetchData().then(() => {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      });
     }
 
-    try {
-      console.log('[useEffect-fetchData] Calling fetchData');
-      fetchData();
-    } catch (error) {
-      const e = error as RefreshError;
-      console.error('[useEffect-fetchData] Error:', e);
+    return () => {
+      mounted = false;
+    };
+  }, [topicId, fetchData, isLoading]);
+
+  // Simplified refresh function
+  const refreshData = useCallback(async () => {
+    setIsLoading(true);
+    await fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (params && typeof params.id === 'string') {
+      setTopicId(params.id);
+    } else {
+      router.push('/role-sharer/topics');
     }
-  }, [topicId, fetchData]);
+  }, [params, router]);
 
   const handleVideoComplete = useCallback(async (blob: Blob) => {
     try {
-      // Get the session
       const supabase = createClient();
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      if (sessionError || !session) {
-        throw new Error('No session found');
+      // Get authenticated user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        throw new Error('Authentication failed');
       }
 
       // Get upload URL from Mux
@@ -1120,7 +1022,6 @@ export default function TopicPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           promptId: selectedPrompt?.id,
@@ -1142,7 +1043,7 @@ export default function TopicPage() {
       // Wait for processing to complete
       await refreshData();
       
-      return videoId; // Return the video ID for the RecordingInterface
+      return videoId;
     } catch (error) {
       console.error('Error handling video upload:', error);
       toast.error('Failed to upload video');

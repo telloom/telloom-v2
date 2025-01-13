@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { User } from '@supabase/supabase-js';
+import { User, AuthChangeEvent } from '@supabase/supabase-js';
 import { createClient } from '@/utils/supabase/client';
 
 interface UserWithProfile extends User {
@@ -24,7 +24,7 @@ export function useUser() {
       setLoading(true);
       try {
         const { data: { user }, error } = await supabase.auth.getUser();
-        console.log("Auth user:", user); // Add this line
+        console.log("Auth user:", user);
         if (error) throw error;
 
         if (user) {
@@ -35,7 +35,7 @@ export function useUser() {
             .eq('id', user.id)
             .single();
 
-          console.log("Profile data:", profile); // Add this line
+          console.log("Profile data:", profile);
 
           if (profileError) throw profileError;
 
@@ -53,15 +53,23 @@ export function useUser() {
 
     getUser();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent) => {
+      // Always verify user with getUser() after auth state changes
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) {
+        console.error('Error getting user after auth state change:', error);
+        setUser(null);
+        return;
+      }
+
+      if (user) {
         const { data: profile } = await supabase
           .from('Profile')
           .select('firstName, lastName, avatarUrl')
-          .eq('id', session.user.id)
+          .eq('id', user.id)
           .single();
 
-        setUser({ ...session.user, profile: profile || null });
+        setUser({ ...user, profile: profile || null });
       } else {
         setUser(null);
       }
@@ -72,6 +80,6 @@ export function useUser() {
     };
   }, []);
 
-  console.log("Returning user:", user, "loading:", loading); // Add this line
+  console.log("Returning user:", user, "loading:", loading);
   return { user, loading };
 }
