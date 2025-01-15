@@ -1,8 +1,11 @@
 /**
  * File: components/AttachmentUpload.tsx
- * Description: A comprehensive attachment upload component that handles image and PDF file uploads,
- * including HEIC/HEIF conversion, file previews, metadata management (dates, descriptions), and person tagging.
- * Supports drag-and-drop, integrates with Supabase storage, and provides real-time upload status feedback.
+ * Description:
+ *  - We retrieve the real lastName/firstName from `Profile`.
+ *  - We retrieve the category name from `PromptCategory`.
+ *  - We generate a 4-character alphanumeric suffix (like "a0f1").
+ *  - Then we create a final filename: "lastname-firstname_category_a0f1.jpg"
+ *  - We upload directly to that name and insert the DB row with `fileUrl` = final name.
  */
 
 'use client';
@@ -14,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createClient } from '@/utils/supabase/client';
-import { Upload, X, Image as ImageIcon, FileText, Plus, Tag } from 'lucide-react';
+import { Upload, X, Plus, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import heic2any from 'heic2any';
 import {
@@ -25,21 +28,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { PersonRelation, PersonTag } from "@/types/models";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
 
 interface AttachmentUploadProps {
@@ -49,7 +39,6 @@ interface AttachmentUploadProps {
   onUploadSuccess: () => void;
 }
 
-// Export as default for dynamic import
 export default function AttachmentUpload({
   promptResponseId,
   isOpen,
@@ -69,53 +58,155 @@ export default function AttachmentUpload({
   const [previews, setPreviews] = useState<string[]>([]);
   const [profileSharerId, setProfileSharerId] = useState<string>('');
 
+  // Because we need to fetch more info (profile names, category, etc.),
+  // store them here once loaded
+  const [firstName, setFirstName] = useState('Unknown');
+  const [lastName, setLastName] = useState('User');
+  const [categoryName, setCategoryName] = useState('untitled');
+
+  // --------------------------------------------------------------------------
+  // On mount (whenever dialog opens), fetch the data:
+  // 1) profileSharerId
+  // 2) profile => firstName, lastName
+  // 3) promptResponse => prompt => promptCategory => category
+  // --------------------------------------------------------------------------
   useEffect(() => {
-    const fetchProfileSharerId = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
+    async function fetchInitialData() {
+      try {
+        const supabase = createClient();
+
+        // Check the current user
+        const { data: { user }, error: authErr } = await supabase.auth.getUser();
+        if (authErr || !user) {
+          console.error('Authentication error:', authErr);
+          return;
+        }
+
+        // Find the ProfileSharer row for that user
+        const { data: sharer, error: sharerErr } = await supabase
           .from('ProfileSharer')
-          .select('id')
+          .select('id, profileId')
           .eq('profileId', user.id)
           .single();
-        if (profile) {
-          setProfileSharerId(profile.id);
-        }
-      }
-    };
-    fetchProfileSharerId();
-  }, []);
 
-  const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLDivElement>) => {
+        if (sharerErr || !sharer) {
+          console.error('No ProfileSharer found for user:', sharerErr);
+          return;
+        }
+        setProfileSharerId(sharer.id);
+
+        // From that profileId, get firstName + lastName from "Profile"
+        const { data: profile } = await supabase
+          .from('Profile')
+          .select('firstName, lastName')
+          .eq('id', sharer.profileId)
+          .single();
+
+        if (profile) {
+          setFirstName(profile.firstName || 'Unknown');
+          setLastName(profile.lastName || 'User');
+        }
+
+        // Now fetch the PromptResponse -> Prompt -> PromptCategory
+        const { data: responseData, error: respErr } = await supabase
+          .from('PromptResponse')
+          .select(`
+            id,
+            promptId,
+            Prompt(
+              promptCategoryId,
+              PromptCategory(
+                category
+              )
+            )
+          `)
+          .eq('id', promptResponseId)
+          .single();
+
+        if (respErr || !responseData) {
+          console.error('No PromptResponse found for that ID:', respErr);
+          return;
+        }
+
+        // retrieve category from nested data
+        const cat = responseData.Prompt?.PromptCategory?.category || 'untitled';
+        setCategoryName(cat);
+      } catch (e) {
+        console.error('Error fetching initial data:', e);
+      }
+    }
+
+    if (isOpen) {
+      fetchInitialData();
+    }
+  }, [promptResponseId, isOpen]);
+
+  // --------------------------------------------------------------------------
+  // Basic slugify for lastName, firstName, category
+  // --------------------------------------------------------------------------
+  function basicSlugify(input: string) {
+    return input
+      .toLowerCase()
+      .replace(/[^\w\s-]+/g, '') // remove non-alphanumeric
+      .replace(/\s+/g, '-')     // spaces -> dashes
+      .replace(/-+/g, '-');     // collapse repeated dashes
+  }
+
+  // --------------------------------------------------------------------------
+  // 4-Char Alphanumeric Suffix
+  //  e.g. "f4a7"
+  // --------------------------------------------------------------------------
+  function random4Alphanumeric(): string {
+    return Math.random().toString(36).substring(2, 6);
+  }
+
+  // --------------------------------------------------------------------------
+  // Generate final name = "lastname-firstname_category_XXXX.ext"
+  // where XXXX is 4 alphanumeric chars
+  // --------------------------------------------------------------------------
+  function generateFinalFilename(
+    last: string,
+    first: string,
+    cat: string,
+    extension: string
+  ) {
+    const safeLast = basicSlugify(last);
+    const safeFirst = basicSlugify(first);
+    const safeCat = basicSlugify(cat);
+    const suffix = random4Alphanumeric(); // "a0f3"
+    return `${safeLast}-${safeFirst}_${safeCat}_${suffix}.${extension}`;
+  }
+
+  // --------------------------------------------------------------------------
+  // On user picking a file
+  // --------------------------------------------------------------------------
+  const handleFileSelect = useCallback(async (evt: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLDivElement>) => {
     let selectedFiles: File[] = [];
     
-    if ('dataTransfer' in event) {
-      // Handle drag and drop
-      event.preventDefault();
-      if (event.dataTransfer.files?.length) {
-        selectedFiles = [event.dataTransfer.files[0]]; // Only take the first file
+    if ('dataTransfer' in evt) {
+      // Drag & Drop
+      evt.preventDefault();
+      if (evt.dataTransfer.files?.length) {
+        selectedFiles = [evt.dataTransfer.files[0]];
       }
-    } else if ('target' in event && event.target.files?.length) {
-      // Handle file input
-      selectedFiles = [event.target.files[0]]; // Only take the first file
+    } else if ('target' in evt && evt.target.files?.length) {
+      // <input type="file">
+      selectedFiles = [evt.target.files[0]];
     }
 
     if (!selectedFiles.length) return;
 
-    // Clear existing files and previews
-    previews.forEach(preview => {
-      if (preview !== 'pdf') {
-        URL.revokeObjectURL(preview);
-      }
+    // Clear older previews
+    previews.forEach((p) => {
+      if (p !== 'pdf') URL.revokeObjectURL(p);
     });
     setFiles([]);
     setPreviews([]);
 
-    const processedFiles: File[] = [];
+    const file = selectedFiles[0];
+    const processed: File[] = [];
     const newPreviews: string[] = [];
 
-    const file = selectedFiles[0];
     if (file.type === 'image/heic' || file.type === 'image/heif') {
       try {
         const blob = await heic2any({
@@ -123,21 +214,15 @@ export default function AttachmentUpload({
           toType: 'image/jpeg',
           quality: 0.8
         });
-
         const convertedFile = new File(
           [blob as Blob],
           file.name.replace(/\.(heic|heif)$/i, '.jpg'),
           { type: 'image/jpeg' }
         );
-        processedFiles.push(convertedFile);
-        
-        // Create preview for converted image
-        const previewUrl = URL.createObjectURL(convertedFile);
-        newPreviews.push(previewUrl);
-        
+        processed.push(convertedFile);
+        newPreviews.push(URL.createObjectURL(convertedFile));
         toast.success(`Converted ${file.name} to JPEG`);
       } catch (error) {
-        console.error('Error converting HEIC file:', error);
         toast.error(`Failed to convert ${file.name}`);
       }
     } else if (
@@ -146,27 +231,21 @@ export default function AttachmentUpload({
       file.type === 'image/webp' ||
       file.type === 'application/pdf'
     ) {
-      processedFiles.push(file);
-      
-      // Create preview for image files
-      if (file.type.startsWith('image/')) {
-        const previewUrl = URL.createObjectURL(file);
-        newPreviews.push(previewUrl);
-      } else {
-        // Push placeholder for PDFs
-        newPreviews.push('pdf');
-      }
+      processed.push(file);
+      newPreviews.push(URL.createObjectURL(file));
     } else {
       toast.error(`Unsupported file type: ${file.name}`);
     }
 
-    setFiles(processedFiles);
+    setFiles(processed);
     setPreviews(newPreviews);
   }, [previews]);
 
+  // --------------------------------------------------------------------------
+  // Insert new PersonTag record
+  // --------------------------------------------------------------------------
   const handleAddNewTag = async () => {
     if (!newTagName || !newTagRelation || !profileSharerId) return;
-
     const supabase = createClient();
     const { data: newTag, error } = await supabase
       .from('PersonTag')
@@ -182,16 +261,18 @@ export default function AttachmentUpload({
       toast.error('Failed to create new tag');
       return;
     }
-
     if (newTag) {
-      setSelectedTags(prev => [...prev, newTag]);
-      setExistingTags(prev => [...prev, newTag]);
+      setSelectedTags((prev) => [...prev, newTag]);
+      setExistingTags((prev) => [...prev, newTag]);
       setNewTagName('');
       setNewTagRelation('');
       setIsAddingTag(false);
     }
   };
 
+  // --------------------------------------------------------------------------
+  // Actually do the upload: final name, then insert
+  // --------------------------------------------------------------------------
   const handleUpload = async (shouldClose: boolean = true) => {
     if (!files.length) return;
 
@@ -199,71 +280,78 @@ export default function AttachmentUpload({
     const supabase = createClient();
 
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        console.error('Authentication error:', authError);
+      const { data: { user }, error: authErr } = await supabase.auth.getUser();
+      if (authErr || !user) {
         toast.error('Not authenticated');
         return;
       }
 
-      // Get ProfileSharer record
-      const { data: profileSharer } = await supabase
-        .from('ProfileSharer')
-        .select('id')
-        .eq('profileId', user.id)
-        .single();
+      // Make sure we have a valid profileSharerId
+      if (!profileSharerId) {
+        throw new Error('profileSharerId not found yet.');
+      }
 
-      if (!profileSharer) throw new Error('Profile sharer not found');
+      // We'll create a new attachment record
+      const attachmentId = crypto.randomUUID();
 
-      // Upload the file
+      // e.g. from "myphoto.JPG" => "jpg"
       const file = files[0];
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+      const fileExt = file.name.split('.').pop() || 'dat';
 
-      const { error: uploadError } = await supabase.storage
+      // Build final name from real data
+      const finalName = generateFinalFilename(
+        lastName,
+        firstName,
+        categoryName,
+        fileExt
+      );
+
+      console.log('Uploading to path:', finalName);
+      const { error: uploadError } = await supabase
+        .storage
         .from('attachments')
-        .upload(fileName, file);
+        .upload(finalName, file);
 
       if (uploadError) {
-        console.error('Upload error:', uploadError);
         throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
       }
 
-      // Create attachment record
-      const { data: attachment, error: dbError } = await supabase
+      // Insert DB row with the same final name
+      const attachmentRecord = {
+        id: attachmentId,
+        promptResponseId,
+        profileSharerId,
+        fileUrl: finalName,
+        fileType: file.type,
+        fileName: finalName,
+        fileSize: file.size,
+        description: description || null,
+        dateCaptured: dateCaptured || null,
+        yearCaptured: yearCaptured ? parseInt(yearCaptured) : null,
+      };
+
+      const { data: inserted, error: insertError } = await supabase
         .from('PromptResponseAttachment')
-        .insert({
-          promptResponseId,
-          profileSharerId: profileSharer.id,
-          fileUrl: fileName,
-          fileType: file.type,
-          fileName,
-          fileSize: file.size,
-          description: description || null,
-          dateCaptured: dateCaptured || null,
-          yearCaptured: yearCaptured ? parseInt(yearCaptured) : null,
-        })
+        .insert(attachmentRecord)
         .select()
         .single();
 
-      if (dbError) {
-        console.error('Database error:', dbError);
-        throw new Error(`Failed to create attachment record: ${dbError.message}`);
+      if (insertError) {
+        throw new Error(`Failed to create attachment record: ${insertError.message}`);
       }
 
-      // Create person tag links
+      // Link PersonTags if any
       if (selectedTags.length > 0) {
         const { error: tagError } = await supabase
           .from('PromptResponseAttachmentPersonTag')
           .insert(
             selectedTags.map(tag => ({
-              promptResponseAttachmentId: attachment.id,
+              promptResponseAttachmentId: inserted.id,
               personTagId: tag.id
             }))
           );
 
         if (tagError) {
-          console.error('Tag linking error:', tagError);
           throw new Error(`Failed to link tags: ${tagError.message}`);
         }
       }
@@ -274,7 +362,7 @@ export default function AttachmentUpload({
       if (shouldClose) {
         onClose();
       } else {
-        // Reset form for next upload
+        // Reset form
         setFiles([]);
         setPreviews([]);
         setDescription('');
@@ -283,7 +371,7 @@ export default function AttachmentUpload({
         setSelectedTags([]);
       }
     } catch (error) {
-      console.error('Error uploading file:', error);
+      console.error(error);
       toast.error(error instanceof Error ? error.message : 'Failed to upload file');
     } finally {
       setIsUploading(false);
@@ -291,12 +379,12 @@ export default function AttachmentUpload({
   };
 
   const removeFile = (index: number) => {
-    setFiles(prev => {
+    setFiles((prev) => {
       const newFiles = [...prev];
       newFiles.splice(index, 1);
       return newFiles;
     });
-    setPreviews(prev => {
+    setPreviews((prev) => {
       const newPreviews = [...prev];
       if (newPreviews[index] !== 'pdf') {
         URL.revokeObjectURL(newPreviews[index]);
@@ -310,10 +398,13 @@ export default function AttachmentUpload({
     setSelectedTags(prev => prev.filter(tag => tag.id !== tagId));
   };
 
+  // --------------------------------------------------------------------------
+  // Render
+  // --------------------------------------------------------------------------
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent 
-        className="max-w-2xl max-h-[90vh] flex flex-col" 
+      <DialogContent
+        className="max-w-2xl max-h-[90vh] flex flex-col"
         aria-describedby="upload-dialog-description"
       >
         <DialogHeader>
@@ -329,14 +420,14 @@ export default function AttachmentUpload({
             <div>
               <Label htmlFor="files">Upload File</Label>
               <div
-                className={`
+                className="
                   mt-2 p-8 border-2 border-dashed rounded-lg
                   border-gray-300 hover:border-gray-400
                   transition-colors duration-200
                   flex flex-col items-center justify-center gap-4
                   relative
                   cursor-pointer
-                `}
+                "
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleFileSelect}
                 onClick={() => document.getElementById('files')?.click()}
@@ -361,7 +452,7 @@ export default function AttachmentUpload({
             </div>
           )}
 
-          {/* Selected File */}
+          {/* If user already selected a file */}
           {files.length > 0 && (
             <div className="space-y-2">
               <Label className="flex items-center justify-between">
@@ -386,13 +477,12 @@ export default function AttachmentUpload({
               <div className="max-w-md mx-auto">
                 <div className="relative group">
                   <div className="rounded-lg overflow-hidden bg-gray-100 border h-[300px] flex items-center justify-center p-4">
-                    <AttachmentThumbnail 
+                    <AttachmentThumbnail
                       attachment={{
                         id: 'preview',
-                        fileUrl: previews[0] === 'pdf' ? files[0].name : previews[0],
+                        fileUrl: previews[0],
                         fileType: files[0].type,
-                        fileName: files[0].name,
-                        signedUrl: previews[0] === 'pdf' ? undefined : previews[0]
+                        fileName: files[0].name
                       }}
                       size="lg"
                       className="w-full h-full"
@@ -421,7 +511,6 @@ export default function AttachmentUpload({
               </Button>
             </div>
 
-            {/* Tag Selection */}
             {!isAddingTag && (
               <div className="space-y-4">
                 <Select
@@ -445,7 +534,6 @@ export default function AttachmentUpload({
                       <SelectItem
                         key={tag.id}
                         value={tag.id}
-                        className="cursor-pointer"
                       >
                         <div className="flex items-center">
                           {selectedTags.some(t => t.id === tag.id) ? (
@@ -480,7 +568,6 @@ export default function AttachmentUpload({
               </div>
             )}
 
-            {/* New Tag Form */}
             {isAddingTag && (
               <div className="space-y-4 border rounded-lg p-4">
                 <div>
@@ -545,7 +632,6 @@ export default function AttachmentUpload({
                 className="mt-2"
               />
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="dateCaptured">Date (Optional)</Label>
@@ -558,7 +644,6 @@ export default function AttachmentUpload({
                   style={{ colorScheme: 'light' }}
                 />
               </div>
-
               <div>
                 <Label htmlFor="yearCaptured">Year (Optional)</Label>
                 <Input
@@ -576,7 +661,7 @@ export default function AttachmentUpload({
           </div>
         </div>
 
-        {/* Upload Buttons - Fixed at bottom */}
+        {/* Upload Buttons */}
         <div className="flex justify-end gap-2 pt-4 border-t mt-4">
           <Button variant="outline" onClick={onClose} className="rounded-full">
             Cancel
@@ -588,45 +673,19 @@ export default function AttachmentUpload({
                 disabled={isUploading}
                 className="rounded-full"
               >
-                {isUploading ? (
-                  <>Uploading...</>
-                ) : (
-                  <>Save & Add</>
-                )}
+                {isUploading ? 'Uploading...' : 'Save & Add'}
               </Button>
               <Button
                 onClick={() => handleUpload(true)}
                 disabled={isUploading}
                 className="rounded-full"
               >
-                {isUploading ? (
-                  <>Uploading...</>
-                ) : (
-                  <>Save & Close</>
-                )}
+                {isUploading ? 'Uploading...' : 'Save & Close'}
               </Button>
             </>
           )}
         </div>
-
-        {/* New Tag Dialog */}
-        {isAddingTag && (
-          <Dialog open={isAddingTag} onOpenChange={(open) => !open && setIsAddingTag(false)}>
-            <DialogContent 
-              className="max-w-md" 
-              aria-describedby="new-tag-dialog-description"
-            >
-              <DialogHeader>
-                <DialogTitle>Add New Person</DialogTitle>
-                <DialogDescription id="new-tag-dialog-description">
-                  Add a new person to tag in your attachments.
-                </DialogDescription>
-              </DialogHeader>
-              {/* ... rest of the new tag dialog content ... */}
-            </DialogContent>
-          </Dialog>
-        )}
       </DialogContent>
     </Dialog>
   );
-} 
+}

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RecordingInterface } from '@/components/RecordingInterface';
 import { VideoPopup } from '@/components/VideoPopup';
+import { UploadInterface } from '@/components/UploadInterface';
 import { UploadPopup } from '@/components/UploadPopup';
 import { ArrowLeft, Video as VideoIcon, Play, CheckCircle2, LayoutGrid, Table as TableIcon, Upload, Paperclip } from 'lucide-react';
 import { PromptCategory, Prompt, PromptResponse, PromptResponseAttachment, Video, PersonTag, PersonRelation } from '@/types/models';
@@ -29,6 +30,7 @@ import { cn } from "@/lib/utils";
 import Image from 'next/image';
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
 import { AttachmentDialog } from '@/components/AttachmentDialog';
+import { MuxPlayer } from '@/components/MuxPlayer';
 
 interface Attachment {
   id: string;
@@ -127,6 +129,8 @@ interface TopicPageContentProps {
   setIsUploadPopupOpen: (open: boolean) => void;
   setIsAttachmentUploadOpen: (open: boolean) => void;
   handleVideoComplete: (blob: Blob) => Promise<string>;
+  handleCloseRecording: () => void;
+  handleCloseUpload: () => void;
   refreshData: () => Promise<void>;
   router: ReturnType<typeof useRouter>;
 }
@@ -191,6 +195,8 @@ const TopicPageContent = ({
   setIsUploadPopupOpen,
   setIsAttachmentUploadOpen,
   handleVideoComplete,
+  handleCloseRecording,
+  handleCloseUpload,
   refreshData,
   router
 }: TopicPageContentProps) => {
@@ -201,6 +207,8 @@ const TopicPageContent = ({
   } | null>(null);
   const [overflowingPrompts, setOverflowingPrompts] = useState<Set<string>>(new Set());
   const promptRefs = useRef<{ [key: string]: HTMLElement | null }>({});
+  const [isVideoReady, setIsVideoReady] = useState(false);
+  const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   
   useEffect(() => {
     Object.entries(promptRefs.current).forEach(([promptId, element]) => {
@@ -772,39 +780,64 @@ const TopicPageContent = ({
   {isRecordingPopupOpen && selectedPrompt && (
     <VideoPopup
       open={isRecordingPopupOpen}
-      onClose={() => {
-        setIsRecordingPopupOpen(false);
-        setSelectedPrompt(null);
-      }}
+      onClose={handleCloseRecording}
       promptText={selectedPrompt.promptText}
-      videoId=""
+      videoId={currentVideoId ?? ""}
     >
-      <RecordingInterface
-        promptId={selectedPrompt.id}
-        onClose={() => {
-          setIsRecordingPopupOpen(false);
-          setSelectedPrompt(null);
-        }}
-        onSave={handleVideoComplete}
-      />
+      {!currentVideoId ? (
+        <RecordingInterface
+          promptId={selectedPrompt.id}
+          onClose={handleCloseRecording}
+          onSave={handleVideoComplete}
+        />
+      ) : (
+        <div className="flex flex-col items-center justify-center flex-1 min-h-0">
+          <div className="relative w-full max-w-[800px]" style={{ width: 'min(60vw, calc(55vh * 16/9))' }}>
+            <div className="w-full">
+              <div className="aspect-video bg-black rounded-md overflow-hidden relative">
+                <div className="absolute inset-0">
+                  <MuxPlayer playbackId={currentVideoId} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </VideoPopup>
   )}
 
   {/* Upload Popup */}
   {isUploadPopupOpen && selectedPrompt && (
-    <UploadPopup
+    <VideoPopup
       open={isUploadPopupOpen}
-      onClose={() => setIsUploadPopupOpen(false)}
-      promptText={selectedPrompt?.promptText}
-      promptId={selectedPrompt?.id}
-      onComplete={() => {
-        setIsUploadPopupOpen(false);
-        setSelectedPrompt(null);
-      }}
-      onUploadSuccess={() => {
-        refreshData();
-      }}
-    />
+      onClose={handleCloseUpload}
+      promptText={selectedPrompt.promptText}
+      videoId={currentVideoId ?? ""}
+    >
+      {!currentVideoId ? (
+        <UploadInterface
+          promptId={selectedPrompt.id}
+          onUploadSuccess={async (muxId: string) => {
+            setCurrentVideoId(muxId);
+            setIsVideoReady(true);
+            await refreshData();
+          }}
+          promptText={selectedPrompt.promptText}
+        />
+      ) : (
+        <div className="flex flex-col items-center justify-center flex-1 min-h-0">
+          <div className="relative w-full max-w-[800px]" style={{ width: 'min(60vw, calc(55vh * 16/9))' }}>
+            <div className="w-full">
+              <div className="aspect-video bg-black rounded-md overflow-hidden relative">
+                <div className="absolute inset-0">
+                  <MuxPlayer playbackId={currentVideoId} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </VideoPopup>
   )}
 
   {/* Video Playback Popup */}
@@ -883,6 +916,24 @@ export default function TopicPage() {
   const [isAttachmentUploadOpen, setIsAttachmentUploadOpen] = useState(false);
   const [selectedPromptResponse, setSelectedPromptResponse] = useState<PromptResponse | null>(null);
   const [currentPromptIndex, setCurrentPromptIndex] = useState<number>(0);
+  const [isVideoReady, setIsVideoReady] = useState(false);
+  const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
+
+  // Load video state from localStorage on mount
+  useEffect(() => {
+    const savedVideoId = localStorage.getItem('currentVideoId');
+    const savedPromptId = localStorage.getItem('selectedPromptId');
+    if (savedVideoId && savedPromptId) {
+      setCurrentVideoId(savedVideoId);
+      setIsVideoReady(true);
+      // Re-open the appropriate popup if we have a video
+      if (localStorage.getItem('popupType') === 'recording') {
+        setIsRecordingPopupOpen(true);
+      } else if (localStorage.getItem('popupType') === 'upload') {
+        setIsUploadPopupOpen(true);
+      }
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     if (!topicId) {
@@ -1018,10 +1069,17 @@ export default function TopicPage() {
       }
 
       // Get upload URL from Mux
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session?.access_token) {
+        throw new Error('Failed to get authorization token');
+      }
+
       const response = await fetch('/api/mux/upload-url', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           promptId: selectedPrompt?.id,
@@ -1040,16 +1098,66 @@ export default function TopicPage() {
         body: blob,
       });
 
-      // Wait for processing to complete
-      await refreshData();
+      // Poll for video status until it's ready
+      let attempts = 0;
+      const maxAttempts = 60; // 5 minutes with 5-second intervals
       
-      return videoId;
+      while (attempts < maxAttempts) {
+        const { data: video, error } = await supabase
+          .from('Video')
+          .select('status, muxPlaybackId')
+          .eq('id', videoId)
+          .single();
+
+        if (error) {
+          console.error('Error checking video status:', error);
+          throw new Error('Failed to check video status');
+        }
+
+        if (video?.status === 'READY' && video?.muxPlaybackId) {
+          // Video is ready, update the UI and persist to localStorage
+          setCurrentVideoId(video.muxPlaybackId);
+          setIsVideoReady(true);
+          localStorage.setItem('currentVideoId', video.muxPlaybackId);
+          localStorage.setItem('selectedPromptId', selectedPrompt?.id || '');
+          localStorage.setItem('popupType', isRecordingPopupOpen ? 'recording' : 'upload');
+          await refreshData();
+          return videoId;
+        }
+
+        if (video?.status === 'ERRORED') {
+          throw new Error('Video processing failed');
+        }
+
+        // Wait 5 seconds before next attempt
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        attempts++;
+      }
+
+      throw new Error('Video processing timed out');
     } catch (error) {
       console.error('Error handling video upload:', error);
       toast.error('Failed to upload video');
       throw error;
     }
-  }, [selectedPrompt, refreshData]);
+  }, [selectedPrompt, refreshData, isRecordingPopupOpen]);
+
+  // Reset video states when closing popups
+  const handleCloseRecording = useCallback(() => {
+    setIsRecordingPopupOpen(false);
+    setSelectedPrompt(null);
+    localStorage.removeItem('currentVideoId');
+    localStorage.removeItem('selectedPromptId');
+    localStorage.removeItem('popupType');
+  }, []);
+
+  const handleCloseUpload = useCallback(() => {
+    setIsUploadPopupOpen(false);
+    setSelectedPrompt(null);
+    localStorage.removeItem('currentVideoId');
+    localStorage.removeItem('selectedPromptId');
+    localStorage.removeItem('popupType');
+  }, []);
 
   // Wrap the render in try-catch
   try {
@@ -1110,6 +1218,8 @@ export default function TopicPage() {
           setIsUploadPopupOpen={setIsUploadPopupOpen}
           setIsAttachmentUploadOpen={setIsAttachmentUploadOpen}
           handleVideoComplete={handleVideoComplete}
+          handleCloseRecording={handleCloseRecording}
+          handleCloseUpload={handleCloseUpload}
           refreshData={refreshData}
           router={router}
         />

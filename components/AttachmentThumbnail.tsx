@@ -1,9 +1,5 @@
-/**
- * File: components/AttachmentThumbnail.tsx
- * Description: A versatile thumbnail component that displays image or file previews with signed URL support.
- * Handles loading states, error states, and different size variants.
- */
-
+// components/AttachmentThumbnail.tsx
+// This component displays a thumbnail for an attachment, including handling signed URLs and loading states.
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -54,27 +50,34 @@ export default function AttachmentThumbnail({
         return;
       }
 
+      // If this is a preview (local file), use the fileUrl directly
+      if (attachment.id === 'preview') {
+        setSignedUrl(attachment.fileUrl);
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        // Check cache first
+        setIsLoading(true);
+        setError(false);
+
+        // Check if URL is cached
         const cachedUrl = urlCache.get(attachment.id);
         if (cachedUrl) {
           setSignedUrl(cachedUrl);
-          setError(false);
           setIsLoading(false);
           return;
         }
 
-        // Only create client if needed
+        // Create Supabase client
         const supabase = createClient();
-        
-        const filePath = attachment.fileUrl.includes('attachments/') 
-          ? attachment.fileUrl.split('attachments/')[1]
-          : attachment.fileUrl;
-        
+        // Use the fileUrl exactly as stored (no 'attachments/' prefix)
+        const filePath = attachment.fileUrl;
+
         const { data, error } = await supabase
           .storage
           .from('attachments')
-          .createSignedUrl(filePath, 3600); // 1 hour expiry
+          .createSignedUrl(filePath, 3600); // 1 hour
 
         if (error) {
           console.error('Error getting signed URL:', error);
@@ -84,22 +87,20 @@ export default function AttachmentThumbnail({
         }
 
         if (data?.signedUrl) {
-          // Cache the URL with expiry time slightly less than the signed URL expiry
-          urlCache.set(attachment.id, data.signedUrl, 3500); // Cache for slightly less than 1 hour
+          // Cache for slightly less than 1 hour
+          urlCache.set(attachment.id, data.signedUrl, 3500);
           setSignedUrl(data.signedUrl);
-          setError(false);
         } else {
           setError(true);
         }
-      } catch (error) {
-        console.error('Error in getSignedUrl:', error);
+      } catch (err) {
+        console.error('Error in getSignedUrl:', err);
         setError(true);
       } finally {
         setIsLoading(false);
       }
     }
 
-    // Only fetch if we don't have a signed URL and there's a fileUrl
     if (!attachment.signedUrl && attachment.fileUrl) {
       getSignedUrl();
     } else if (attachment.signedUrl) {
@@ -122,7 +123,6 @@ export default function AttachmentThumbnail({
         </div>
       );
     }
-
     if (error || !signedUrl) {
       return (
         <div className={containerClasses}>
@@ -130,9 +130,8 @@ export default function AttachmentThumbnail({
         </div>
       );
     }
-
     return (
-      <div className={containerClasses} style={{ aspectRatio: '1' }}>
+      <div className={cn(containerClasses, 'aspect-square')}>
         <div className="relative w-full h-full">
           <Image
             src={signedUrl}
@@ -146,26 +145,45 @@ export default function AttachmentThumbnail({
     );
   }
 
-  // For non-image files, show an icon
-  if (attachment.fileType === 'application/pdf' && signedUrl) {
+  // For PDFs
+  if (attachment.fileType === 'application/pdf') {
+    if (isLoading) {
+      return (
+        <div className={containerClasses}>
+          <Loader2 className={cn(iconSizes[size], 'animate-spin text-gray-400')} />
+        </div>
+      );
+    }
+    if (error || !signedUrl) {
+      return (
+        <div className={containerClasses}>
+          <FileText className={cn(iconSizes[size], 'text-gray-400')} />
+        </div>
+      );
+    }
     return (
-      <div className={containerClasses} style={{ position: 'relative' }}>
-        <iframe
-          src={signedUrl + '#toolbar=0&view=FitH&page=1'}
-          className="w-full h-full pointer-events-none"
-          title="PDF preview"
-          style={{ backgroundColor: 'white' }}
-        />
-        {/* Transparent overlay to handle clicks */}
-        <div className="absolute inset-0" />
+      <div className={cn(containerClasses, 'aspect-square')}>
+        <div className="relative w-full h-full">
+          <iframe
+            src={signedUrl + '#page=1&view=FitH&toolbar=0'}
+            className="w-full h-full pointer-events-none bg-white"
+            title="PDF preview"
+          />
+          {/* Transparent overlay */}
+          <div className="absolute inset-0" />
+        </div>
       </div>
     );
   }
 
-  // For other non-image files, show an icon
+  // Fallback for other file types
   return (
     <div className={containerClasses}>
-      <FileText className={cn(iconSizes[size], 'text-gray-400')} />
+      {isLoading ? (
+        <Loader2 className={cn(iconSizes[size], 'animate-spin text-gray-400')} />
+      ) : (
+        <FileText className={cn(iconSizes[size], 'text-gray-400')} />
+      )}
     </div>
   );
-} 
+}

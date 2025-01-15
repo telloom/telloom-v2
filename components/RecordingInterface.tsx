@@ -418,72 +418,63 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
         type: 'video/webm'
       });
 
-      try {
-        // Wait for the save operation to complete
-        const videoId = await onSave(blob);
-        
-        if (videoId) {
-          setProcessingState('processing');
-          
-          // Poll for video status until it's ready
-          let attempts = 0;
-          const maxAttempts = 30; // 30 seconds
-          const pollInterval = 1000; // 1 second
-
-          const checkVideoStatus = async () => {
-            const supabase = createClient();
-            const { data: video, error } = await supabase
-              .from('Video')
-              .select('status, muxPlaybackId')
-              .eq('id', videoId)
-              .single();
-
-            if (error) {
-              console.error('Error checking video status:', error);
-              return false;
-            }
-
-            if (video?.status === 'READY' && video?.muxPlaybackId) {
-              setMuxPlaybackId(video.muxPlaybackId);
-              setProcessingState('ready');
-              return true;
-            }
-
-            if (video?.status === 'ERRORED') {
-              setError('Video processing failed');
-              setProcessingState('error');
-              return true;
-            }
-
-            return false;
-          };
-
-          const pollStatus = async () => {
-            while (attempts < maxAttempts) {
-              const isComplete = await checkVideoStatus();
-              if (isComplete) return;
-              
-              await new Promise(resolve => setTimeout(resolve, pollInterval));
-              attempts++;
-            }
-
-            setError('Video processing timed out');
-            setProcessingState('error');
-          };
-
-          await pollStatus();
-        } else {
-          throw new Error('No video ID returned');
-        }
-      } catch (error) {
-        console.error('Error saving video:', error);
-        setError('Failed to save video. Please try again.');
-        setProcessingState('error');
-        throw error;
+      const response = await onSave(blob);
+      if (!response) {
+        throw new Error('Failed to save video');
       }
+
+      setProcessingState('processing');
+      
+      // Poll for video status until it's ready
+      let attempts = 0;
+      const maxAttempts = 30; // 30 seconds
+      const pollInterval = 1000; // 1 second
+
+      const checkVideoStatus = async () => {
+        const supabase = createClient();
+        const { data: video, error } = await supabase
+          .from('Video')
+          .select('status, muxPlaybackId')
+          .eq('id', response)
+          .single();
+
+        if (error) {
+          console.error('Error checking video status:', error);
+          return false;
+        }
+
+        if (video?.status === 'READY' && video?.muxPlaybackId) {
+          setMuxPlaybackId(video.muxPlaybackId);
+          setProcessingState('ready');
+          return true;
+        }
+
+        if (video?.status === 'ERRORED') {
+          setError('Video processing failed');
+          setProcessingState('error');
+          return true;
+        }
+
+        return false;
+      };
+
+      const pollStatus = async () => {
+        while (attempts < maxAttempts) {
+          const isComplete = await checkVideoStatus();
+          if (isComplete) return;
+          
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+          attempts++;
+        }
+
+        setError('Video processing timed out');
+        setProcessingState('error');
+      };
+
+      await pollStatus();
     } catch (error) {
-      console.error('Error in handleSave:', error);
-      setError('Failed to save video. Please try again.');
+      console.error('Error saving video:', error);
+      setError(error instanceof Error ? error.message : 'Failed to save video');
       setProcessingState('error');
     }
   };

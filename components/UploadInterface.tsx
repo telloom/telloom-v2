@@ -16,15 +16,25 @@ import styles from './UploadInterface.module.css';
 
 interface UploadInterfaceProps {
   promptId: string;
-  onUploadSuccess?: () => void;
-  onComplete?: () => void;
+  onUploadSuccess?: (playbackId: string) => Promise<void>;
   promptText?: string;
+}
+
+interface ProfileRole {
+  role: string;
+}
+
+interface Profile {
+  id: string;
+  ProfileRole?: ProfileRole[];
+  ProfileSharer?: Array<{
+    id: string;
+  }>;
 }
 
 export function UploadInterface({
   promptId,
   onUploadSuccess,
-  onComplete,
   promptText
 }: UploadInterfaceProps) {
   const supabase = createClient();
@@ -37,13 +47,14 @@ export function UploadInterface({
   >('idle');
   const [muxPlaybackId, setMuxPlaybackId] = useState<string | null>(null);
   const uploadLock = useRef(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleVideoReady = useCallback((playbackId: string) => {
     setProcessingState('ready');
     setMuxPlaybackId(playbackId);
     toast.success('Video uploaded successfully');
     if (onUploadSuccess) {
-      onUploadSuccess();
+      onUploadSuccess(playbackId);
     }
   }, [onUploadSuccess]);
 
@@ -115,96 +126,93 @@ export function UploadInterface({
 
   const handleUpload = useCallback(
     async (file: File) => {
-      // Prevent multiple simultaneous uploads
-      if (uploadLock.current || processingState !== 'idle') {
-        console.log('Upload blocked:', {
-          uploadLock: uploadLock.current,
-          processingState
-        });
-        toast.error('Upload already in progress or disabled');
-        return;
-      }
+      setIsUploading(true);
+      setUploadProgress(0);
+      setError(null);
 
       try {
-        // Set upload lock immediately
-        uploadLock.current = true;
-        setIsUploading(true);
-        setProcessingState('uploading');
-
-        // Get session for auth
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-          console.error('Authentication error:', authError);
-          return;
+        // Get current user
+        const supabase = createClient();
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !user) {
+          throw new Error('Please sign in to upload videos');
         }
 
-        // Get ProfileSharer record
-        const { data: profileSharer } = await supabase
-          .from('ProfileSharer')
-          .select('id')
-          .eq('profileId', user.id)
+        // Get JWT token
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !session?.access_token) {
+          throw new Error('Failed to get authorization token');
+        }
+
+        // Check if user has SHARER role
+        const { data: profile, error: profileError } = await supabase
+          .from('Profile')
+          .select(`
+            id,
+            ProfileRole (
+              role
+            ),
+            ProfileSharer (
+              id
+            )
+          `)
+          .eq('id', user.id)
           .single();
 
-        if (!profileSharer) {
-          toast.error('Profile not found');
-          return;
+        console.log('Profile data:', profile);
+        console.log('Profile error:', profileError);
+
+        if (profileError || !profile) {
+          console.error('Profile check failed:', { profileError, profile });
+          throw new Error('Failed to verify upload permissions');
         }
 
-        // Check for existing video first
-        const { data: existingVideo } = await supabase
-          .from('Video')
-          .select('*')
-          .eq('promptId', promptId)
-          .not('status', 'eq', 'ERRORED')
-          .maybeSingle();
+        // Check for SHARER role and ProfileSharer record
+        if (!profile.ProfileRole || !Array.isArray(profile.ProfileRole)) {
+          console.error('Invalid ProfileRole data:', profile.ProfileRole);
+          throw new Error('Failed to verify upload permissions - invalid role data');
+        }
 
-        if (existingVideo) {
-          console.log('Found existing video:', existingVideo);
-          setExistingVideo(true);
-          toast.error('A video for this prompt already exists');
-          // Clean up and return early
-          setIsUploading(false);
-          setProcessingState('idle');
-          uploadLock.current = false;
-          if (onUploadSuccess) {
-            onUploadSuccess(); // Refresh parent to show existing video
-          }
-          return;
+        const hasSharerRole = profile.ProfileRole.some((role: ProfileRole) => role.role === 'SHARER');
+        console.log('Role check:', {
+          ProfileRole: profile.ProfileRole,
+          hasSharerRole,
+          ProfileSharer: profile.ProfileSharer
+        });
+
+        if (!hasSharerRole) {
+          console.error('Missing SHARER role');
+          throw new Error('You do not have permission to upload videos - missing SHARER role');
+        }
+
+        if (!profile.ProfileSharer?.[0]?.id) {
+          console.error('Missing ProfileSharer record');
+          throw new Error('You do not have permission to upload videos - missing sharer profile');
         }
 
         // Get upload URL from your API
-        const res = await fetch('/api/mux/upload-url', {
+        const response = await fetch('/api/mux/upload-url', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${user.id}`
+            'Authorization': `Bearer ${session.access_token}`
           },
-          body: JSON.stringify({
-            promptId
-          })
+          body: JSON.stringify({ promptId }),
         });
 
-        if (res.status === 409) {
-          const data = await res.json(); // Consume the response
-          console.log('Upload URL 409 response:', data);
-          setExistingVideo(true);
-          toast.error('A video for this prompt already exists');
-          // Clean up and return early
-          setIsUploading(false);
-          setProcessingState('idle');
-          uploadLock.current = false;
-          if (onUploadSuccess) {
-            onUploadSuccess(); // Refresh parent to show existing video
+        if (!response.ok) {
+          const error = await response.json();
+          if (response.status === 401) {
+            throw new Error('Please sign in to upload videos');
+          } else if (response.status === 403) {
+            throw new Error('You do not have permission to upload videos');
+          } else {
+            throw new Error(error.message || 'Failed to get upload URL');
           }
-          return;
         }
 
-        if (!res.ok) {
-          const errorData = await res.json();
-          throw new Error(errorData.error || 'Failed to get upload URL');
-        }
-
-        const { uploadUrl, uploadId, videoId } = await res.json();
+        const { uploadUrl, uploadId, videoId } = await response.json();
 
         if (!uploadUrl || !uploadId) {
           throw new Error('Failed to get upload URL');
@@ -353,7 +361,7 @@ export function UploadInterface({
   return (
     <Card className="w-full max-w-4xl mx-auto !border-0 !shadow-none h-full flex flex-col">
       <div className="p-4 flex flex-col min-h-0 flex-1">
-        {processingState === 'idle' && !isUploading && (
+        {processingState === 'idle' && !isUploading && !muxPlaybackId && (
           <div className="mb-4">
             <h2 className="text-lg font-normal tracking-tight">
               Upload Your Video Response
@@ -362,7 +370,7 @@ export function UploadInterface({
         )}
 
         <div className="flex flex-col flex-1 min-h-0">
-          {processingState === 'ready' && muxPlaybackId ? (
+          {(processingState === 'ready' && muxPlaybackId) || (muxPlaybackId) ? (
             <div className="flex flex-col items-center justify-center flex-1 min-h-0">
               <div className={`relative w-full max-w-[800px] ${styles.videoContainer}`}>
                 <div className="w-full">
@@ -407,7 +415,7 @@ export function UploadInterface({
               <p className="text-lg font-medium">Error processing video</p>
               <p className="text-sm">Please try again</p>
             </div>
-          ) : (
+          ) : !muxPlaybackId && (
             <div className="flex-1 flex flex-col">
               {isUploading ? (
                 <div className="py-24 space-y-8">
@@ -448,7 +456,7 @@ export function UploadInterface({
             </div>
           )}
 
-          {existingVideo && (
+          {existingVideo && !muxPlaybackId && (
             <div className="text-sm text-yellow-600 bg-yellow-50/50 p-3 rounded-md text-center mt-4">
               A video for this prompt already exists. Delete the existing video if you want to upload a new one.
             </div>

@@ -110,6 +110,7 @@ export function AttachmentDialog({
   const [selectedTags, setSelectedTags] = useState<PersonTag[]>([]);
   const [profileSharerId, setProfileSharerId] = useState<string>('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [error, setError] = useState(false);
 
   // Create client instance once
   const supabase = useMemo(() => createClient(), []);
@@ -246,15 +247,21 @@ export function AttachmentDialog({
 
         if (!mounted) return;
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error getting signed URL:', error);
+          setError(true);
+          setImageLoading(false);
+          return;
+        }
 
         if (data?.signedUrl) {
           urlCache.set(attachment.id, data.signedUrl, 3500);
           setSignedUrl(data.signedUrl);
+          setError(false);
         }
       } catch (error) {
         console.error('Error getting signed URL:', error);
-        toast.error('Failed to load image');
+        setError(true);
       } finally {
         if (mounted) {
           setImageLoading(false);
@@ -262,7 +269,10 @@ export function AttachmentDialog({
       }
     }
 
-    getSignedUrl();
+    // Only fetch if we don't have a signed URL and there's a fileUrl
+    if (!signedUrl && attachment?.fileUrl) {
+      getSignedUrl();
+    }
     return () => { mounted = false; };
   }, [attachment?.id, attachment?.fileUrl, signedUrl, supabase]);
 
@@ -453,18 +463,16 @@ export function AttachmentDialog({
           }
         }}
       >
-        <DialogContent 
+        <DialogContent
           className="max-w-5xl h-[90vh] flex flex-col p-0 lg:p-6 m-0 lg:m-4 overflow-y-auto lg:overflow-hidden"
           aria-describedby="dialog-description"
         >
-          <div className="sr-only" id="dialog-description">
-            <DialogHeader>
-              <DialogTitle>View Attachment</DialogTitle>
-              <DialogDescription>
-                View and edit attachment details including description, date, and tags.
-              </DialogDescription>
-            </DialogHeader>
-          </div>
+          <DialogHeader className="sr-only">
+            <DialogTitle>View Attachment</DialogTitle>
+            <DialogDescription id="dialog-description">
+              View and edit attachment details
+            </DialogDescription>
+          </DialogHeader>
 
           {/* Main Content */}
           <div className="flex flex-col lg:grid lg:grid-cols-[3fr_1fr] h-full">
@@ -478,12 +486,15 @@ export function AttachmentDialog({
                   </div>
                 )}
                 {attachment.fileType === 'application/pdf' ? (
-                  <iframe
-                    src={signedUrl + '#toolbar=0'}
-                    className="w-full h-full"
-                    title="PDF viewer"
-                    style={{ backgroundColor: 'white' }}
-                  />
+                  <div className="w-full h-full bg-white">
+                    {signedUrl && (
+                      <iframe
+                        src={signedUrl + '#toolbar=0'}
+                        className="w-full h-full"
+                        title="PDF viewer"
+                      />
+                    )}
+                  </div>
                 ) : (
                   <AttachmentThumbnail 
                     attachment={{
@@ -647,7 +658,7 @@ export function AttachmentDialog({
                         };
                       })}
                       disabled={!isEditing}
-                      style={{ colorScheme: 'light' }}
+                      className="[color-scheme:light]"
                       tabIndex={isEditing ? 0 : -1}
                     />
                   </div>
@@ -827,36 +838,40 @@ export function AttachmentDialog({
             </div>
           </div>
         </DialogContent>
-      </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Delete Attachment</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this attachment? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowDeleteConfirm(false)}
-              className="rounded-full border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] transition-colors duration-200"
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleConfirmDelete}
-              className="rounded-full bg-red-600 hover:bg-red-700 transition-colors duration-200"
-            >
-              Delete
-            </Button>
-          </div>
-        </DialogContent>
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+          <DialogContent 
+            className="sm:max-w-[400px]"
+            aria-describedby="delete-dialog-description"
+          >
+            <DialogHeader>
+              <DialogTitle>Delete Attachment</DialogTitle>
+              <DialogDescription id="delete-dialog-description">
+                Are you sure you want to delete this attachment? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="rounded-full border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] transition-colors duration-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleConfirmDelete}
+                className="rounded-full bg-red-600 hover:bg-red-700 transition-colors duration-200"
+              >
+                Delete
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </Dialog>
     </>
   );
