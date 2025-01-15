@@ -48,10 +48,12 @@ export function UploadInterface({
   const [muxPlaybackId, setMuxPlaybackId] = useState<string | null>(null);
   const uploadLock = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  const hasStartedUpload = useRef(false);
 
   const handleVideoReady = useCallback((playbackId: string) => {
     setProcessingState('ready');
     setMuxPlaybackId(playbackId);
+    setExistingVideo(null); // Clear existing video check after successful upload
     toast.success('Video uploaded successfully');
     if (onUploadSuccess) {
       onUploadSuccess(playbackId);
@@ -76,11 +78,11 @@ export function UploadInterface({
             .eq('id', videoId)
             .single();
 
-          // If the record doesn't exist yet or there's an error, wait and try again
-          if (error || !video) {
+          if (error) {
+            console.error('Error checking video status:', error);
             if (attempts < maxAttempts) {
               attempts++;
-              await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+              await new Promise(resolve => setTimeout(resolve, 5000));
               return checkStatus();
             } else {
               handleVideoError();
@@ -88,27 +90,29 @@ export function UploadInterface({
             }
           }
 
-          if (video.status === 'READY' && video.muxPlaybackId) {
-            // Video is ready
-            handleVideoReady(video.muxPlaybackId);
+          if (video?.status === 'READY' && video?.muxPlaybackId) {
+            setMuxPlaybackId(video.muxPlaybackId);
+            setProcessingState('ready');
+            if (onUploadSuccess) {
+              await onUploadSuccess(video.muxPlaybackId);
+            }
             return;
           }
 
-          if (video.status === 'ERRORED') {
-            toast.error('Video processing failed');
+          if (video?.status === 'ERRORED') {
             handleVideoError();
             return;
           }
 
           if (attempts < maxAttempts) {
             attempts++;
-            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+            await new Promise(resolve => setTimeout(resolve, 5000));
             return checkStatus();
           } else {
             handleVideoError();
           }
         } catch (error) {
-          console.error('Error checking video status:', error);
+          console.error('Error polling video status:', error);
           if (attempts < maxAttempts) {
             attempts++;
             await new Promise(resolve => setTimeout(resolve, 5000));
@@ -121,14 +125,17 @@ export function UploadInterface({
 
       await checkStatus();
     },
-    [supabase, handleVideoReady, handleVideoError]
+    [supabase, handleVideoError, onUploadSuccess]
   );
 
   const handleUpload = useCallback(
     async (file: File) => {
+      hasStartedUpload.current = true;
       setIsUploading(true);
       setUploadProgress(0);
       setError(null);
+      setExistingVideo(null); // Clear any existing video warning
+      setProcessingState('idle'); // Reset processing state
 
       try {
         // Get current user
@@ -143,52 +150,6 @@ export function UploadInterface({
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         if (sessionError || !session?.access_token) {
           throw new Error('Failed to get authorization token');
-        }
-
-        // Check if user has SHARER role
-        const { data: profile, error: profileError } = await supabase
-          .from('Profile')
-          .select(`
-            id,
-            ProfileRole (
-              role
-            ),
-            ProfileSharer (
-              id
-            )
-          `)
-          .eq('id', user.id)
-          .single();
-
-        console.log('Profile data:', profile);
-        console.log('Profile error:', profileError);
-
-        if (profileError || !profile) {
-          console.error('Profile check failed:', { profileError, profile });
-          throw new Error('Failed to verify upload permissions');
-        }
-
-        // Check for SHARER role and ProfileSharer record
-        if (!profile.ProfileRole || !Array.isArray(profile.ProfileRole)) {
-          console.error('Invalid ProfileRole data:', profile.ProfileRole);
-          throw new Error('Failed to verify upload permissions - invalid role data');
-        }
-
-        const hasSharerRole = profile.ProfileRole.some((role: ProfileRole) => role.role === 'SHARER');
-        console.log('Role check:', {
-          ProfileRole: profile.ProfileRole,
-          hasSharerRole,
-          ProfileSharer: profile.ProfileSharer
-        });
-
-        if (!hasSharerRole) {
-          console.error('Missing SHARER role');
-          throw new Error('You do not have permission to upload videos - missing SHARER role');
-        }
-
-        if (!profile.ProfileSharer?.[0]?.id) {
-          console.error('Missing ProfileSharer record');
-          throw new Error('You do not have permission to upload videos - missing sharer profile');
         }
 
         // Get upload URL from your API
@@ -207,6 +168,8 @@ export function UploadInterface({
             throw new Error('Please sign in to upload videos');
           } else if (response.status === 403) {
             throw new Error('You do not have permission to upload videos');
+          } else if (response.status === 409) {
+            throw new Error('A video for this prompt already exists');
           } else {
             throw new Error(error.message || 'Failed to get upload URL');
           }
@@ -281,16 +244,16 @@ export function UploadInterface({
         setIsUploading(false);
         setProcessingState('idle');
         uploadLock.current = false;
+        
+        // Show appropriate error message
+        if (error instanceof Error) {
+          setError(error.message);
+        } else {
+          setError('Failed to upload video');
+        }
       }
     },
-    [
-      processingState,
-      promptId,
-      pollVideoStatus,
-      handleVideoError,
-      onUploadSuccess,
-      supabase
-    ]
+    [promptId, pollVideoStatus, handleVideoError]
   );
 
   const handleDrop = useCallback(
@@ -324,6 +287,9 @@ export function UploadInterface({
 
   useEffect(() => {
     const checkExistingVideo = async () => {
+      // Skip check if we've started uploading
+      if (hasStartedUpload.current) return;
+      
       if (!promptId) return;
 
       try {

@@ -502,19 +502,76 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
             onSave={async (blob: Blob): Promise<string> => {
               try {
                 const supabase = createClient();
-                // Upload the video and get the URL
-                const { data, error } = await supabase.storage
-                  .from('videos')
-                  .upload(`${promptId}/${Date.now()}.webm`, blob);
 
-                if (error) throw error;
+                // Create a prompt response record first
+                const { data: responseData, error: responseError } = await supabase
+                  .from('PromptResponse')
+                  .insert({
+                    promptId: promptId,
+                  })
+                  .select()
+                  .single();
+
+                if (responseError) throw responseError;
+                if (!responseData?.id) throw new Error('No response ID returned');
+
+                // Create a video record linked to the prompt response
+                const { data: videoData, error: videoError } = await supabase
+                  .from('Video')
+                  .insert({
+                    promptId: promptId,
+                    promptResponseId: responseData.id,
+                    status: 'UPLOADING'
+                  })
+                  .select()
+                  .single();
+
+                if (videoError) {
+                  // If video creation fails, delete the prompt response
+                  await supabase
+                    .from('PromptResponse')
+                    .delete()
+                    .eq('id', responseData.id);
+                  throw videoError;
+                }
+                if (!videoData?.id) throw new Error('No video ID returned');
+
+                // Upload the video with the video ID in the path
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                  .from('videos')
+                  .upload(`${promptId}/${videoData.id}.webm`, blob);
+
+                if (uploadError) {
+                  // If upload fails, delete both records
+                  await supabase
+                    .from('Video')
+                    .delete()
+                    .eq('id', videoData.id);
+                  await supabase
+                    .from('PromptResponse')
+                    .delete()
+                    .eq('id', responseData.id);
+                  throw uploadError;
+                }
+
+                if (!uploadData?.path) throw new Error('No upload path returned');
+
+                // Update the video record with the storage path
+                const { error: updateError } = await supabase
+                  .from('Video')
+                  .update({
+                    storagePath: uploadData.path,
+                    status: 'PROCESSING'
+                  })
+                  .eq('id', videoData.id);
+
+                if (updateError) throw updateError;
                 
-                // Return the path for further processing
-                return data?.path || '';
+                return videoData.id;
               } catch (error) {
                 console.error('Error saving video:', error);
                 toast.error('Failed to save video');
-                return '';
+                throw error; // Re-throw the error instead of returning empty string
               }
             }}
           />

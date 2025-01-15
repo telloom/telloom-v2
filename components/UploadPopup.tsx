@@ -35,10 +35,10 @@ export function UploadPopup({
 }: UploadPopupProps) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-6 m-4 overflow-hidden">
+      <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-6 m-4 overflow-hidden" aria-describedby="upload-dialog-description">
         <DialogHeader>
           <DialogTitle>Upload Video</DialogTitle>
-          <DialogDescription>
+          <DialogDescription id="upload-dialog-description">
             Record or upload a video response to share with your family.
           </DialogDescription>
         </DialogHeader>
@@ -61,7 +61,11 @@ export function UploadPopup({
           ) : (
             <UploadInterface
               promptId={promptId}
-              onUploadSuccess={onUploadSuccess}
+              onUploadSuccess={async (playbackId) => {
+                if (onUploadSuccess) {
+                  await onUploadSuccess(playbackId);
+                }
+              }}
               promptText={promptText}
             />
           )}

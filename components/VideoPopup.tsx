@@ -2,7 +2,7 @@
 // This component provides a modal dialog for both video recording and playback
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -37,8 +37,15 @@ export function VideoPopup({
   hasPrevious = false,
   children
 }: VideoPopupProps) {
+  // Add cleanup on close
+  const handleClose = useCallback(() => {
+    if (onClose) {
+      onClose();
+    }
+  }, [onClose]);
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-6 m-4 overflow-hidden" aria-describedby="video-dialog-description">
         <DialogHeader>
           <DialogTitle>{promptText}</DialogTitle>
