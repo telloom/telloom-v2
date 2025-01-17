@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr'
 import PromptListPopup from './PromptListPopup';
 import { cn } from "@/lib/utils";
@@ -32,33 +32,31 @@ import {
 } from "@/components/ui/tooltip";
 import { ArrowRight, ArrowUpDown, ArrowUp, ArrowDown, Search, LayoutGrid, Table as TableIcon } from 'lucide-react';
 import TopicCard from "@/components/TopicCard";
-import { PromptCategory as BasePromptCategory } from '@/types/models';
+import { PromptCategory } from '@/types/models';
 
-interface ExtendedPromptCategory extends BasePromptCategory {
-  theme?: string;
-  isFavorite?: boolean;
-  isInQueue?: boolean;
-}
-
-interface TopicsTableAllProps {
-  promptCategories: ExtendedPromptCategory[];
-}
+type TopicsTableAllProps = {
+  promptCategories: PromptCategory[];
+};
 
 type SortField = 'topic' | 'theme';
 type SortDirection = 'asc' | 'desc';
 
 export default function TopicsTableAll({ promptCategories: initialPromptCategories }: TopicsTableAllProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [viewFilters, setViewFilters] = useState<string[]>([]);
+  const [viewFilters, setViewFilters] = useState<string[]>(() => {
+    const filterParam = searchParams.get('filter');
+    return filterParam ? [filterParam] : [];
+  });
   const [themeFilter, setThemeFilter] = useState('all');
-  const [promptCategories, setPromptCategories] = useState<ExtendedPromptCategory[]>(initialPromptCategories);
-  const [selectedCategory, setSelectedCategory] = useState<ExtendedPromptCategory | null>(null);
+  const [promptCategories, setPromptCategories] = useState<PromptCategory[]>(initialPromptCategories);
+  const [selectedCategory, setSelectedCategory] = useState<PromptCategory | null>(null);
   const [isPromptListOpen, setIsPromptListOpen] = useState(false);
   const [sortField, setSortField] = useState<SortField>('topic');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -93,7 +91,7 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
     loadUserPreferences();
   }, [supabase, initialPromptCategories]);
 
-  const handleFavoriteClick = async (e: React.MouseEvent, category: ExtendedPromptCategory) => {
+  const handleFavoriteClick = async (e: React.MouseEvent, category: PromptCategory) => {
     e.stopPropagation();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return;
@@ -136,7 +134,7 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
     }
   };
 
-  const handleQueueClick = async (e: React.MouseEvent, category: ExtendedPromptCategory) => {
+  const handleQueueClick = async (e: React.MouseEvent, category: PromptCategory) => {
     e.stopPropagation();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return;
@@ -190,9 +188,9 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
     }
   };
 
-  const getCompletionStatus = (category: ExtendedPromptCategory) => {
+  const getCompletionStatus = (category: PromptCategory) => {
     const totalPrompts = category.prompts.length;
-    const completedPrompts = category.prompts.filter(p => p.promptResponses.length > 0 || p.videos.length > 0).length;
+    const completedPrompts = category.prompts.filter(p => Array.isArray(p.PromptResponse) && p.PromptResponse.length > 0).length;
     
     let status;
     if (completedPrompts === totalPrompts) {
@@ -221,13 +219,18 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
   };
 
   const handleViewFilterChange = (value: string) => {
-    setViewFilters(prev => {
-      if (prev.includes(value)) {
-        return prev.filter(v => v !== value);
-      } else {
-        return [...prev, value];
-      }
-    });
+    const newFilters = viewFilters.includes(value) 
+      ? viewFilters.filter(v => v !== value)
+      : [...viewFilters, value];
+    
+    setViewFilters(newFilters);
+    
+    // Update URL after state update
+    if (newFilters.length > 0) {
+      router.push(`/role-sharer/topics?filter=${newFilters[0]}`);
+    } else {
+      router.push('/role-sharer/topics');
+    }
   };
 
   const handleResetFilters = () => {
@@ -235,6 +238,7 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
     setStatusFilter('all');
     setViewFilters([]);
     setThemeFilter('all');
+    router.push('/role-sharer/topics');
   };
 
   const sortedPromptCategories = useMemo(() => {
@@ -264,7 +268,7 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
             case 'queue':
               return category.isInQueue;
             case 'with_responses':
-              return category.prompts.some(p => p.promptResponses.length > 0);
+              return category.prompts.some(p => p.PromptResponse && p.PromptResponse.length > 0);
             default:
               return true;
           }

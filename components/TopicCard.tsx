@@ -28,7 +28,7 @@ interface TopicCardProps {
 export default function TopicCard({ promptCategory, onClick, onFavoriteClick, onQueueClick }: TopicCardProps) {
   const router = useRouter();
   const [isPromptListOpen, setIsPromptListOpen] = useState(false);
-  const completedCount = promptCategory.prompts.filter(p => p.PromptResponse.length > 0).length;
+  const completedCount = promptCategory.prompts.filter(p => Array.isArray(p.PromptResponse) && p.PromptResponse.length > 0).length;
   const totalCount = promptCategory.prompts.length;
 
   return (

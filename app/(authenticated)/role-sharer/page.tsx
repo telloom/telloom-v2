@@ -63,11 +63,25 @@ export default async function SharerPage() {
           promptType,
           isContextEstablishing,
           promptCategoryId,
-          Video:Video (
-            id
-          ),
           PromptResponse:PromptResponse (
-            id
+            id,
+            profileSharerId,
+            summary,
+            createdAt,
+            Video:Video (
+              id,
+              muxPlaybackId,
+              muxAssetId
+            ),
+            PromptResponseAttachment:PromptResponseAttachment (
+              id,
+              fileUrl,
+              fileType,
+              fileName,
+              description,
+              dateCaptured,
+              yearCaptured
+            )
           )
         )
       `)
@@ -91,21 +105,25 @@ export default async function SharerPage() {
         promptType: prompt.promptType,
         isContextEstablishing: prompt.isContextEstablishing,
         promptCategoryId: prompt.promptCategoryId,
-        videos: (prompt.Video || []).map(video => ({
-          id: video.id,
-          profileSharerId: '',
-          muxPlaybackId: '',
-          duration: 0,
-          promptResponses: [],
-          profileSharer: null,
-          viewedBy: []
-        })),
-        promptResponses: (prompt.PromptResponse || []).map(response => ({
+        PromptResponse: (prompt.PromptResponse || []).map(response => ({
           id: response.id,
-          profileSharerId: '',
-          videoId: '',
-          responseNotes: '',
-          privacyLevel: ''
+          profileSharerId: response.profileSharerId,
+          summary: response.summary,
+          createdAt: response.createdAt,
+          Video: response.Video ? {
+            id: response.Video.id,
+            muxPlaybackId: response.Video.muxPlaybackId,
+            muxAssetId: response.Video.muxAssetId
+          } : null,
+          PromptResponseAttachment: (response.PromptResponseAttachment || []).map(attachment => ({
+            id: attachment.id,
+            fileUrl: attachment.fileUrl,
+            fileType: attachment.fileType,
+            fileName: attachment.fileName,
+            description: attachment.description,
+            dateCaptured: attachment.dateCaptured,
+            yearCaptured: attachment.yearCaptured
+          }))
         }))
       }))
     }));

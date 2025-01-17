@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { PromptCategory } from '@/types/models';
 import TopicCard from './TopicCard';
 import Link from 'next/link';
-import { Star, ListPlus, MessageSquare } from 'lucide-react';
+import { Star, ListPlus, MessageSquare, ArrowRight } from 'lucide-react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, A11y, Mousewheel } from 'swiper/modules';
 
@@ -43,7 +43,7 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
     // Get all topics that have no responses
     const unrespondedTopics = promptCategories.filter((category) => {
       if (!category.prompts) return false;
-      return !category.prompts.some(prompt => prompt.promptResponses[0]);
+      return !category.prompts.some(prompt => Array.isArray(prompt.PromptResponse) && prompt.PromptResponse.length > 0);
     });
 
     // Shuffle array and take 9 items
@@ -151,83 +151,101 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
         promptCategory={category} 
         onFavoriteClick={(e) => handleFavoriteClick(e, category)}
         onQueueClick={(e) => handleQueueClick(e, category)}
+        onClick={() => {}}
       />
     </SwiperSlide>
   );
 
-  const renderTopicSection = (title: string, filteredCategories: PromptCategory[]) => (
+  const renderTopicSection = (title: string, filteredCategories: PromptCategory[]) => {
+    const getFilterParam = (title: string) => {
+      switch (title) {
+        case 'Favorite Topics':
+          return 'favorites';
+        case 'Topics Queue':
+          return 'queue';
+        case 'Topics with Responses':
+          return 'with_responses';
+        default:
+          return '';
+      }
+    };
+
+    const filterParam = getFilterParam(title);
+    const viewAllHref = filterParam 
+      ? `/role-sharer/topics?filter=${filterParam}`
+      : '/role-sharer/topics';
+
+    return (
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <h2 className="text-2xl font-semibold text-gray-900">{title}</h2>
+            <Link 
+              href={viewAllHref}
+              className="text-sm text-[#1B4332] hover:underline"
+            >
+              View All
+            </Link>
+          </div>
+        </div>
+        <div className="relative">
+          <Swiper
+            modules={[Navigation, A11y, Mousewheel]}
+            spaceBetween={24}
+            slidesPerView={slidesPerView}
+            navigation={{
+              prevEl: '.swiper-button-prev',
+              nextEl: '.swiper-button-next',
+            }}
+            mousewheel={{
+              forceToAxis: true,
+              sensitivity: 1,
+            }}
+            className="!overflow-visible"
+          >
+            {filteredCategories.map(renderTopicCard)}
+            <div className="swiper-button-prev"></div>
+            <div className="swiper-button-next"></div>
+          </Swiper>
+        </div>
+      </section>
+    );
+  };
+
+  const renderEmptySection = (title: string) => (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <h2 className="text-2xl font-semibold text-gray-900">{title}</h2>
           <Link 
-            href={`/role-sharer/dashboard/${title.toLowerCase().replace(/\s+/g, '-')}`} 
+            href="/role-sharer/topics"
             className="text-sm text-[#1B4332] hover:underline"
           >
             View All
           </Link>
         </div>
       </div>
-      <div className="relative">
-        <Swiper
-          modules={[Navigation, A11y, Mousewheel]}
-          spaceBetween={24}
-          slidesPerView={slidesPerView}
-          navigation={{
-            prevEl: '.swiper-button-prev',
-            nextEl: '.swiper-button-next',
-          }}
-          mousewheel={{
-            forceToAxis: true,
-            sensitivity: 1,
-          }}
-          className="!overflow-visible"
-        >
-          {filteredCategories.map(renderTopicCard)}
-          <div className="swiper-button-prev"></div>
-          <div className="swiper-button-next"></div>
-        </Swiper>
-      </div>
-    </section>
-  );
-
-  const renderEmptySection = (title: string, icon: React.ReactNode, message: string) => (
-    <section className="space-y-4">
-      <div className="flex items-center space-x-4">
-        <h2 className="text-2xl font-semibold text-gray-900">{title}</h2>
-      </div>
       <div className="border-2 border-dashed border-gray-200 rounded-lg p-8">
-        <div className="flex flex-col items-center justify-center text-center space-y-4">
-          {icon}
-          <p className="text-gray-600">{message}</p>
+        <div className="flex flex-col items-center justify-center text-center">
+          <p className="text-gray-500 mb-4">No {title.toLowerCase()} yet</p>
           <Link 
-            href="/role-sharer/topics" 
-            className="text-[#1B4332] hover:underline font-medium"
+            href="/role-sharer/topics"
+            className="inline-flex items-center justify-center gap-2 text-[#1B4332] font-medium hover:text-[#8fbc55]"
           >
             Browse Topics
+            <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </div>
     </section>
   );
 
-  const inProgressCategories = promptCategories.filter((category) => {
-    if (!category.prompts) return false;
-    return category.prompts.some(prompt => prompt.promptResponses[0]) && 
-           !category.prompts.every(prompt => prompt.promptResponses[0]);
-  });
-
-  const completedCategories = promptCategories.filter((category) => {
-    if (!category.prompts) return false;
-    return category.prompts.every(prompt => prompt.promptResponses[0]);
-  });
-
   const favoriteCategories = promptCategories.filter((category) => category.isFavorite);
   const queuedCategories = promptCategories.filter((category) => category.isInQueue);
 
   const topicsWithResponses = promptCategories.filter((category) => {
     if (!category.prompts) return false;
-    return category.prompts.some(prompt => prompt.promptResponses.length > 0);
+    return category.prompts.some(prompt => Array.isArray(prompt.PromptResponse) && prompt.PromptResponse.length > 0);
   });
 
   return (
@@ -236,39 +254,25 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
       {favoriteCategories.length > 0 ? (
         renderTopicSection('Favorite Topics', favoriteCategories)
       ) : (
-        renderEmptySection(
-          'Favorite Topics',
-          <Star className="h-12 w-12 text-gray-400" />,
-          "Add your first favorite topic by clicking the star icon on any topic you'd like to save for later."
-        )
+        renderEmptySection('Favorite Topics')
       )}
 
       {/* Queue Section */}
       {queuedCategories.length > 0 ? (
         renderTopicSection('Topics Queue', queuedCategories)
       ) : (
-        renderEmptySection(
-          'Topics Queue',
-          <ListPlus className="h-12 w-12 text-gray-400" />,
-          "Build your recording queue by adding topics you plan to work on next."
-        )
+        renderEmptySection('Topics Queue')
       )}
 
       {/* Topics with Responses Section */}
       {topicsWithResponses.length > 0 ? (
         renderTopicSection('Topics with Responses', topicsWithResponses)
       ) : (
-        renderEmptySection(
-          'Topics with Responses',
-          <MessageSquare className="h-12 w-12 text-gray-400" />,
-          "Start recording responses to your topics and they'll appear here. Share your stories and experiences!"
-        )
+        renderEmptySection('Topics with Responses')
       )}
 
-      {/* Other sections */}
-      {inProgressCategories.length > 0 && renderTopicSection('In-Progress Topics', inProgressCategories)}
+      {/* Suggested Topics section */}
       {randomSuggestedTopics.length > 0 && renderTopicSection('Suggested Topics', randomSuggestedTopics)}
-      {completedCategories.length > 0 && renderTopicSection('Completed Topics', completedCategories)}
     </div>
   );
 }
