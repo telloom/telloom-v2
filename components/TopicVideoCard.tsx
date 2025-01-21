@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { AttachmentDialog } from './AttachmentDialog';
 import { UIAttachment, toUIAttachment } from '@/types/component-interfaces';
 import { PostgrestError } from '@supabase/supabase-js';
+import { toast } from 'sonner';
 
 interface TopicVideoCardProps {
   promptCategoryId: string;
@@ -352,6 +353,68 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
         hasNext={currentAttachmentIndex < attachments.length - 1}
         hasPrevious={currentAttachmentIndex > 0}
         onSave={handleAttachmentSave}
+        onDelete={async (attachmentId) => {
+          try {
+            const attachment = attachments.find(a => a.id === attachmentId);
+            
+            if (attachment?.fileUrl) {
+              const filePath = attachment.fileUrl.includes('attachments/') 
+                ? attachment.fileUrl.split('attachments/')[1]
+                : attachment.fileUrl;
+                
+              // Delete from storage
+              const { error: storageError } = await supabase
+                .storage
+                .from('attachments')
+                .remove([filePath]);
+                
+              if (storageError) throw storageError;
+            }
+
+            // Delete from database
+            const { error: dbError } = await supabase
+              .from('PromptResponseAttachment')
+              .delete()
+              .eq('id', attachmentId);
+
+            if (dbError) throw dbError;
+
+            toast.success('Attachment deleted successfully');
+            setShowAttachments(false);
+            // Update local state
+            setAttachments(prev => prev.filter(a => a.id !== attachmentId));
+          } catch (error) {
+            console.error('Error deleting attachment:', error);
+            toast.error('Failed to delete attachment');
+          }
+        }}
+        onDownload={async (attachment) => {
+          try {
+            const filePath = attachment.fileUrl.includes('attachments/') 
+              ? attachment.fileUrl.split('attachments/')[1]
+              : attachment.fileUrl;
+            
+            const { data, error } = await supabase.storage
+              .from('attachments')
+              .download(filePath);
+
+            if (error) throw error;
+
+            if (data) {
+              const url = URL.createObjectURL(data);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = attachment.fileName;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+            }
+          } catch (error) {
+            console.error('Error downloading file:', error);
+            toast.error('Failed to download file');
+          }
+        }}
       />
 
       {/* Upload Popup */}

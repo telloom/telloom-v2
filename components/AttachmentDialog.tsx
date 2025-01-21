@@ -500,7 +500,7 @@ export function AttachmentDialog({
                     attachment={{
                       ...attachment,
                       fileUrl: attachment.displayUrl || attachment.fileUrl,
-                      signedUrl: signedUrl
+                      signedUrl: signedUrl || attachment.signedUrl
                     }}
                     size="lg"
                     className="w-full h-full object-contain"

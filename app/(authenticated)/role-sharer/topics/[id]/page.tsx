@@ -31,7 +31,6 @@ import { MuxPlayer } from '@/components/MuxPlayer';
 import { supabase } from '@/lib/supabase/client';
 import { UIAttachment, toUIAttachment } from '@/types/component-interfaces';
 import { TopicVideoCard } from '@/components/TopicVideoCard';
-import { DynamicAttachmentUpload } from '@/components/AttachmentUpload';
 
 const AttachmentUpload = dynamic(() => import('@/components/AttachmentUpload'), {
   loading: () => <p>Loading...</p>
@@ -140,6 +139,40 @@ const TopicPageContent = ({
   const [gallerySignedUrls, setGallerySignedUrls] = useState<Record<string, string>>({});
   const [currentAttachments, setCurrentAttachments] = useState<UIAttachment[]>([]);
 
+  // Define fetchSignedUrls at component level
+  const fetchSignedUrls = useCallback(async (promptResponse: PromptResponse | null) => {
+    if (!promptResponse?.PromptResponseAttachment?.length) return;
+
+    const supabase = createClient();
+    const newSignedUrls: Record<string, string> = {};
+
+    for (const attachment of promptResponse.PromptResponseAttachment) {
+      if (!attachment.fileUrl) continue;
+
+      try {
+        const filePath = attachment.fileUrl.includes('attachments/') 
+          ? attachment.fileUrl.split('attachments/')[1]
+          : attachment.fileUrl;
+
+        const { data, error } = await supabase
+          .storage
+          .from('attachments')
+          .createSignedUrl(filePath, 3600);
+
+        if (!error && data?.signedUrl) {
+          newSignedUrls[attachment.id] = data.signedUrl;
+        }
+      } catch (error) {
+        console.error('Error getting signed URL:', error);
+      }
+    }
+
+    setGallerySignedUrls(prev => ({
+      ...prev,
+      ...newSignedUrls
+    }));
+  }, []);
+
   // Check for prompt text overflow for tooltip display
   useEffect(() => {
     Object.entries(promptRefs.current).forEach(([promptId, element]) => {
@@ -161,18 +194,18 @@ const TopicPageContent = ({
     } else {
       setCurrentAttachments([]);
     }
-  }, [selectedPromptResponse]);
+  }, [selectedPromptResponse, fetchSignedUrls]);
 
-  // 1) Ensure we fetch the signed URLs automatically when the selectedPromptResponse changes
+  // Fetch signed URLs when selectedPromptResponse changes
   useEffect(() => {
     if (selectedPromptResponse) {
       void fetchSignedUrls(selectedPromptResponse);
     }
-  }, [selectedPromptResponse]);
+  }, [selectedPromptResponse, fetchSignedUrls]);
 
-  // Move useEffect before any conditional returns
+  // Fetch signed URLs for all prompts
   useEffect(() => {
-    const fetchSignedUrls = async () => {
+    const fetchAllSignedUrls = async () => {
       if (!promptCategory?.prompts) return;
 
       const supabase = createClient();
@@ -207,7 +240,7 @@ const TopicPageContent = ({
       setGallerySignedUrls(newSignedUrls);
     };
 
-    void fetchSignedUrls();
+    void fetchAllSignedUrls();
   }, [promptCategory?.prompts]);
 
   // Render gallery
@@ -242,12 +275,12 @@ const TopicPageContent = ({
                   e.stopPropagation();
                   setSelectedAttachment({
                     attachment: {
-                      ...attachment,
-                      signedUrl,
-                      displayUrl
+                      ...toUIAttachment(attachment),
+                      signedUrl: gallerySignedUrls[attachment.id],
+                      displayUrl: gallerySignedUrls[attachment.id] || attachment.fileUrl
                     },
                     attachments: viewableAttachments.map(att => ({
-                      ...att,
+                      ...toUIAttachment(att),
                       signedUrl: gallerySignedUrls[att.id],
                       displayUrl: gallerySignedUrls[att.id] || att.fileUrl
                     })),
@@ -267,7 +300,7 @@ const TopicPageContent = ({
                     signedUrl
                   }}
                   size="lg"
-                  className="w-full h-full"
+                  className="w-full h-full object-cover"
                 />
               </div>
             );
@@ -835,7 +868,7 @@ const TopicPageContent = ({
 
       {/* Attachment Upload Dialog */}
       {selectedPromptResponse && (
-        <DynamicAttachmentUpload
+        <AttachmentUpload
           promptResponseId={selectedPromptResponse.id}
           isOpen={isAttachmentUploadOpen}
           onClose={() => {
@@ -856,8 +889,126 @@ const TopicPageContent = ({
           isOpen={!!selectedAttachment}
           onClose={() => setSelectedAttachment(null)}
           attachment={selectedAttachment.attachment}
-          attachments={selectedAttachment.attachments}
-          currentIndex={selectedAttachment.currentIndex}
+          onNext={() => {
+            const nextIndex = selectedAttachment.currentIndex + 1;
+            if (nextIndex < selectedAttachment.attachments.length) {
+              setSelectedAttachment({
+                attachment: selectedAttachment.attachments[nextIndex],
+                attachments: selectedAttachment.attachments,
+                currentIndex: nextIndex
+              });
+            }
+          }}
+          onPrevious={() => {
+            const prevIndex = selectedAttachment.currentIndex - 1;
+            if (prevIndex >= 0) {
+              setSelectedAttachment({
+                attachment: selectedAttachment.attachments[prevIndex],
+                attachments: selectedAttachment.attachments,
+                currentIndex: prevIndex
+              });
+            }
+          }}
+          hasNext={selectedAttachment.currentIndex < selectedAttachment.attachments.length - 1}
+          hasPrevious={selectedAttachment.currentIndex > 0}
+          onSave={async (updatedAttachment) => {
+            try {
+              const supabase = createClient();
+              const { error } = await supabase
+                .from('PromptResponseAttachment')
+                .update({
+                  description: updatedAttachment.description,
+                  dateCaptured: updatedAttachment.dateCaptured,
+                  yearCaptured: updatedAttachment.yearCaptured
+                })
+                .eq('id', updatedAttachment.id);
+
+              if (error) throw error;
+
+              // Update the attachment in the state
+              setSelectedAttachment(prev => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  attachment: {
+                    ...prev.attachment,
+                    description: updatedAttachment.description,
+                    dateCaptured: updatedAttachment.dateCaptured,
+                    yearCaptured: updatedAttachment.yearCaptured
+                  }
+                };
+              });
+
+              // Refresh the data to update the UI
+              await refreshData();
+            } catch (error) {
+              console.error('Error saving attachment:', error);
+              toast.error('Failed to save changes');
+            }
+          }}
+          onDelete={async (attachmentId) => {
+            try {
+              const supabase = createClient();
+              const attachment = selectedAttachment.attachments.find(a => a.id === attachmentId);
+              
+              if (attachment?.fileUrl) {
+                const filePath = attachment.fileUrl.includes('attachments/') 
+                  ? attachment.fileUrl.split('attachments/')[1]
+                  : attachment.fileUrl;
+                  
+                // Delete from storage
+                const { error: storageError } = await supabase
+                  .storage
+                  .from('attachments')
+                  .remove([filePath]);
+                  
+                if (storageError) throw storageError;
+              }
+
+              // Delete from database
+              const { error: dbError } = await supabase
+                .from('PromptResponseAttachment')
+                .delete()
+                .eq('id', attachmentId);
+
+              if (dbError) throw dbError;
+
+              toast.success('Attachment deleted successfully');
+              setSelectedAttachment(null);
+              await refreshData();
+            } catch (error) {
+              console.error('Error deleting attachment:', error);
+              toast.error('Failed to delete attachment');
+            }
+          }}
+          onDownload={async (attachment) => {
+            try {
+              const supabase = createClient();
+              const filePath = attachment.fileUrl.includes('attachments/') 
+                ? attachment.fileUrl.split('attachments/')[1]
+                : attachment.fileUrl;
+              
+              const { data, error } = await supabase.storage
+                .from('attachments')
+                .download(filePath);
+
+              if (error) throw error;
+
+              if (data) {
+                const url = URL.createObjectURL(data);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = attachment.fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+              }
+            } catch (error) {
+              console.error('Error downloading file:', error);
+              toast.error('Failed to download file');
+            }
+          }}
         />
       )}
     </div>

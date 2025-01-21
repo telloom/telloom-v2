@@ -106,7 +106,7 @@ export default function AttachmentThumbnail({ attachment, size = 'md', className
           alt={attachment.fileName}
           fill
           sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-          className="object-contain hover:opacity-90 transition-opacity p-1"
+          className={`hover:opacity-90 transition-opacity ${className}`}
           priority={size === 'lg'}
           unoptimized
         />
@@ -122,7 +122,7 @@ export default function AttachmentThumbnail({ attachment, size = 'md', className
           alt={attachment.fileName}
           fill
           sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-          className="object-contain hover:opacity-90 transition-opacity p-1"
+          className={`hover:opacity-90 transition-opacity ${className}`}
           priority={size === 'lg'}
         />
       </div>

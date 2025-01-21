@@ -81,7 +81,7 @@ export function isUIAttachment(attachment: any): attachment is UIAttachment {
 /**
  * Helper function to convert PromptResponseAttachment to UIAttachment
  */
-export function toUIAttachment(attachment: PromptResponseAttachment): UIAttachment {
+export function toUIAttachment(attachment: PromptResponseAttachment & { signedUrl?: string; displayUrl?: string }): UIAttachment {
   const personTags = attachment.PromptResponseAttachmentPersonTag
     ?.map(pt => pt.PersonTag)
     .filter((tag): tag is PersonTag => tag !== null && tag !== undefined) || [];
@@ -103,6 +103,10 @@ export function toUIAttachment(attachment: PromptResponseAttachment): UIAttachme
     estimatedYear: attachment.estimatedYear,
     dateCaptured: attachment.dateCaptured,
     yearCaptured: attachment.yearCaptured,
+    
+    // URL fields
+    signedUrl: attachment.signedUrl,
+    displayUrl: attachment.displayUrl,
     
     // Relationships
     PersonTags: personTags
