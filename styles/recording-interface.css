@@ -1,0 +1,7 @@
+[data-testid="audio-level-indicator"] {
+  width: calc(var(--audio-level) * 1%);
+}
+
+[data-audio-level] {
+  --audio-level: attr(data-audio-level);
+} 

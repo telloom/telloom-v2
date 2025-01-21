@@ -41,7 +41,7 @@ import { urlCache } from '@/utils/url-cache';
 // Remove the local PersonRelation constant and update the type
 type PersonRelationType = PersonRelation;
 
-interface Attachment {
+export interface Attachment {
   id: string;
   fileUrl: string;
   displayUrl?: string;

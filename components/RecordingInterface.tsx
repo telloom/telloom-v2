@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Video, X, Square, Circle, Upload, Timer, Camera, Mic, RotateCcw, Save, Play, Pause } from 'lucide-react';
@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { MuxPlayer } from './MuxPlayer';
 import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
+import '@/styles/recording-interface.css';
 
 export interface RecordingInterfaceProps {
   promptId: string;
@@ -65,6 +66,11 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
 
   const [processingState, setProcessingState] = useState<'idle' | 'uploading' | 'processing' | 'ready' | 'error'>('idle');
   const [muxPlaybackId, setMuxPlaybackId] = useState<string | null>(null);
+
+  const audioLevelWidth = useMemo(() => {
+    const width = Math.min(100, (audioLevel / 256) * 100);
+    return `w-[${width}%]`;
+  }, [audioLevel]);
 
   useEffect(() => {
     // Get available media devices and start preview automatically
@@ -525,18 +531,18 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
   };
 
   return (
-    <div className="p-6">
-      <div className="space-y-8">
+    <div className="flex flex-col h-full max-h-[90vh] p-4">
+      <div className="space-y-4 flex-1 overflow-y-auto">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-md">
             {error}
           </div>
         )}
 
-        <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex flex-col flex-1">
           {processingState === 'ready' && muxPlaybackId ? (
             <div className="flex flex-col items-center justify-center flex-1 min-h-0">
-              <div className="relative w-full max-w-[800px]" style={{ width: 'min(60vw, calc(55vh * 16/9))' }}>
+              <div className="relative w-full max-w-[800px] w-[min(60vw,calc(55vh*16/9))]">
                 <div className="w-full">
                   <div className="aspect-video bg-black rounded-md overflow-hidden relative">
                     <div className="absolute inset-0">
@@ -660,7 +666,7 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
 
               {/* Video Preview with Timer and Audio Level Overlay */}
               <div className="flex flex-col items-center justify-center flex-1 min-h-0 mt-6">
-                <div className="relative w-full max-w-[800px]" style={{ width: 'min(60vw, calc(55vh * 16/9))' }}>
+                <div className="relative w-full max-w-[800px] max-h-[calc(100vh-300px)]">
                   <div className="w-full">
                     <div className="aspect-video bg-black rounded-md overflow-hidden relative">
                       <video
@@ -722,7 +728,7 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
               </div>
 
               {/* Controls */}
-              <div className="flex justify-center gap-4 mt-8">
+              <div className="flex justify-center gap-4 py-4 mt-auto">
                 {!isRecording && !isPreviewMode && processingState === 'idle' && (
                   <div className="flex gap-4">
                     <Button 

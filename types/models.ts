@@ -80,12 +80,22 @@ export enum Role {
   export interface PromptResponseAttachment {
     id: string;
     promptResponseId: string;
+    profileSharerId: string;
     fileUrl: string;
     fileType: string;
     fileName: string;
-    createdAt?: Date;
-    updatedAt?: Date;
-    promptResponse: PromptResponse;
+    fileSize: number | null;
+    title: string | null;
+    description: string | null;
+    estimatedYear: number | null;
+    uploadedAt: Date;
+    dateCaptured: Date | null;
+    yearCaptured: number | null;
+    // Relations
+    PromptResponseAttachmentPersonTag?: Array<{
+      PersonTag?: PersonTag | null;
+    }>;
+    PersonTags?: PersonTag[];
   }
   
   export interface PromptResponseFavorite {
@@ -126,7 +136,7 @@ export enum Role {
     transcription?: string;
     dateRecorded?: Date | null;
     createdAt: string;
-    Video: {
+    Video?: {
       id: string;
       muxPlaybackId: string;
       muxAssetId: string | null;
@@ -135,16 +145,7 @@ export enum Role {
         transcript: string;
       }>;
     } | null;
-    PromptResponseAttachment: Array<{
-      id: string;
-      promptResponseId: string;
-      fileUrl: string;
-      fileType: string;
-      fileName: string;
-      description?: string | null;
-      dateCaptured?: string | null;
-      yearCaptured?: number | null;
-    }>;
+    PromptResponseAttachment?: PromptResponseAttachment[];
   }
   
   export interface Video {
@@ -180,6 +181,7 @@ export enum Role {
     firstName: string;
     lastName: string;
     email: string;
+    avatarUrl?: string;
     createdAt: Date;
     updatedAt: Date;
     roles?: ProfileRole[];
@@ -261,13 +263,13 @@ export enum Role {
     promptCategory: string;
     response?: {
       id: string;
-      summary?: string;
-      responseNotes?: string;
-      dateRecorded?: string | null;
+      summary?: string | null;
+      responseNotes?: string | null;
       video?: {
         id: string;
         muxPlaybackId: string;
         muxAssetId: string;
+        dateRecorded?: string | null;
         VideoTranscript?: Array<{
           id: string;
           transcript: string;
@@ -275,12 +277,21 @@ export enum Role {
       };
       PromptResponseAttachment?: Array<{
         id: string;
+        promptResponseId: string;
+        profileSharerId: string;
         fileUrl: string;
         fileType: string;
         fileName: string;
-        description?: string;
-        dateCaptured?: string;
-        yearCaptured?: number;
+        fileSize: number | null;
+        title: string | null;
+        description: string | null;
+        estimatedYear: number | null;
+        uploadedAt: string;
+        dateCaptured: string | null;
+        yearCaptured: number | null;
+        PromptResponseAttachmentPersonTag?: Array<{
+          PersonTag?: PersonTag | null;
+        }>;
       }>;
     };
   }
@@ -349,8 +360,8 @@ export enum Role {
     name: string;
     relation: PersonRelation;
     profileSharerId: string;
-    createdAt?: Date;
-    updatedAt?: Date;
+    createdAt: Date;
+    updatedAt?: Date | null;
     // Relationships
     ProfileSharer?: ProfileSharer;
     PromptResponseAttachmentPersonTag?: PromptResponseAttachmentPersonTag[];
@@ -360,8 +371,8 @@ export enum Role {
     id: string;
     promptResponseAttachmentId: string;
     personTagId: string;
-    createdAt?: Date;
-    updatedAt?: Date;
+    createdAt: Date;
+    updatedAt?: Date | null;
     // Relationships
     PromptResponseAttachment?: PromptResponseAttachment;
     PersonTag?: PersonTag;

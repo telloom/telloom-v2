@@ -198,7 +198,7 @@ model ProfileSharer {
   Profile                  Profile                    @relation(fields: [profileId], references: [id], onDelete: Cascade)
   PromptResponse           PromptResponse[]
   PromptResponseAttachment PromptResponseAttachment[]
-  ThematicVideo            ThematicVideo[]
+  TopicVideo               TopicVideo[]
   Video                    Video[]
 }
 
@@ -234,6 +234,7 @@ model PromptCategory {
   Prompt         Prompt[]
   TopicFavorite  TopicFavorite[]
   TopicQueueItem TopicQueueItem[]
+  TopicVideo     TopicVideo[]
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -258,7 +259,7 @@ model PromptResponse {
   PromptResponseRecentlyWatched PromptResponseRecentlyWatched[]
   ResponsePermission            ResponsePermission[]
   ProfileListener               ProfileListener[]               @relation("ListenerPromptViews")
-  ThematicVideo                 ThematicVideo[]                 @relation("PromptResponseToThematicVideo")
+  ThematicVideo                 TopicVideo[]                    @relation("PromptResponseToThematicVideo")
 
   @@index([search_vector], map: "prompt_response_search_idx", type: Gin)
 }
@@ -268,7 +269,7 @@ model PromptResponseAttachment {
   id                                String                              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   promptResponseId                  String                              @db.Uuid
   profileSharerId                   String                              @db.Uuid
-  fileUrl                           String                              // This field now stores the fileName in the attachments bucket
+  fileUrl                           String
   fileType                          String
   fileName                          String
   fileSize                          Int?
@@ -364,33 +365,6 @@ model SubscriptionEntitlement {
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model ThematicVideo {
-  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title            String
-  description      String?
-  profileSharerId  String           @db.Uuid
-  muxAssetId       String?          @unique
-  muxPlaybackId    String?          @unique
-  muxUploadId      String?          @unique
-  passthrough      String?          @unique
-  duration         Float?
-  aspectRatio      String?
-  videoQuality     String?
-  maxWidth         Decimal?         @db.Decimal
-  maxHeight        Decimal?         @db.Decimal
-  maxFrameRate     Decimal?         @db.Decimal
-  languageCode     String?
-  resolutionTier   String?
-  url              String
-  metadata         Json?
-  airtableRecordId String?
-  createdAt        DateTime?        @default(now()) @db.Timestamptz(6)
-  updatedAt        DateTime?        @default(now()) @db.Timestamptz(6)
-  ProfileSharer    ProfileSharer    @relation(fields: [profileSharerId], references: [id], onDelete: Cascade)
-  PromptResponse   PromptResponse[] @relation("PromptResponseToThematicVideo")
-}
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model TopicFavorite {
   id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   profileId        String         @db.Uuid
@@ -478,6 +452,36 @@ model PromptResponseAttachmentPersonTag {
   updatedAt                  DateTime?                @default(now()) @db.Timestamptz(6)
   PromptResponseAttachment   PromptResponseAttachment @relation(fields: [promptResponseAttachmentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_attachment_tag_attachment")
   PersonTag                  PersonTag                @relation(fields: [personTagId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_attachment_tag_person_tag")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model TopicVideo {
+  id               String           @id(map: "ThematicVideo_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title            String
+  description      String?
+  profileSharerId  String           @db.Uuid
+  muxAssetId       String?          @unique(map: "ThematicVideo_muxAssetId_key")
+  muxPlaybackId    String?          @unique(map: "ThematicVideo_muxPlaybackId_key")
+  muxUploadId      String?          @unique(map: "ThematicVideo_muxUploadId_key")
+  passthrough      String?          @unique(map: "ThematicVideo_passthrough_key")
+  duration         Float?
+  aspectRatio      String?
+  videoQuality     String?
+  maxWidth         Decimal?         @db.Decimal
+  maxHeight        Decimal?         @db.Decimal
+  maxFrameRate     Decimal?         @db.Decimal
+  languageCode     String?
+  resolutionTier   String?
+  url              String
+  metadata         Json?
+  airtableRecordId String?
+  createdAt        DateTime?        @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime?        @default(now()) @db.Timestamptz(6)
+  promptCategoryId String?          @db.Uuid
+  summary          String?
+  ProfileSharer    ProfileSharer    @relation(fields: [profileSharerId], references: [id], onDelete: Cascade, map: "ThematicVideo_profileSharerId_fkey")
+  PromptCategory   PromptCategory?  @relation(fields: [promptCategoryId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  PromptResponse   PromptResponse[] @relation("PromptResponseToThematicVideo")
 }
 
 enum InvitationStatus {

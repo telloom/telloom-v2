@@ -2,188 +2,137 @@
 // This component displays a thumbnail for an attachment, including handling signed URLs and loading states.
 'use client';
 
-import { useState, useEffect } from 'react';
-import { ImageOff, FileText, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { createClient } from '@/utils/supabase/client';
-import { urlCache } from '@/utils/url-cache';
+import { ThumbnailAttachment } from '@/types/component-interfaces';
 import Image from 'next/image';
+import { FileIcon } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 interface AttachmentThumbnailProps {
-  attachment: {
-    id: string;
-    fileUrl: string;
-    fileType: string;
-    fileName: string;
-    signedUrl?: string;
-  };
+  attachment: ThumbnailAttachment;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
 
-export default function AttachmentThumbnail({ 
-  attachment, 
-  size = 'md',
-  className 
-}: AttachmentThumbnailProps) {
-  const [signedUrl, setSignedUrl] = useState<string | undefined>(attachment.signedUrl);
-  const [isLoading, setIsLoading] = useState(!attachment.signedUrl);
-  const [error, setError] = useState(false);
+const sizeClasses = {
+  sm: 'h-24 w-24',
+  md: 'h-32 w-32',
+  lg: 'h-full w-full'
+};
 
-  const sizeClasses = {
-    sm: 'w-2.5 h-2.5',
-    md: 'w-4 h-4',
-    lg: 'w-10 h-10'
+export default function AttachmentThumbnail({ attachment, size = 'md', className = '' }: AttachmentThumbnailProps) {
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const sizeClass = sizeClasses[size];
+  const combinedClassName = `${sizeClass} ${className}`.trim();
+
+  // Function to validate and process URL
+  const getValidImageUrl = (url?: string) => {
+    if (!url) return null;
+    try {
+      // Test if it's a valid URL
+      new URL(url);
+      return url;
+    } catch {
+      return null;
+    }
   };
 
-  const iconSizes = {
-    sm: 'h-1 w-1',
-    md: 'h-1.5 w-1.5',
-    lg: 'h-3 w-3'
-  };
-
+  // Function to generate PDF preview
   useEffect(() => {
-    async function getSignedUrl() {
-      if (!attachment?.fileUrl) {
-        setError(true);
-        setIsLoading(false);
-        return;
-      }
-
-      // If this is a preview (local file), use the fileUrl directly
-      if (attachment.id === 'preview') {
-        setSignedUrl(attachment.fileUrl);
-        setIsLoading(false);
-        return;
-      }
+    const generatePdfPreview = async () => {
+      if (!attachment.fileType.startsWith('application/pdf')) return;
+      
+      const url = getValidImageUrl(attachment.signedUrl) || 
+                 getValidImageUrl(attachment.displayUrl) || 
+                 getValidImageUrl(attachment.fileUrl);
+      
+      if (!url) return;
 
       try {
-        setIsLoading(true);
-        setError(false);
+        // Dynamically import PDF.js
+        const pdfjs = await import('pdfjs-dist');
+        // Set worker path
+        pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
-        // Check if URL is cached
-        const cachedUrl = urlCache.get(attachment.id);
-        if (cachedUrl) {
-          setSignedUrl(cachedUrl);
-          setIsLoading(false);
-          return;
-        }
+        // Load the PDF document
+        const loadingTask = pdfjs.getDocument(url);
+        const pdf = await loadingTask.promise;
 
-        // Create Supabase client
-        const supabase = createClient();
-        // Use the fileUrl exactly as stored (no 'attachments/' prefix)
-        const filePath = attachment.fileUrl;
+        // Get the first page
+        const page = await pdf.getPage(1);
 
-        const { data, error } = await supabase
-          .storage
-          .from('attachments')
-          .createSignedUrl(filePath, 3600); // 1 hour
+        // Set up canvas for rendering
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        const viewport = page.getViewport({ scale: 1.0 });
 
-        if (error) {
-          console.error('Error getting signed URL:', error);
-          setError(true);
-          setIsLoading(false);
-          return;
-        }
+        // Set canvas dimensions
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
 
-        if (data?.signedUrl) {
-          // Cache for slightly less than 1 hour
-          urlCache.set(attachment.id, data.signedUrl, 3500);
-          setSignedUrl(data.signedUrl);
-        } else {
-          setError(true);
-        }
-      } catch (err) {
-        console.error('Error in getSignedUrl:', err);
-        setError(true);
-      } finally {
-        setIsLoading(false);
+        // Render the page
+        await page.render({
+          canvasContext: context!,
+          viewport: viewport
+        }).promise;
+
+        // Convert canvas to data URL
+        const dataUrl = canvas.toDataURL('image/png');
+        setPdfPreviewUrl(dataUrl);
+      } catch (error) {
+        console.error('Error generating PDF preview:', error);
       }
-    }
+    };
 
-    if (!attachment.signedUrl && attachment.fileUrl) {
-      getSignedUrl();
-    } else if (attachment.signedUrl) {
-      setSignedUrl(attachment.signedUrl);
-      setIsLoading(false);
-    }
-  }, [attachment.id, attachment.fileUrl, attachment.signedUrl]);
-
-  const containerClasses = cn(
-    'relative rounded-md overflow-hidden bg-gray-100 flex items-center justify-center',
-    sizeClasses[size],
-    className
-  );
+    void generatePdfPreview();
+  }, [attachment]);
 
   if (attachment.fileType.startsWith('image/')) {
-    if (isLoading) {
+    // Try to get a valid URL from signedUrl, displayUrl, or fileUrl
+    const imageUrl = getValidImageUrl(attachment.signedUrl) || 
+                    getValidImageUrl(attachment.displayUrl) || 
+                    getValidImageUrl(attachment.fileUrl);
+
+    if (!imageUrl) {
+      // Show loading state if we don't have a valid URL
       return (
-        <div className={containerClasses}>
-          <Loader2 className={cn(iconSizes[size], 'animate-spin text-gray-400')} />
-        </div>
+        <div className={`relative ${combinedClassName} bg-gray-100 animate-pulse rounded-lg`} />
       );
     }
-    if (error || !signedUrl) {
-      return (
-        <div className={containerClasses}>
-          <ImageOff className={cn(iconSizes[size], 'text-gray-400')} />
-        </div>
-      );
-    }
+
     return (
-      <div className={cn(containerClasses, 'aspect-square')}>
-        <div className="relative w-full h-full">
-          <Image
-            src={signedUrl}
-            alt={attachment.fileName}
-            fill
-            className="object-contain"
-            sizes={`(max-width: 768px) ${sizeClasses[size].split('w-')[1]}, ${sizeClasses[size].split('w-')[1]}`}
-          />
-        </div>
+      <div className={`relative ${combinedClassName} rounded-lg overflow-hidden bg-gray-100`}>
+        <Image
+          src={imageUrl}
+          alt={attachment.fileName}
+          fill
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+          className="object-contain hover:opacity-90 transition-opacity p-1"
+          priority={size === 'lg'}
+          unoptimized
+        />
       </div>
     );
   }
 
-  // For PDFs
-  if (attachment.fileType === 'application/pdf') {
-    if (isLoading) {
-      return (
-        <div className={containerClasses}>
-          <Loader2 className={cn(iconSizes[size], 'animate-spin text-gray-400')} />
-        </div>
-      );
-    }
-    if (error || !signedUrl) {
-      return (
-        <div className={containerClasses}>
-          <FileText className={cn(iconSizes[size], 'text-gray-400')} />
-        </div>
-      );
-    }
+  if (attachment.fileType === 'application/pdf' && pdfPreviewUrl) {
     return (
-      <div className={cn(containerClasses, 'aspect-square')}>
-        <div className="relative w-full h-full">
-          <iframe
-            src={signedUrl + '#page=1&view=FitH&toolbar=0'}
-            className="w-full h-full pointer-events-none bg-white"
-            title="PDF preview"
-          />
-          {/* Transparent overlay */}
-          <div className="absolute inset-0" />
-        </div>
+      <div className={`relative ${combinedClassName} rounded-lg overflow-hidden bg-gray-100`}>
+        <Image
+          src={pdfPreviewUrl}
+          alt={attachment.fileName}
+          fill
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+          className="object-contain hover:opacity-90 transition-opacity p-1"
+          priority={size === 'lg'}
+        />
       </div>
     );
   }
 
-  // Fallback for other file types
+  // For non-image/pdf files or while PDF is loading, show an icon
   return (
-    <div className={containerClasses}>
-      {isLoading ? (
-        <Loader2 className={cn(iconSizes[size], 'animate-spin text-gray-400')} />
-      ) : (
-        <FileText className={cn(iconSizes[size], 'text-gray-400')} />
-      )}
+    <div className={`flex items-center justify-center bg-gray-100 rounded-lg ${combinedClassName}`}>
+      <FileIcon className="w-1/2 h-1/2 text-gray-400" />
     </div>
   );
 }

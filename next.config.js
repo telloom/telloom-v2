@@ -13,11 +13,15 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'image.mux.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'edplarkcaozwrivolfgw.supabase.co',
+        pathname: '/storage/v1/object/**',
+      },
     ],
-    domains: ['edplarkcaozwrivolfgw.supabase.co'],
   },
   webpack: (config) => {
-    config.externals = [...config.externals, { canvas: 'canvas' }];  // required by mux-player
+    config.externals = [...config.externals, 'canvas'];
     return config;
   },
 };

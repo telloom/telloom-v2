@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,8 +28,12 @@ import Image from 'next/image';
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
 import { AttachmentDialog } from '@/components/AttachmentDialog';
 import { MuxPlayer } from '@/components/MuxPlayer';
+import { supabase } from '@/lib/supabase/client';
+import { UIAttachment, toUIAttachment } from '@/types/component-interfaces';
+import { TopicVideoCard } from '@/components/TopicVideoCard';
+import { DynamicAttachmentUpload } from '@/components/AttachmentUpload';
 
-const DynamicAttachmentUpload = dynamic(() => import('@/components/AttachmentUpload'), {
+const AttachmentUpload = dynamic(() => import('@/components/AttachmentUpload'), {
   loading: () => <p>Loading...</p>
 });
 
@@ -93,6 +97,11 @@ const ErrorFallback = ({ error, resetErrorBoundary }: { error: Error | string; r
   );
 };
 
+interface AttachmentWithUrls extends PromptResponseAttachment {
+  signedUrl?: string;
+  displayUrl?: string;
+}
+
 // Main content component
 const TopicPageContent = ({
   promptCategory,
@@ -128,6 +137,8 @@ const TopicPageContent = ({
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [gallerySignedUrls, setGallerySignedUrls] = useState<Record<string, string>>({});
+  const [currentAttachments, setCurrentAttachments] = useState<UIAttachment[]>([]);
 
   // Check for prompt text overflow for tooltip display
   useEffect(() => {
@@ -138,7 +149,68 @@ const TopicPageContent = ({
     });
   }, [promptCategory]);
 
-  // Render attachments
+  // Whenever we have a selectedPromptResponse, convert its raw attachments to UIAttachments
+  useEffect(() => {
+    if (selectedPromptResponse?.PromptResponseAttachment) {
+      const rawAttachments = selectedPromptResponse.PromptResponseAttachment;
+      const uiAttachments = rawAttachments.map((att) => toUIAttachment(att));
+      setCurrentAttachments(uiAttachments);
+
+      // Then fetch the signed URLs for them
+      void fetchSignedUrls(selectedPromptResponse);
+    } else {
+      setCurrentAttachments([]);
+    }
+  }, [selectedPromptResponse]);
+
+  // 1) Ensure we fetch the signed URLs automatically when the selectedPromptResponse changes
+  useEffect(() => {
+    if (selectedPromptResponse) {
+      void fetchSignedUrls(selectedPromptResponse);
+    }
+  }, [selectedPromptResponse]);
+
+  // Move useEffect before any conditional returns
+  useEffect(() => {
+    const fetchSignedUrls = async () => {
+      if (!promptCategory?.prompts) return;
+
+      const supabase = createClient();
+      const newSignedUrls: Record<string, string> = {};
+
+      for (const prompt of promptCategory.prompts) {
+        const response = prompt.PromptResponse?.[0];
+        if (!response?.PromptResponseAttachment?.length) continue;
+
+        for (const attachment of response.PromptResponseAttachment) {
+          if (!attachment.fileUrl) continue;
+
+          try {
+            const filePath = attachment.fileUrl.includes('attachments/') 
+              ? attachment.fileUrl.split('attachments/')[1]
+              : attachment.fileUrl;
+
+            const { data, error } = await supabase
+              .storage
+              .from('attachments')
+              .createSignedUrl(filePath, 3600);
+
+            if (!error && data?.signedUrl) {
+              newSignedUrls[attachment.id] = data.signedUrl;
+            }
+          } catch (error) {
+            console.error('Error getting signed URL:', error);
+          }
+        }
+      }
+
+      setGallerySignedUrls(newSignedUrls);
+    };
+
+    void fetchSignedUrls();
+  }, [promptCategory?.prompts]);
+
+  // Render gallery
   const renderGallery = useCallback((promptResponse: PromptResponse | null) => {
     try {
       if (
@@ -149,167 +221,64 @@ const TopicPageContent = ({
         return null;
       }
 
-      const attachments = promptResponse.PromptResponseAttachment as PromptResponseAttachment[];
+      const attachments = promptResponse.PromptResponseAttachment;
+      const viewableAttachments = attachments.filter(att => 
+        att.fileType.startsWith('image/') || att.fileType === 'application/pdf'
+      );
 
-      const handleDownload = async (attachment: any) => {
-        try {
-          const supabase = createClient();
-          const filePath = attachment.fileUrl.includes('attachments/')
-            ? attachment.fileUrl.split('attachments/')[1]
-            : attachment.fileUrl;
-
-          const { data, error } = await supabase.storage
-            .from('attachments')
-            .createSignedUrl(filePath, 60);
-
-          if (error) throw error;
-
-          if (data?.signedUrl) {
-            const link = document.createElement('a');
-            link.href = data.signedUrl;
-            link.download = attachment.fileName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          }
-        } catch (error) {
-          console.error('Error downloading file:', error);
-          toast.error('Failed to download file');
-        }
-      };
-
-      const handleDelete = async (attachmentId: string) => {
-        try {
-          const supabase = createClient();
-          const { error } = await supabase
-            .from('PromptResponseAttachment')
-            .delete()
-            .eq('id', attachmentId);
-
-          if (error) throw error;
-
-          toast.success('Attachment deleted successfully');
-          refreshData();
-          setSelectedAttachment(null);
-        } catch (error) {
-          console.error('Error deleting attachment:', error);
-          toast.error('Failed to delete attachment');
-        }
-      };
-
-      const handleSave = async (updatedAttachment: any) => {
-        try {
-          await refreshData();
-        } catch (error) {
-          console.error('Error refreshing data after save:', error);
-        }
-      };
+      if (viewableAttachments.length === 0) return null;
 
       return (
-        <>
-          <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-            {attachments.map((attachment, index) => {
-              const displayUrl =
-                attachment.fileUrl.split('/attachments/').pop() || attachment.fileUrl;
+        <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+          {viewableAttachments.map((attachment, index) => {
+            const signedUrl = gallerySignedUrls[attachment.id];
+            const displayUrl = signedUrl || attachment.fileUrl;
 
-              return (
-                <div
-                  key={attachment.id}
-                  className="relative w-9 h-9 hover:z-10 cursor-pointer last:mr-0 mr-2"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedAttachment({
-                      attachment: {
-                        ...attachment,
-                        fileUrl: attachment.fileUrl,
-                        displayUrl
-                      },
-                      attachments: attachments.map(att => ({
-                        ...att,
-                        fileUrl: att.fileUrl,
-                        displayUrl: att.fileUrl.split('/attachments/').pop() || att.fileUrl
-                      })),
-                      currentIndex: index
-                    });
-                  }}
-                >
-                  <AttachmentThumbnail
-                    attachment={{
-                      id: attachment.id,
-                      fileUrl: displayUrl,
-                      fileType: attachment.fileType,
-                      fileName: attachment.fileName
-                    }}
-                    size="lg"
-                  />
-                </div>
-              );
-            })}
-          </div>
-          {selectedAttachment && (
-            <>
+            return (
               <div
-                className="fixed inset-0 bg-black/50 z-40"
+                key={attachment.id}
+                className="relative w-9 h-9 hover:z-10 cursor-pointer last:mr-0 mr-2"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedAttachment(null);
+                  setSelectedAttachment({
+                    attachment: {
+                      ...attachment,
+                      signedUrl,
+                      displayUrl
+                    },
+                    attachments: viewableAttachments.map(att => ({
+                      ...att,
+                      signedUrl: gallerySignedUrls[att.id],
+                      displayUrl: gallerySignedUrls[att.id] || att.fileUrl
+                    })),
+                    currentIndex: index
+                  });
                 }}
-              />
-              <div className="fixed inset-0 z-50">
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <AttachmentDialog
-                      attachment={selectedAttachment.attachment}
-                      isOpen={!!selectedAttachment}
-                      onClose={() => setSelectedAttachment(null)}
-                      onNext={
-                        selectedAttachment.currentIndex <
-                        selectedAttachment.attachments.length - 1
-                          ? () =>
-                              setSelectedAttachment({
-                                attachment:
-                                  selectedAttachment.attachments[
-                                    selectedAttachment.currentIndex + 1
-                                  ],
-                                attachments: selectedAttachment.attachments,
-                                currentIndex: selectedAttachment.currentIndex + 1
-                              })
-                          : undefined
-                      }
-                      onPrevious={
-                        selectedAttachment.currentIndex > 0
-                          ? () =>
-                              setSelectedAttachment({
-                                attachment:
-                                  selectedAttachment.attachments[
-                                    selectedAttachment.currentIndex - 1
-                                  ],
-                                attachments: selectedAttachment.attachments,
-                                currentIndex: selectedAttachment.currentIndex - 1
-                              })
-                          : undefined
-                      }
-                      hasNext={
-                        selectedAttachment.currentIndex <
-                        selectedAttachment.attachments.length - 1
-                      }
-                      hasPrevious={selectedAttachment.currentIndex > 0}
-                      onSave={handleSave}
-                      onDownload={handleDownload}
-                      onDelete={handleDelete}
-                    />
-                  </div>
-                </div>
+              >
+                <AttachmentThumbnail
+                  attachment={{
+                    id: attachment.id,
+                    fileUrl: displayUrl,
+                    fileName: attachment.fileName,
+                    fileType: attachment.fileType,
+                    description: attachment.description,
+                    dateCaptured: attachment.dateCaptured ? new Date(attachment.dateCaptured) : null,
+                    yearCaptured: attachment.yearCaptured,
+                    signedUrl
+                  }}
+                  size="lg"
+                  className="w-full h-full"
+                />
               </div>
-            </>
-          )}
-        </>
+            );
+          })}
+        </div>
       );
     } catch (error) {
       console.error('Error rendering gallery:', error);
       return null;
     }
-  }, [selectedAttachment, refreshData]);
+  }, [gallerySignedUrls]);
 
   // Wrap refreshData to prevent state reset during refresh
   const handleRefreshData = useCallback(async () => {
@@ -441,6 +410,12 @@ const TopicPageContent = ({
         </div>
       </div>
 
+      {/* Topic Video Card */}
+      <TopicVideoCard
+        promptCategoryId={promptCategory.id}
+        categoryName={promptCategory.category}
+      />
+
       {/* Content */}
       {viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -477,10 +452,19 @@ const TopicPageContent = ({
                     (att: any) => ({
                       id: att.id,
                       promptResponseId: rawResponse.id,
+                      profileSharerId: rawResponse.profileSharerId,
                       fileUrl: att.fileUrl,
                       fileType: att.fileType,
                       fileName: att.fileName,
-                      promptResponse: null
+                      fileSize: att.fileSize || null,
+                      title: att.title || null,
+                      description: att.description || null,
+                      estimatedYear: att.estimatedYear || null,
+                      uploadedAt: new Date(att.uploadedAt),
+                      dateCaptured: att.dateCaptured ? new Date(att.dateCaptured) : null,
+                      yearCaptured: att.yearCaptured || null,
+                      PromptResponseAttachmentPersonTag: att.PromptResponseAttachmentPersonTag || [],
+                      PersonTags: att.PersonTags || []
                     })
                   )
                 }
@@ -656,10 +640,19 @@ const TopicPageContent = ({
                         (att: any) => ({
                           id: att.id,
                           promptResponseId: rawResponse.id,
+                          profileSharerId: rawResponse.profileSharerId,
                           fileUrl: att.fileUrl,
                           fileType: att.fileType,
                           fileName: att.fileName,
-                          promptResponse: null
+                          fileSize: att.fileSize || null,
+                          title: att.title || null,
+                          description: att.description || null,
+                          estimatedYear: att.estimatedYear || null,
+                          uploadedAt: new Date(att.uploadedAt),
+                          dateCaptured: att.dateCaptured ? new Date(att.dateCaptured) : null,
+                          yearCaptured: att.yearCaptured || null,
+                          PromptResponseAttachmentPersonTag: att.PromptResponseAttachmentPersonTag || [],
+                          PersonTags: att.PersonTags || []
                         })
                       )
                     }
@@ -810,7 +803,7 @@ const TopicPageContent = ({
             />
           ) : (
             <div className="flex flex-col items-center justify-center flex-1 min-h-0">
-              <div className="relative w-full max-w-[800px]" style={{ width: 'min(60vw, calc(55vh * 16/9))' }}>
+              <div className="relative w-full max-w-[800px] w-[min(60vw,calc(55vh*16/9))]">
                 <div className="w-full">
                   <div className="aspect-video bg-black rounded-md overflow-hidden relative">
                     <div className="absolute inset-0">
@@ -818,7 +811,7 @@ const TopicPageContent = ({
                     </div>
                   </div>
                   <div className="text-sm text-[#16A34A] bg-[#DCFCE7] p-3 rounded-md text-center mt-4 w-full">
-                    Video uploaded and processed successfully! You can close this popup when you're done reviewing your video.
+                    Video uploaded and processed successfully! You can close this popup when you&apos;re done reviewing your video.
                   </div>
                 </div>
               </div>
@@ -854,6 +847,17 @@ const TopicPageContent = ({
             setIsAttachmentUploadOpen(false);
             setSelectedPromptResponse(null);
           }}
+        />
+      )}
+
+      {/* Add AttachmentDialog */}
+      {selectedAttachment && (
+        <AttachmentDialog
+          isOpen={!!selectedAttachment}
+          onClose={() => setSelectedAttachment(null)}
+          attachment={selectedAttachment.attachment}
+          attachments={selectedAttachment.attachments}
+          currentIndex={selectedAttachment.currentIndex}
         />
       )}
     </div>
@@ -1098,20 +1102,11 @@ export default function TopicPage() {
 
   // Close upload with cleanup
   const handleCloseUpload = useCallback(async () => {
-    console.log('🚪 [TopicPage] Closing upload popup:', {
-      currentVideoId,
-      isVideoReady,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Only refresh if we had a successful upload
     if (isVideoReady && currentVideoId) {
-      console.log('🔄 [TopicPage] Performing full page refresh');
       window.location.reload();
       return;
     }
     
-    // Reset all states if no successful upload
     setCurrentVideoId(null);
     setIsVideoReady(false);
     setIsUploadPopupOpen(false);

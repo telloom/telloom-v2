@@ -14,10 +14,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useRouter } from 'next/navigation';
 import { generateAISummary } from '@/utils/generateAISummary';
 import { cleanTranscript } from '@/utils/cleanTranscript';
-import { VideoResponseSectionProps, PersonRelation } from '@/types/models';
-import { AttachmentDialog } from '@/components/AttachmentDialog';
+import { UIAttachment, toThumbnailAttachment, toUIAttachment } from '@/types/component-interfaces';
+import { VideoResponseSectionProps, PromptResponseAttachment } from '@/types/models';
+import { AttachmentDialog, Attachment } from '@/components/AttachmentDialog';
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
-import { urlCache } from '@/utils/url-cache';
+
 
 // Dynamically import components that could cause hydration issues
 const MuxPlayer = dynamic(
@@ -30,27 +31,16 @@ const AttachmentUpload = dynamic(
   { ssr: false }
 );
 
-// Add this type definition near the top of the file
-interface Attachment {
-  id: string;
-  fileUrl: string;
-  fileType: string;
-  fileName: string;
-  description?: string;
-  dateCaptured?: string;
-  yearCaptured?: number;
-  signedUrl?: string;
-  PromptResponseAttachmentPersonTag?: Array<{
-    PersonTag: {
-      id: string;
-      name: string;
-      relation: PersonRelation;
-    };
-  }>;
-}
-
 export function VideoResponseSection({ promptId, promptText, promptCategory, response }: VideoResponseSectionProps) {
   const router = useRouter();
+
+  // Function to get storage path from full URL
+  const getStoragePath = (url: string) => {
+    if (!url) return '';
+    if (!url.includes('attachments/')) return url;
+    return decodeURIComponent(url.split('attachments/')[1]);
+  };
+
   const [showRecordingInterface, setShowRecordingInterface] = useState(false);
   const [showUploadPopup, setShowUploadPopup] = useState(false);
   const [showAttachmentUpload, setShowAttachmentUpload] = useState(false);
@@ -61,8 +51,28 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
   const [summary, setSummary] = useState(response?.summary || '');
   const [responseNotes, setResponseNotes] = useState(response?.responseNotes || '');
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
-  const [attachments, setAttachments] = useState<Attachment[]>(response?.PromptResponseAttachment || []);
-  const [imageAttachments, setImageAttachments] = useState<Attachment[]>([]);
+  const [attachments, setAttachments] = useState<UIAttachment[]>(() => {
+    if (!response?.PromptResponseAttachment?.length) return [];
+    return response.PromptResponseAttachment
+      .map(a => {
+        // Convert dates to proper format
+        const dbAttachment: PromptResponseAttachment = {
+          ...a,
+          uploadedAt: new Date(a.uploadedAt),
+          dateCaptured: a.dateCaptured ? new Date(a.dateCaptured) : null,
+          fileSize: a.fileSize || null,
+          title: a.title || null,
+          description: a.description || null,
+          estimatedYear: a.estimatedYear || null,
+          yearCaptured: a.yearCaptured || null,
+          PromptResponseAttachmentPersonTag: a.PromptResponseAttachmentPersonTag || []
+        };
+        
+        return toUIAttachment(dbAttachment);
+      })
+      .sort((a: UIAttachment, b: UIAttachment) => a.uploadedAt.getTime() - b.uploadedAt.getTime());
+  });
+  const [imageAttachments, setImageAttachments] = useState<UIAttachment[]>([]);
   const [gallerySignedUrls, setGallerySignedUrls] = useState<{ [key: string]: string }>({});
   const [isCleaningTranscript, setIsCleaningTranscript] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
@@ -71,78 +81,180 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
   const [cleaningSuccess, setCleaningSuccess] = useState(false);
   const [summarySuccess, setSummarySuccess] = useState(false);
   const [isEditingDate, setIsEditingDate] = useState(false);
-  const [dateRecorded, setDateRecorded] = useState<Date | null>(response?.dateRecorded ? new Date(response.dateRecorded) : null);
+  const [dateRecorded, setDateRecorded] = useState<Date | null>(
+    response?.video?.dateRecorded ? new Date(response.video.dateRecorded) : null
+  );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [attachmentToDelete, setAttachmentToDelete] = useState<string | null>(null);
   const [showVideoDeleteConfirm, setShowVideoDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Function to fetch updated response data
-  const fetchUpdatedResponse = async () => {
+  // Function to fetch updated response data with proper typing
+  const fetchUpdatedResponse = useCallback(async () => {
     if (!response?.id) return;
 
     const supabase = createClient();
-    const { data: updatedResponse, error } = await supabase
-      .from('PromptResponse')
-      .select(`
-        id,
-        summary,
-        responseNotes,
-        PromptResponseAttachment (
+    try {
+      const { data: updatedResponse, error } = await supabase
+        .from('PromptResponse')
+        .select(`
           id,
-          fileUrl,
-          fileType,
-          fileName,
-          description,
-          dateCaptured,
-          yearCaptured,
-          PromptResponseAttachmentPersonTag (
-            PersonTag (
+          summary,
+          responseNotes,
+          video:Video (
+            id,
+            muxPlaybackId,
+            muxAssetId,
+            dateRecorded,
+            VideoTranscript (
               id,
-              name,
-              relation
+              transcript
+            )
+          ),
+          PromptResponseAttachment (
+            id,
+            promptResponseId,
+            profileSharerId,
+            fileUrl,
+            fileType,
+            fileName,
+            fileSize,
+            title,
+            description,
+            estimatedYear,
+            uploadedAt,
+            dateCaptured,
+            yearCaptured,
+            PromptResponseAttachmentPersonTag (
+              PersonTag (
+                id,
+                name,
+                relation,
+                profileSharerId
+              )
             )
           )
-        )
-      `)
-      .eq('id', response.id)
-      .single();
+        `)
+        .eq('id', response.id)
+        .single();
 
-    if (error) {
+      if (error) throw error;
+
+      if (updatedResponse) {
+        // Update transcript if it exists
+        if (updatedResponse.video?.VideoTranscript?.[0]?.transcript) {
+          setTranscript(updatedResponse.video.VideoTranscript[0].transcript);
+        }
+
+        // Update dateRecorded if it exists
+        if (updatedResponse.video?.dateRecorded) {
+          setDateRecorded(new Date(updatedResponse.video.dateRecorded));
+        } else {
+          setDateRecorded(null);
+        }
+
+        // Update summary if it exists
+        if (updatedResponse.summary !== undefined) {
+          setSummary(updatedResponse.summary || '');
+        }
+
+        // Update responseNotes if it exists
+        if (updatedResponse.responseNotes !== undefined) {
+          setResponseNotes(updatedResponse.responseNotes || '');
+        }
+
+        // Update attachments if they exist
+        if (updatedResponse.PromptResponseAttachment) {
+          const updatedAttachments = updatedResponse.PromptResponseAttachment.map((a: Omit<PromptResponseAttachment, 'uploadedAt' | 'dateCaptured'> & { uploadedAt: string; dateCaptured: string | null }) => {
+            // Convert dates to proper format
+            const dbAttachment: PromptResponseAttachment = {
+              ...a,
+              uploadedAt: new Date(a.uploadedAt),
+              dateCaptured: a.dateCaptured ? new Date(a.dateCaptured) : null,
+              title: a.title || null,
+              description: a.description || null,
+              estimatedYear: a.estimatedYear || null,
+              yearCaptured: a.yearCaptured || null,
+              PromptResponseAttachmentPersonTag: a.PromptResponseAttachmentPersonTag || []
+            };
+            return toUIAttachment(dbAttachment);
+          });
+          
+          // Sort by uploadedAt date
+          const sortedAttachments = updatedAttachments.sort((a: UIAttachment, b: UIAttachment) => 
+            a.uploadedAt.getTime() - b.uploadedAt.getTime()
+          );
+          
+          setAttachments(sortedAttachments);
+        }
+      }
+    } catch (error) {
       console.error('Error fetching updated response:', error);
-      return;
+      toast.error('Failed to update response data');
     }
+  }, [response?.id]);
 
-    if (updatedResponse?.PromptResponseAttachment) {
-      // Clear URL cache for removed attachments
-      const newAttachmentIds = new Set(updatedResponse.PromptResponseAttachment.map(a => a.id));
-      attachments.forEach(oldAttachment => {
-        if (!newAttachmentIds.has(oldAttachment.id)) {
-          urlCache.clear();
-        }
-      });
-
-      setAttachments(updatedResponse.PromptResponseAttachment);
-    }
-  };
-
-  // Initial setup of attachments with caching
+  // Update image attachments when main attachments change
   useEffect(() => {
-    if (response?.PromptResponseAttachment) {
-      // Pre-cache any existing signed URLs
-      response.PromptResponseAttachment.forEach(attachment => {
-        if (attachment.signedUrl) {
-          urlCache.set(attachment.id, attachment.signedUrl);
-        }
-      });
-      
-      setAttachments(response.PromptResponseAttachment);
-    }
-  }, [response?.PromptResponseAttachment]);
+    const filtered = attachments.filter((a: UIAttachment) => 
+      a.fileType.startsWith('image/') || a.fileType === 'application/pdf'
+    );
+    setImageAttachments(filtered);
+  }, [attachments]);
 
-  // Add a useEffect to update imageAttachments when attachments change
+  // Fetch initial attachments on mount
   useEffect(() => {
-    setImageAttachments(attachments);
+    void fetchUpdatedResponse();
+  }, [response?.id, fetchUpdatedResponse]);
+
+  // Update fetchSignedUrls to use correct paths
+  useEffect(() => {
+    const fetchSignedUrls = async () => {
+      const supabase = createClient();
+      const updatedAttachments = await Promise.all(
+        attachments.map(async (attachment) => {
+          if (!attachment.fileUrl) return attachment;
+
+          try {
+            const storagePath = getStoragePath(attachment.fileUrl);
+            if (!storagePath) return attachment;
+
+            // Get signed URL for the image
+            const { data, error } = await supabase
+              .storage
+              .from('attachments')
+              .createSignedUrl(storagePath, 3600);
+
+            if (error) throw error;
+            if (!data?.signedUrl) return attachment;
+
+            return {
+              ...attachment,
+              signedUrl: data.signedUrl,
+              displayUrl: data.signedUrl // Use the same signed URL for both
+            };
+          } catch (error) {
+            console.error('Error getting signed URL:', error);
+            return attachment;
+          }
+        })
+      );
+
+      // Only update if there are actual changes
+      const hasChanges = updatedAttachments.some((updated, index) => 
+        updated.signedUrl !== attachments[index].signedUrl ||
+        updated.displayUrl !== attachments[index].displayUrl
+      );
+
+      if (hasChanges) {
+        setAttachments(updatedAttachments);
+      }
+    };
+
+    const unsignedAttachments = attachments.some(a => !a.signedUrl);
+    if (attachments.length > 0 && unsignedAttachments) {
+      void fetchSignedUrls();
+    }
   }, [attachments]);
 
   const handleSaveTranscript = async () => {
@@ -244,26 +356,51 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
   }, [selectedImageIndex, imageAttachments.length]);
 
   // Function to get signed URL
-  const getSignedUrl = useCallback(async (fileUrl: string) => {
-    const supabase = createClient();
-    const filePath = fileUrl.includes('attachments/') 
-      ? fileUrl.split('attachments/')[1]
-      : fileUrl;
-    
-    const { data, error } = await supabase
-      .storage
-      .from('attachments')
-      .createSignedUrl(filePath, 3600);
+  const getSignedUrl = useCallback(
+    async (fileUrl: string): Promise<string | null> => {
+      if (!fileUrl) return null;
+      if (fileUrl.startsWith('http')) return fileUrl;
 
-    if (error) {
-      console.error('Error getting signed URL:', error);
-      return null;
-    }
+      const supabase = createClient();
+      try {
+        const storagePath = getStoragePath(fileUrl);
+        if (!storagePath) return null;
 
-    return data?.signedUrl;
-  }, []); // No dependencies needed as createClient is stable
+        const { data, error } = await supabase
+          .storage
+          .from('attachments')
+          .createSignedUrl(storagePath, 3600, {
+            download: false,
+            transform: {
+              width: 800,
+              height: 800,
+              resize: 'cover'
+            }
+          });
 
-  // Add useCallback for warmUrlCache
+        if (error) throw error;
+        return data?.signedUrl || null;
+      } catch (error) {
+        console.error('Error getting signed URL:', error);
+        return null;
+      }
+    },
+    []
+  );
+
+  // Update handleUploadSuccess to match the expected type
+  const handleVideoUploadSuccess = useCallback(async (muxId: string): Promise<void> => {
+    console.log('Video uploaded with muxId:', muxId);
+    setShowUploadPopup(false);
+    await fetchUpdatedResponse();
+  }, [fetchUpdatedResponse]);
+
+  // Add a separate handler for attachment upload success
+  const handleAttachmentUploadSuccess = useCallback(() => {
+    void fetchUpdatedResponse();
+  }, [fetchUpdatedResponse]);
+
+  // Update warmUrlCache to use gallerySignedUrls
   const warmUrlCache = useCallback(async (attachmentIds: string[]) => {
     const newUrls: { [key: string]: string } = {};
     
@@ -317,12 +454,12 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
   }, [selectedImageIndex, imageAttachments, warmUrlCache]);
 
   // Function to handle attachment deletion
-  const handleDeleteAttachment = async (attachmentId: string) => {
+  const handleDeleteAttachment = async (attachmentId: string): Promise<void> => {
     setAttachmentToDelete(attachmentId);
     setShowDeleteConfirm(true);
   };
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = async (): Promise<void> => {
     if (!attachmentToDelete) return;
 
     try {
@@ -351,8 +488,12 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
 
       if (dbError) throw dbError;
 
-      // Clear cache and update state
-      urlCache.clear();
+      // Clear gallery URLs and update state
+      setGallerySignedUrls(prev => {
+        const newUrls = { ...prev };
+        delete newUrls[attachmentToDelete];
+        return newUrls;
+      });
       setShowDeleteConfirm(false);
       setSelectedImageIndex(null);
       setAttachmentToDelete(null);
@@ -368,54 +509,33 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
     }
   };
 
-  // Function to handle attachment download
-  const handleDownloadAttachment = async (attachment: {
-    id: string;
-    fileUrl: string;
-    fileName: string;
-    fileType: string;
-    description?: string;
-    dateCaptured?: string;
-    yearCaptured?: number;
-  }) => {
+  // Update handleDownloadAttachment to use correct paths
+  const handleDownloadAttachment = async (attachment: UIAttachment | Attachment): Promise<void> => {
+    const supabase = createClient();
     try {
-      // Check cache first
-      let signedUrl = urlCache.get(attachment.id);
+      const filePath = attachment.fileUrl.includes('attachments/') 
+        ? attachment.fileUrl.split('attachments/')[1]
+        : attachment.fileUrl;
       
-      if (!signedUrl) {
-        const filePath = attachment.fileUrl.includes('attachments/') 
-          ? attachment.fileUrl.split('attachments/')[1]
-          : attachment.fileUrl;
-        
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .storage
-          .from('attachments')
-          .createSignedUrl(filePath, 3600);
+      const { data, error } = await supabase.storage
+        .from('attachments')
+        .download(filePath);
 
-        if (error) throw error;
-        if (!data?.signedUrl) throw new Error('Failed to get download URL');
-        
-        signedUrl = data.signedUrl;
-        urlCache.set(attachment.id, signedUrl);
+      if (error) throw error;
+
+      if (data) {
+        const url = URL.createObjectURL(data);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = attachment.fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
       }
-
-      const response = await fetch(signedUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = attachment.fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      window.URL.revokeObjectURL(url);
-      toast.success('Download started');
     } catch (error) {
-      console.error('Error downloading attachment:', error);
-      toast.error('Failed to download attachment');
+      console.error('Error downloading file:', error);
+      toast.error('Failed to download file');
     }
   };
 
@@ -467,6 +587,26 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
       toast.error('Failed to delete video');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleSaveDate = async () => {
+    if (!response?.video?.id) return;
+
+    const supabase = createClient();
+    try {
+      const { error } = await supabase
+        .from('Video')
+        .update({ dateRecorded })
+        .eq('id', response.video.id);
+
+      if (error) throw error;
+      setIsEditingDate(false);
+      toast.success("Date updated successfully");
+      await router.refresh();
+    } catch (e) {
+      console.error('Error updating date:', e);
+      toast.error("Failed to update date");
     }
   };
 
@@ -583,8 +723,7 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
             onClose={() => setShowUploadPopup(false)}
             open={showUploadPopup}
             promptText={promptText}
-            onComplete={() => setShowUploadPopup(false)}
-            onUploadSuccess={() => setShowUploadPopup(false)}
+            onUploadSuccess={handleVideoUploadSuccess}
           />
         )}
       </Card>
@@ -612,49 +751,40 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
           <div className="flex items-center gap-2 py-2">
             <span className="text-sm text-gray-500">Date Recorded:</span>
             {isEditingDate ? (
-              <input
-                type="date"
-                value={dateRecorded ? new Date(dateRecorded).toISOString().split('T')[0] : ''}
-                onChange={(e) => setDateRecorded(e.target.value ? new Date(e.target.value) : null)}
-                className="px-2 py-1 border rounded text-sm"
-                aria-label="Date recorded"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={dateRecorded ? dateRecorded.toISOString().split('T')[0] : ''}
+                  onChange={(e) => setDateRecorded(e.target.value ? new Date(e.target.value) : null)}
+                  className="px-2 py-1 border rounded text-sm"
+                  aria-label="Date recorded"
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSaveDate}
+                  className="rounded-full"
+                >
+                  <Check className="h-4 w-4 mr-2" />
+                  Save
+                </Button>
+              </div>
             ) : (
-              <span className="text-sm">
-                {dateRecorded ? new Date(dateRecorded).toLocaleDateString() : 'Not set'}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">
+                  {dateRecorded ? new Date(dateRecorded).toLocaleDateString() : 'Not set'}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsEditingDate(true)}
+                  className="rounded-full"
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              </div>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={async () => {
-                if (isEditingDate) {
-                  try {
-                    const supabase = createClient();
-                    const { error } = await supabase
-                      .from('Video')
-                      .update({ dateRecorded })
-                      .eq('id', response.video?.id);
-
-                    if (error) throw error;
-                    toast.success("Date updated successfully");
-                    setIsEditingDate(false);
-                  } catch (error) {
-                    console.error('Error updating date:', error);
-                    toast.error("Failed to update date");
-                  }
-                } else {
-                  setIsEditingDate(true);
-                }
-              }}
-              className="rounded-full"
-            >
-              {isEditingDate ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <Edit className="h-4 w-4" />
-              )}
-            </Button>
           </div>
 
           {/* Transcript Section */}
@@ -999,58 +1129,61 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
             </Button>
           </div>
           
-          {attachments && attachments.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
-              {attachments.map((attachment, index) => (
-                <div
-                  key={attachment.id}
-                  className="group cursor-pointer aspect-[4/3] relative rounded-lg overflow-hidden bg-gray-100"
-                >
-                  <div 
-                    className="absolute inset-0"
-                    onClick={() => setSelectedImageIndex(index)}
+          {attachments.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {attachments.map((attachment) => {
+                const thumbnailAttachment = toThumbnailAttachment(attachment);
+                return (
+                  <div
+                    key={attachment.id}
+                    className="relative aspect-square group cursor-pointer"
+                    onClick={() => {
+                      if (attachment.fileType.startsWith('image/') || attachment.fileType === 'application/pdf') {
+                        const imageIndex = imageAttachments.findIndex(img => img.id === attachment.id);
+                        if (imageIndex !== -1) {
+                          setSelectedImageIndex(imageIndex);
+                        }
+                      }
+                    }}
                   >
-                    <AttachmentThumbnail 
-                      attachment={attachment}
+                    <AttachmentThumbnail
+                      attachment={thumbnailAttachment}
                       size="lg"
-                      className="w-full h-full object-cover hover:opacity-90 transition-opacity"
                     />
+                    {/* Action buttons */}
+                    <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="h-8 w-8 rounded-full bg-white/80 hover:bg-white"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          return handleDownloadAttachment(attachment);
+                        }}
+                      >
+                        <Download className="h-4 w-4" />
+                        <span className="sr-only">Download attachment</span>
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="h-8 w-8 rounded-full bg-white/80 hover:bg-white hover:text-red-600"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          await handleDeleteAttachment(attachment.id);
+                          return Promise.resolve();
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Delete attachment</span>
+                      </Button>
+                    </div>
                   </div>
-                  {/* Action buttons */}
-                  <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      className="h-8 w-8 rounded-full bg-white/80 hover:bg-white"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleDownloadAttachment(attachment);
-                      }}
-                    >
-                      <Download className="h-4 w-4" />
-                      <span className="sr-only">Download attachment</span>
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      className="h-8 w-8 rounded-full bg-white/80 hover:bg-white hover:text-red-600"
-                      onClick={(e) => {
-                        console.log('Delete button clicked for attachment:', attachment.id);
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleDeleteAttachment(attachment.id);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Delete attachment</span>
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          ) : (
-            <p className="text-sm text-gray-500">No attachments yet</p>
           )}
         </div>
       </div>
@@ -1058,23 +1191,31 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
       {/* Image/PDF Gallery Dialog */}
       <AttachmentDialog
         attachment={selectedImageIndex !== null && imageAttachments[selectedImageIndex] ? {
-          ...imageAttachments[selectedImageIndex],
-          displayUrl: gallerySignedUrls[imageAttachments[selectedImageIndex]?.id]
+          id: imageAttachments[selectedImageIndex].id,
+          fileUrl: imageAttachments[selectedImageIndex].fileUrl,
+          fileName: imageAttachments[selectedImageIndex].fileName,
+          fileType: imageAttachments[selectedImageIndex].fileType,
+          description: imageAttachments[selectedImageIndex].description,
+          dateCaptured: imageAttachments[selectedImageIndex].dateCaptured?.toISOString().split('T')[0] || null,
+          yearCaptured: imageAttachments[selectedImageIndex].yearCaptured,
+          displayUrl: imageAttachments[selectedImageIndex].signedUrl || '',
+          PersonTags: imageAttachments[selectedImageIndex].PersonTags || []
         } : null}
         isOpen={selectedImageIndex !== null}
         onClose={() => setSelectedImageIndex(null)}
-        onNext={() => selectedImageIndex !== null && selectedImageIndex < imageAttachments.length - 1 && setSelectedImageIndex(selectedImageIndex + 1)}
-        onPrevious={() => selectedImageIndex !== null && selectedImageIndex > 0 && setSelectedImageIndex(selectedImageIndex - 1)}
+        onNext={handleNext}
+        onPrevious={handlePrevious}
         hasNext={selectedImageIndex !== null && selectedImageIndex < imageAttachments.length - 1}
         hasPrevious={selectedImageIndex !== null && selectedImageIndex > 0}
-        signedUrl={selectedImageIndex !== null && imageAttachments[selectedImageIndex] ? gallerySignedUrls[imageAttachments[selectedImageIndex].id] : undefined}
+        signedUrl={selectedImageIndex !== null ? imageAttachments[selectedImageIndex]?.signedUrl : undefined}
         onSave={async () => {
-          router.refresh();
+          await router.refresh();
+          // Update local state to reflect changes immediately
+          await fetchUpdatedResponse();
+          return Promise.resolve();
         }}
         onDelete={handleDeleteAttachment}
-        onDownload={async (attachment) => {
-          await handleDownloadAttachment(attachment);
-        }}
+        onDownload={handleDownloadAttachment as (attachment: Attachment) => Promise<void>}
       />
 
       {showAttachmentUpload && (
@@ -1082,10 +1223,7 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
           promptResponseId={response.id}
           isOpen={showAttachmentUpload}
           onClose={() => setShowAttachmentUpload(false)}
-          onUploadSuccess={async () => {
-            setShowAttachmentUpload(false);
-            await fetchUpdatedResponse();
-          }}
+          onUploadSuccess={handleAttachmentUploadSuccess}
         />
       )}
 

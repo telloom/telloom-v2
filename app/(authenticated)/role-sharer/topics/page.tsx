@@ -2,6 +2,43 @@ import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import TopicsTableAll from '@/components/TopicsTableAll';
 import BackButton from '@/components/BackButton';
+import { PromptCategory } from '@/types/models';
+
+type DBPromptResponse = {
+  id: string;
+  profileSharerId: string;
+  summary: string | null;
+  createdAt: string;
+  Video: {
+    id: string;
+    muxPlaybackId: string;
+    muxAssetId: string;
+  } | null;
+  PromptResponseAttachment: Array<{
+    id: string;
+    fileUrl: string;
+    fileType: string;
+    fileName: string;
+    description: string | null;
+    dateCaptured: string | null;
+    yearCaptured: number | null;
+  }>;
+};
+
+type DBPromptCategory = {
+  id: string;
+  category: string | null;
+  description: string | null;
+  theme: string | null;
+  Prompt: Array<{
+    id: string;
+    promptText: string;
+    promptType: string | null;
+    isContextEstablishing: boolean | null;
+    promptCategoryId: string | null;
+    PromptResponse: DBPromptResponse[];
+  }>;
+};
 
 export default async function SharerTopicsPage() {
   const supabase = createClient();
@@ -37,11 +74,25 @@ export default async function SharerTopicsPage() {
           promptType,
           isContextEstablishing,
           promptCategoryId,
-          Video:Video (
-            id
-          ),
           PromptResponse:PromptResponse (
-            id
+            id,
+            profileSharerId,
+            summary,
+            createdAt,
+            Video:Video (
+              id,
+              muxPlaybackId,
+              muxAssetId
+            ),
+            PromptResponseAttachment:PromptResponseAttachment (
+              id,
+              fileUrl,
+              fileType,
+              fileName,
+              description,
+              dateCaptured,
+              yearCaptured
+            )
           )
         )
       `)
@@ -53,14 +104,27 @@ export default async function SharerTopicsPage() {
     }
 
     // Transform the data to match the expected format
-    const transformedCategories = promptCategories.map(category => ({
-      ...category,
+    const transformedCategories = (promptCategories as DBPromptCategory[]).map(category => ({
+      id: category.id,
+      category: category.category || '',
+      description: category.description || '',
+      theme: category.theme,
       prompts: category.Prompt.map(prompt => ({
-        ...prompt,
-        videos: prompt.Video || [],
-        promptResponses: prompt.PromptResponse || []
+        id: prompt.id,
+        promptText: prompt.promptText,
+        promptType: prompt.promptType || 'default',
+        isContextEstablishing: prompt.isContextEstablishing || false,
+        promptCategoryId: prompt.promptCategoryId || category.id,
+        PromptResponse: prompt.PromptResponse.map(response => ({
+          id: response.id,
+          profileSharerId: response.profileSharerId,
+          summary: response.summary,
+          createdAt: response.createdAt,
+          Video: response.Video,
+          PromptResponseAttachment: response.PromptResponseAttachment
+        }))
       }))
-    }));
+    })) satisfies PromptCategory[];
 
     return (
       <div className="container mx-auto px-4 py-8">
