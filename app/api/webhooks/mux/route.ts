@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     const muxSignature = headersList.get('mux-signature');
 
     // Verify webhook signature in production
-    if (process.env.NODE_ENV === 'production' && process.env.MUX_WEBHOOK_SECRET) {
+    if (process.env.NODE_ENV === 'production' && process.env.MUX_VIDEO_WEBHOOK_SECRET) {
       if (!muxSignature) {
         return NextResponse.json(
           { error: 'Missing Mux signature' },

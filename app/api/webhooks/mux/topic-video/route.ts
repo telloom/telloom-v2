@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     const muxSignature = headersList.get('mux-signature');
 
     // Verify webhook signature in production
-    if (process.env.NODE_ENV === 'production' && process.env.MUX_WEBHOOK_SECRET) {
+    if (process.env.NODE_ENV === 'production' && process.env.MUX_TOPIC_VIDEO_WEBHOOK_SECRET) {
       if (!muxSignature) {
         return NextResponse.json(
           { error: 'Missing Mux signature' },
@@ -76,7 +76,8 @@ export async function POST(request: Request) {
         const { error: updateError } = await supabaseAdmin
           .from('TopicVideo')
           .update({
-            muxAssetId: asset_id
+            muxAssetId: asset_id,
+            status: 'ASSET_CREATED'
           })
           .eq('id', videoId);
 
@@ -212,10 +213,14 @@ export async function POST(request: Request) {
           throw new Error('No playback ID found');
         }
 
-        // First update just the playback ID
+        // First update just the playback ID and URL
         const { error: playbackError } = await supabaseAdmin
           .from('TopicVideo')
-          .update({ muxPlaybackId: playbackId })
+          .update({ 
+            muxPlaybackId: playbackId,
+            url: `https://stream.mux.com/${playbackId}/low.mp4`,
+            status: 'READY'
+          })
           .eq('id', videoId);
 
         if (playbackError) {
@@ -253,7 +258,8 @@ export async function POST(request: Request) {
         const { error: updateError } = await supabaseAdmin
           .from('TopicVideo')
           .update({
-            errorMessage: errors?.messages?.join(', ') || 'Unknown error'
+            errorMessage: errors?.messages?.join(', ') || 'Unknown error',
+            status: 'ERRORED'
           })
           .eq('id', videoId);
 

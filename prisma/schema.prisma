@@ -456,32 +456,52 @@ model PromptResponseAttachmentPersonTag {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model TopicVideo {
-  id               String           @id(map: "ThematicVideo_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title            String
-  description      String?
-  profileSharerId  String           @db.Uuid
-  muxAssetId       String?          @unique(map: "ThematicVideo_muxAssetId_key")
-  muxPlaybackId    String?          @unique(map: "ThematicVideo_muxPlaybackId_key")
-  muxUploadId      String?          @unique(map: "ThematicVideo_muxUploadId_key")
-  passthrough      String?          @unique(map: "ThematicVideo_passthrough_key")
-  duration         Float?
-  aspectRatio      String?
-  videoQuality     String?
-  maxWidth         Decimal?         @db.Decimal
-  maxHeight        Decimal?         @db.Decimal
-  maxFrameRate     Decimal?         @db.Decimal
-  languageCode     String?
-  resolutionTier   String?
-  url              String
-  metadata         Json?
-  airtableRecordId String?
-  createdAt        DateTime?        @default(now()) @db.Timestamptz(6)
-  updatedAt        DateTime?        @default(now()) @db.Timestamptz(6)
-  promptCategoryId String?          @db.Uuid
-  summary          String?
-  ProfileSharer    ProfileSharer    @relation(fields: [profileSharerId], references: [id], onDelete: Cascade, map: "ThematicVideo_profileSharerId_fkey")
-  PromptCategory   PromptCategory?  @relation(fields: [promptCategoryId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  PromptResponse   PromptResponse[] @relation("PromptResponseToThematicVideo")
+  id                   String                 @id(map: "ThematicVideo_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title                String
+  description          String?
+  profileSharerId      String                 @db.Uuid
+  muxAssetId           String?                @unique(map: "ThematicVideo_muxAssetId_key")
+  muxPlaybackId        String?                @unique(map: "ThematicVideo_muxPlaybackId_key")
+  muxUploadId          String?                @unique(map: "ThematicVideo_muxUploadId_key")
+  passthrough          String?                @unique(map: "ThematicVideo_passthrough_key")
+  duration             Float?
+  aspectRatio          String?
+  videoQuality         String?
+  maxWidth             Decimal?               @db.Decimal
+  maxHeight            Decimal?               @db.Decimal
+  maxFrameRate         Decimal?               @db.Decimal
+  languageCode         String?
+  resolutionTier       String?
+  url                  String
+  metadata             Json?
+  airtableRecordId     String?
+  createdAt            DateTime?              @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime?              @default(now()) @db.Timestamptz(6)
+  promptCategoryId     String?                @db.Uuid
+  summary              String?
+  status               VideoStatus            @default(WAITING)
+  errorMessage         String?
+  ProfileSharer        ProfileSharer          @relation(fields: [profileSharerId], references: [id], onDelete: Cascade, map: "ThematicVideo_profileSharerId_fkey")
+  PromptCategory       PromptCategory?        @relation(fields: [promptCategoryId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  TopicVideoTranscript TopicVideoTranscript[]
+  PromptResponse       PromptResponse[]       @relation("PromptResponseToThematicVideo")
+}
+
+model TopicVideoTranscript {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topicVideoId String     @db.Uuid
+  transcript   String?
+  createdAt    DateTime?  @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime?  @default(now()) @db.Timestamptz(6)
+  source       String?
+  type         String?
+  language     String?
+  name         String?
+  muxTrackId   String?
+  muxAssetId   String?
+  TopicVideo   TopicVideo @relation(fields: [topicVideoId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([topicVideoId], map: "idx_topicvideotranscript_topicvideoid")
 }
 
 enum InvitationStatus {

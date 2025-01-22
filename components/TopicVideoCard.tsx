@@ -12,7 +12,7 @@ import { TopicVideoUploader } from './TopicVideoUploader';
 import { Button } from './ui/button';
 import { Paperclip, Play, Upload } from 'lucide-react';
 import { VideoPopup } from './VideoPopup';
-import { Dialog, DialogContent } from './ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from './ui/dialog';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { AttachmentDialog } from './AttachmentDialog';
@@ -96,7 +96,7 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
         const { data: responses, error: responseError } = await supabase
           .from('PromptResponse')
           .select('id')
-          .in('promptId', prompts.map(p => p.id));
+          .in('promptId', prompts.map((p: { id: string }) => p.id));
 
         if (responseError) {
           console.error('Error fetching responses:', responseError.message);
@@ -126,7 +126,7 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
               )
             )
           `)
-          .in('promptResponseId', responses.map(r => r.id))
+          .in('promptResponseId', responses.map((r: { id: string }) => r.id))
           .order('dateCaptured', { ascending: false, nullsLast: true });
 
         if (attachmentError) {
@@ -138,7 +138,7 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
         console.log('Found attachments:', attachmentData?.length ?? 0);
 
         // Convert to UIAttachments
-        const uiAttachments = attachmentData?.map(att => toUIAttachment(att)) ?? [];
+        const uiAttachments = attachmentData?.map((att: any) => toUIAttachment(att)) ?? [];
         setAttachments(uiAttachments);
       } catch (error) {
         if (error instanceof Error) {
@@ -175,7 +175,7 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
         const { data: responses, error: responseError } = await supabase
           .from('PromptResponse')
           .select('id')
-          .in('promptId', prompts.map(p => p.id));
+          .in('promptId', prompts.map((p: { id: string }) => p.id));
 
         if (responseError) throw responseError;
         if (!responses?.length) {
@@ -197,13 +197,13 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
               )
             )
           `)
-          .in('promptResponseId', responses.map(r => r.id))
+          .in('promptResponseId', responses.map((r: { id: string }) => r.id))
           .order('dateCaptured', { ascending: false, nullsLast: true });
 
         if (attachmentError) throw attachmentError;
 
         // Convert to UIAttachments
-        const uiAttachments = attachmentData?.map(att => toUIAttachment(att)) ?? [];
+        const uiAttachments = attachmentData?.map((att: any) => toUIAttachment(att)) ?? [];
         setAttachments(uiAttachments);
       } catch (error) {
         console.error('Error fetching attachments count:', error);
@@ -214,7 +214,7 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
     fetchAttachmentsCount();
   }, [promptCategoryId, supabase]);
 
-  const handleUploadSuccess = async (playbackId: string) => {
+  const handleUploadSuccess = async () => {
     const { data: videoData, error: videoError } = await supabase
       .from('TopicVideo')
       .select('id, muxPlaybackId')
@@ -345,14 +345,35 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
 
       {/* Attachments Dialog */}
       <AttachmentDialog
-        attachment={attachments[currentAttachmentIndex] || null}
+        attachment={attachments[currentAttachmentIndex] ? {
+          id: attachments[currentAttachmentIndex].id,
+          fileUrl: attachments[currentAttachmentIndex].fileUrl,
+          displayUrl: attachments[currentAttachmentIndex].displayUrl,
+          fileType: attachments[currentAttachmentIndex].fileType,
+          fileName: attachments[currentAttachmentIndex].fileName,
+          description: attachments[currentAttachmentIndex].description,
+          dateCaptured: attachments[currentAttachmentIndex].dateCaptured instanceof Date 
+            ? attachments[currentAttachmentIndex].dateCaptured.toISOString().split('T')[0]
+            : attachments[currentAttachmentIndex].dateCaptured,
+          yearCaptured: attachments[currentAttachmentIndex].yearCaptured,
+          PersonTags: attachments[currentAttachmentIndex].PersonTags
+        } : null}
         isOpen={showAttachments}
         onClose={() => setShowAttachments(false)}
         onNext={currentAttachmentIndex < attachments.length - 1 ? handleNext : undefined}
         onPrevious={currentAttachmentIndex > 0 ? handlePrevious : undefined}
         hasNext={currentAttachmentIndex < attachments.length - 1}
         hasPrevious={currentAttachmentIndex > 0}
-        onSave={handleAttachmentSave}
+        onSave={async (attachment) => {
+          const updatedUIAttachment = {
+            ...attachments[currentAttachmentIndex],
+            description: attachment.description,
+            dateCaptured: attachment.dateCaptured ? new Date(attachment.dateCaptured) : null,
+            yearCaptured: attachment.yearCaptured,
+            PersonTags: attachment.PersonTags
+          };
+          await handleAttachmentSave(updatedUIAttachment);
+        }}
         onDelete={async (attachmentId) => {
           try {
             const attachment = attachments.find(a => a.id === attachmentId);
@@ -420,9 +441,14 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
       {/* Upload Popup */}
       <Dialog open={showUploader} onOpenChange={setShowUploader}>
         <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            Upload Video for {categoryName}
-          </h2>
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold">
+              Upload Video for {categoryName}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground mb-4">
+              Upload a video summary that captures the essence of this topic.
+            </DialogDescription>
+          </DialogHeader>
           <div className="flex-1 min-h-0 overflow-hidden">
             <TopicVideoUploader
               promptCategoryId={promptCategoryId}

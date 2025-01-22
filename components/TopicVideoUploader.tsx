@@ -61,7 +61,7 @@ export function TopicVideoUploader({
         try {
           const { data: video, error } = await supabase
             .from('TopicVideo')
-            .select('status, muxPlaybackId')
+            .select('muxPlaybackId, status')
             .eq('id', videoId)
             .single();
 
@@ -77,12 +77,17 @@ export function TopicVideoUploader({
             }
           }
 
-          if (video?.muxPlaybackId) {
+          if (video?.status === 'READY' && video?.muxPlaybackId) {
             setMuxPlaybackId(video.muxPlaybackId);
             setProcessingState('ready');
             if (onUploadSuccess) {
               await onUploadSuccess(video.muxPlaybackId);
             }
+            return;
+          }
+
+          if (video?.status === 'ERRORED') {
+            handleVideoError();
             return;
           }
 
@@ -398,6 +403,12 @@ export function TopicVideoUploader({
                   </p>
                 </div>
               )}
+            </div>
+          )}
+
+          {existingVideo && !muxPlaybackId && (
+            <div className="text-sm text-yellow-600 bg-yellow-50/50 p-3 rounded-md text-center mt-4">
+              A video for this topic already exists. Delete the existing video if you want to upload a new one.
             </div>
           )}
 

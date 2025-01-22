@@ -16,12 +16,20 @@ const muxClient = new Mux({
 
 export async function POST(request: Request) {
   try {
+    console.log('Starting topic video upload request');
+    
     // Get headers for auth and CORS
     const headersList = await headers();
     const authHeader = headersList.get('authorization');
     const origin = headersList.get('origin');
     const corsOrigin = origin || process.env.NEXT_PUBLIC_APP_URL || '*';
     
+    console.log('Headers received:', { 
+      hasAuth: !!authHeader,
+      origin,
+      corsOrigin 
+    });
+
     if (!authHeader) {
       return NextResponse.json(
         { error: 'Missing authorization header' },
@@ -31,6 +39,11 @@ export async function POST(request: Request) {
 
     // Get the profile with sharer data
     const profile = await getProfile(authHeader);
+    console.log('Profile retrieved:', { 
+      hasProfile: !!profile,
+      hasSharerId: !!profile?.sharerId 
+    });
+
     if (!profile || !profile.sharerId) {
       return NextResponse.json(
         { error: 'User is not a sharer' },
@@ -39,7 +52,10 @@ export async function POST(request: Request) {
     }
 
     // Get request body
-    const { promptCategoryId } = await request.json();
+    const body = await request.json();
+    console.log('Request body:', body);
+    
+    const { promptCategoryId } = body;
     if (!promptCategoryId) {
       return NextResponse.json(
         { error: 'Missing promptCategoryId' },
@@ -77,7 +93,10 @@ export async function POST(request: Request) {
       .from('TopicVideo')
       .insert({
         promptCategoryId,
-        profileSharerId: profile.sharerId
+        profileSharerId: profile.sharerId,
+        title: 'Topic Video',
+        url: 'https://stream.mux.com/pending/low.mp4',
+        status: 'WAITING'
       })
       .select('id')
       .single();
@@ -140,7 +159,11 @@ export async function POST(request: Request) {
       }
     });
   } catch (error) {
-    console.error('Error creating upload:', error);
+    console.error('Error creating upload:', {
+      error,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
     return NextResponse.json(
       { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

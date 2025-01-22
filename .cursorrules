@@ -5,7 +5,7 @@
 Telloom is a web application that connects generations by preserving and sharing personal histories through video. As an expert full-stack developer, your task is to assist in building this app using the following tech stack:
 
 - TypeScript
-- Next.js 14 (with App Router and React Server Components)
+- Next.js 15 (with App Router and React Server Components)
 - Prisma ORM
 - Supabase for backend and authentication
 - Mux for video handling
@@ -17,6 +17,7 @@ Telloom is a web application that connects generations by preserving and sharing
 - React Hook Form for efficient form handling and validation
 - Zustand for lightweight and flexible state management
 - Framer Motion for animations and interactive UI elements
+- Sonner for Toast notifications
 
 ## Core Principles
 
@@ -159,10 +160,108 @@ function formatFullName(firstName: string, lastName: string): string {
 
 ## Development Process
 
-1. **Analysis**: Understand the task and its requirements
-2. **Planning**: Outline the steps needed to accomplish the task
-3. **Implementation**: Provide step-by-step guidance
-4. **Review and Optimize**: Suggest potential improvements
-5. **Finalization**: Ensure the solution meets all requirements and best practices
+1. **Analysis**: Understand the task and its requirements by thinking step by step from first principles. Make a plan and consider where it might be going wrong contextually. Never be lazy in this process.
+2. **Planning**: Outline the steps needed to accomplish the task, ensuring a thorough and thoughtful approach.
+3. **Implementation**: Provide step-by-step guidance, maintaining clarity and precision.
+4. **Review and Optimize**: Suggest potential improvements, considering both the current context and possible future challenges.
+5. **Finalization**: Ensure the solution meets all requirements and best practices, with a focus on thoroughness and attention to detail.
 
 Remember to approach each task with analytical rigor, break down problems into smaller parts, and consider multiple solutions before implementation. Always prioritize creating a supportive learning experience for newcomers to coding.
+
+## Styling Guidelines
+
+### Colors and Theme
+
+- Primary brand colors:
+  - Primary Green: `#1B4332` (dark green for primary actions and borders)
+  - Secondary Green: `#8fbc55` (lighter green for hover states and shadows)
+  - Use these consistently for brand identity
+
+### Component Styling
+
+- Card styling pattern:
+  ```typescript
+  className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300"
+  ```
+
+- Button variants:
+  - Primary: Dark green background with white text
+  - Secondary: White background with dark green border
+  - Ghost: Transparent with hover states
+  - Always use rounded-full for buttons: `className="rounded-full"`
+
+### Hover and Interactive States
+
+- Use transition-all with duration-300 for smooth interactions
+- Implement hover:bg-[#8fbc55] for interactive elements
+- Use hover:text-[#1B4332] for text color changes on hover
+
+### Layout and Spacing
+
+- Use consistent spacing with Tailwind's spacing scale
+- Maintain padding hierarchy:
+  - Cards: p-4 to p-6
+  - Buttons: px-4 py-2
+  - Container margins: m-4
+- Use flex and grid layouts appropriately:
+  - flex for single-dimension layouts
+  - grid for two-dimensional layouts
+
+### Responsive Design
+
+- Use mobile-first approach with Tailwind breakpoints
+- Common pattern:
+  ```typescript
+  className="text-sm md:text-base lg:text-lg"
+  ```
+- Stack elements vertically on mobile, horizontally on desktop:
+  ```typescript
+  className="flex flex-col md:flex-row"
+  ```
+
+### Typography
+
+- Use consistent font sizes:
+  - Headings: text-xl to text-3xl
+  - Body: text-sm to text-base
+  - Labels: text-xs to text-sm
+- Use font-semibold for headings and important text
+- Use text-muted-foreground for secondary text
+
+### Shadows and Depth
+
+- Use consistent shadow patterns:
+  ```typescript
+  shadow-[6px_6px_0_0_#8fbc55]
+  ```
+- Increase shadow on hover for interactive elements
+
+### Forms and Inputs
+
+- Use consistent input styling:
+  ```typescript
+  className="border-2 border-gray-200 rounded-lg focus-visible:ring-[#8fbc55]"
+  ```
+- Always include proper labels and helper text
+- Use consistent padding and spacing
+
+### Loading States
+
+- Use Loader2 component with animate-spin
+- Maintain consistent loading state visuals:
+  ```typescript
+  className="h-8 w-8 animate-spin text-gray-400"
+  ```
+
+### Error States
+
+- Use red-500 for error states
+- Provide clear error messages
+- Use toast notifications for feedback
+
+### Accessibility
+
+- Maintain proper contrast ratios
+- Include proper ARIA labels
+- Ensure keyboard navigation works
+- Use semantic HTML elements
