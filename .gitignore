@@ -28,8 +28,8 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
-.env.production
 .env.development
+.env.production
 
 # vercel
 .vercel
@@ -37,6 +37,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE
+.vscode/
+.idea/
+
+# secrets
+secrets.txt
 
 # Cursor IDE
 .cursor/
