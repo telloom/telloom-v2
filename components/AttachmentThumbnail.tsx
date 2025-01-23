@@ -22,7 +22,7 @@ const sizeClasses = {
 export default function AttachmentThumbnail({ attachment, size = 'md', className = '' }: AttachmentThumbnailProps) {
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const sizeClass = sizeClasses[size];
-  const combinedClassName = `${sizeClass} ${className}`.trim();
+  const combinedClassName = `relative ${sizeClass} ${className}`.trim();
 
   // Function to validate and process URL
   const getValidImageUrl = (url?: string) => {
@@ -80,59 +80,59 @@ export default function AttachmentThumbnail({ attachment, size = 'md', className
         setPdfPreviewUrl(dataUrl);
       } catch (error) {
         console.error('Error generating PDF preview:', error);
+        // Fallback to a generic PDF icon if preview generation fails
+        setPdfPreviewUrl(null);
       }
     };
 
     void generatePdfPreview();
   }, [attachment]);
 
-  if (attachment.fileType.startsWith('image/')) {
-    // Try to get a valid URL from signedUrl, displayUrl, or fileUrl
-    const imageUrl = getValidImageUrl(attachment.signedUrl) || 
+  // Get the URL to display
+  const displayUrl = getValidImageUrl(attachment.signedUrl) || 
                     getValidImageUrl(attachment.displayUrl) || 
                     getValidImageUrl(attachment.fileUrl);
 
-    if (!imageUrl) {
-      // Show loading state if we don't have a valid URL
+  if (attachment.fileType.startsWith('image/') && displayUrl) {
+    return (
+      <div className={combinedClassName}>
+        <Image
+          src={displayUrl}
+          alt={attachment.fileName || 'Image attachment'}
+          fill
+          className={`rounded-lg ${size === 'lg' ? 'object-contain' : 'object-cover'}`}
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+        />
+      </div>
+    );
+  }
+
+  if (attachment.fileType === 'application/pdf') {
+    if (pdfPreviewUrl) {
       return (
-        <div className={`relative ${combinedClassName} bg-gray-100 animate-pulse rounded-lg`} />
+        <div className={combinedClassName}>
+          <Image
+            src={pdfPreviewUrl}
+            alt={attachment.fileName || 'PDF document'}
+            fill
+            className={`rounded-lg ${size === 'lg' ? 'object-contain' : 'object-cover'}`}
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          />
+        </div>
       );
     }
-
+    // Show PDF icon while preview is loading or if preview generation failed
     return (
-      <div className={`relative ${combinedClassName} rounded-lg overflow-hidden bg-gray-100`}>
-        <Image
-          src={imageUrl}
-          alt={attachment.fileName}
-          fill
-          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-          className={`hover:opacity-90 transition-opacity ${className}`}
-          priority={size === 'lg'}
-          unoptimized
-        />
+      <div className={`${combinedClassName} bg-gray-100 rounded-lg flex items-center justify-center`}>
+        <FileIcon className="w-1/3 h-1/3 text-gray-400" />
       </div>
     );
   }
 
-  if (attachment.fileType === 'application/pdf' && pdfPreviewUrl) {
-    return (
-      <div className={`relative ${combinedClassName} rounded-lg overflow-hidden bg-gray-100`}>
-        <Image
-          src={pdfPreviewUrl}
-          alt={attachment.fileName}
-          fill
-          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-          className={`hover:opacity-90 transition-opacity ${className}`}
-          priority={size === 'lg'}
-        />
-      </div>
-    );
-  }
-
-  // For non-image/pdf files or while PDF is loading, show an icon
+  // Fallback for other file types
   return (
-    <div className={`flex items-center justify-center bg-gray-100 rounded-lg ${combinedClassName}`}>
-      <FileIcon className="w-1/2 h-1/2 text-gray-400" />
+    <div className={`${combinedClassName} bg-gray-100 rounded-lg flex items-center justify-center`}>
+      <FileIcon className="w-1/3 h-1/3 text-gray-400" />
     </div>
   );
 }

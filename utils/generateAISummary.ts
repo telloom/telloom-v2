@@ -5,6 +5,8 @@ interface GenerateAISummaryParams {
   promptCategory: string;
   firstName: string;
   transcript: string;
+  type: 'topic' | 'video';
+  videoId: string;
 }
 
 export async function generateAISummary({
@@ -12,6 +14,8 @@ export async function generateAISummary({
   promptCategory,
   firstName,
   transcript,
+  type,
+  videoId
 }: GenerateAISummaryParams): Promise<string> {
   try {
     const response = await fetch('/api/ai/generate-summary', {
@@ -24,6 +28,8 @@ export async function generateAISummary({
         promptCategory,
         firstName,
         transcript,
+        type,
+        videoId
       }),
     });
 

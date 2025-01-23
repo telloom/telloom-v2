@@ -1,64 +1,277 @@
 // app/(authenticated)/role-sharer/topics/[id]/topic-summary/page.tsx
 
-// app/(authenticated)/role-sharer/topics/[id]/topic-summary/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import { Card } from '@/components/ui/card';
-import { MuxPlayer } from '@/components/MuxPlayer';
-import AttachmentThumbnail from '@/components/AttachmentThumbnail';
+import { TopicVideoResponseSection } from '@/components/TopicVideoResponseSection';
+import { UIAttachment, toUIAttachment } from '@/types/component-interfaces';
+import { PromptResponseAttachment } from '@/types/models';
 
 export default function TopicSummaryPage() {
-  const router = useRouter();
   const params = useParams();
-  const topicId = params.id;
+  const topicId = typeof params.id === 'string' ? params.id : '';
 
   const [isLoading, setIsLoading] = useState(true);
   const [topicVideo, setTopicVideo] = useState<any>(null);
-  const [attachments, setAttachments] = useState<any[]>([]);
+  const [attachments, setAttachments] = useState<UIAttachment[]>([]);
+  const [topicName, setTopicName] = useState('');
+  const [userId, setUserId] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchData() {
-      const supabase = createClient();
-      // 1) fetch the TopicVideo if any
-      // 2) fetch attachments for all prompts under this topic
-      // ...setTopicVideo, setAttachments
+  // Function to fetch all data
+  const fetchData = async () => {
+    if (!topicId) return;
+    
+    const supabase = createClient();
+    try {
+      // First get the current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user?.id) {
+        console.error('No user found');
+        return;
+      }
+
+      // Get the user's ProfileSharer record
+      const { data: profileSharer, error: profileSharerError } = await supabase
+        .from('ProfileSharer')
+        .select('id')
+        .eq('profileId', user.id)
+        .single();
+
+      if (profileSharerError) {
+        console.error('Error fetching ProfileSharer:', profileSharerError);
+        return;
+      }
+
+      const profileSharerId = profileSharer.id;
+      setUserId(profileSharerId);
+
+      // Fetch topic name
+      const { data: topicData, error: topicError } = await supabase
+        .from('PromptCategory')
+        .select('category')
+        .eq('id', topicId)
+        .single();
+
+      if (topicError) throw topicError;
+      setTopicName(topicData?.category || '');
+
+      // First get the video with detailed logging
+      console.log('Fetching video for topicId:', topicId, 'and profileSharerId:', profileSharerId);
+      
+      // First verify the ProfileSharer relationship
+      const { data: sharerCheck, error: sharerCheckError } = await supabase
+        .from('ProfileSharer')
+        .select('id, profileId')
+        .eq('id', profileSharerId)
+        .single();
+        
+      console.log('ProfileSharer check:', { sharerCheck, sharerCheckError, currentUserId: user.id });
+      
+      const { data: videoData, error: videoError } = await supabase
+        .from('TopicVideo')
+        .select(`
+          id,
+          muxPlaybackId,
+          muxAssetId,
+          dateRecorded,
+          profileSharerId,
+          status,
+          summary,
+          TopicVideoTranscript (
+            id,
+            transcript,
+            source,
+            type,
+            language,
+            muxTrackId,
+            muxAssetId,
+            createdAt
+          )
+        `)
+        .eq('promptCategoryId', topicId)
+        .eq('profileSharerId', profileSharerId)
+        .maybeSingle();
+
+      if (videoError) {
+        console.error('Error fetching video:', videoError);
+        throw videoError;
+      }
+      
+      console.log('Raw video data:', videoData);
+      
+      if (videoData) {
+        console.log('Video found:', {
+          id: videoData.id,
+          muxPlaybackId: videoData.muxPlaybackId,
+          status: videoData.status,
+          transcriptCount: videoData.TopicVideoTranscript?.length,
+          transcripts: videoData.TopicVideoTranscript
+        });
+
+        // If we have a video but no transcript in the join, try querying the transcript table directly
+        // with debug info about the relationships
+        if (!videoData.TopicVideoTranscript || videoData.TopicVideoTranscript.length === 0) {
+          console.log('No transcript in join query, checking transcript table directly');
+          const { data: transcriptData, error: transcriptError } = await supabase
+            .from('TopicVideoTranscript')
+            .select(`
+              id,
+              topicVideoId,
+              transcript,
+              createdAt,
+              TopicVideo (
+                id,
+                profileSharerId,
+                ProfileSharer (
+                  id,
+                  profileId
+                )
+              )
+            `)
+            .eq('topicVideoId', videoData.id);
+            
+          if (transcriptError) {
+            console.error('Error checking transcripts directly:', transcriptError);
+          } else {
+            console.log('Direct transcript check results:', transcriptData);
+          }
+        }
+      } else {
+        console.log('No video found for topic');
+      }
+
+      setTopicVideo(videoData);
+
+      // Fetch all prompts in this category
+      const { data: prompts, error: promptError } = await supabase
+        .from('Prompt')
+        .select('id')
+        .eq('promptCategoryId', topicId);
+
+      console.log('Prompts found:', prompts);
+      if (promptError) throw promptError;
+
+      if (prompts?.length) {
+        // Get all prompt responses for these prompts with more details
+        const { data: responses, error: responseError } = await supabase
+          .from('PromptResponse')
+          .select(`
+            id,
+            promptId,
+            profileSharerId,
+            createdAt
+          `)
+          .in('promptId', prompts.map((p: { id: string }) => p.id));
+
+        console.log('All responses for prompts:', {
+          promptIds: prompts.map((p: { id: string }) => p.id),
+          responses,
+          responseError
+        });
+
+        // Now try with the profile sharer filter
+        const { data: filteredResponses } = await supabase
+          .from('PromptResponse')
+          .select(`
+            id,
+            promptId,
+            profileSharerId,
+            createdAt
+          `)
+          .in('promptId', prompts.map((p: { id: string }) => p.id))
+          .eq('profileSharerId', profileSharerId);
+
+        console.log('Filtered responses:', {
+          profileSharerId,
+          filteredResponses
+        });
+
+        if (responseError) throw responseError;
+
+        if (filteredResponses?.length) {
+          // Get all attachments for these responses
+          const { data: attachmentData, error: attachmentError } = await supabase
+            .from('PromptResponseAttachment')
+            .select(`
+              *,
+              PromptResponseAttachmentPersonTag (
+                PersonTag (
+                  id,
+                  name,
+                  relation,
+                  profileSharerId
+                )
+              )
+            `)
+            .in('promptResponseId', filteredResponses.map((r: { id: string }) => r.id))
+            .eq('profileSharerId', profileSharerId)
+            .order('dateCaptured', { ascending: false, nullsLast: true });
+
+          console.log('Attachments found:', {
+            responseIds: filteredResponses.map((r: { id: string }) => r.id),
+            profileSharerId,
+            attachmentCount: attachmentData?.length,
+            attachmentData,
+            attachmentError
+          });
+
+          if (attachmentError) throw attachmentError;
+
+          // Get signed URLs for all attachments
+          const uiAttachments = await Promise.all(attachmentData?.map(async (att: PromptResponseAttachment) => {
+            // Get signed URL for the attachment
+            let signedUrl = null;
+            if (att.fileUrl.includes('attachments/')) {
+              const filePath = att.fileUrl.split('attachments/')[1];
+              const { data: { signedUrl: url } } = await supabase.storage
+                .from('attachments')
+                .createSignedUrl(filePath, 3600);
+              signedUrl = url;
+            }
+
+            // Transform to UIAttachment
+            const transformed = toUIAttachment({
+              ...att,
+              signedUrl,
+              displayUrl: att.fileUrl // Use fileUrl as displayUrl
+            });
+
+            console.log('Transformed attachment:', { original: att, transformed });
+            return transformed;
+          }) ?? []);
+          
+          setAttachments(uiAttachments);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
       setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchData();
   }, [topicId]);
 
-  if (isLoading) return <p>Loading topic summary...</p>;
+  if (isLoading) {
+    return <div>Loading topic summary...</div>;
+  }
 
   return (
     <div className="container mx-auto space-y-6 py-6">
-      <h1 className="text-2xl font-bold mb-4">Topic Summary</h1>
-
-      {/* Show the TopicVideo if present */}
-      {topicVideo ? (
-        <Card className="p-4">
-          <MuxPlayer playbackId={topicVideo.muxPlaybackId} />
-          {/* Possibly show transcript, summary text, etc. */}
-        </Card>
-      ) : (
-        <p>No Topic Video yet</p>
-      )}
-
-      {/* Show aggregated attachments */}
-      <div>
-        <h2 className="text-xl font-semibold mb-3">All Attachments for This Topic</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {attachments.map((att) => (
-            <AttachmentThumbnail
-              key={att.id}
-              attachment={att}
-              size="lg"
-            />
-          ))}
-        </div>
-      </div>
+      <h1 className="text-2xl font-bold mb-4">{topicName}</h1>
+      <TopicVideoResponseSection
+        topicId={topicId}
+        topicName={topicName}
+        video={topicVideo}
+        attachments={attachments}
+        onVideoUpload={fetchData}
+        userId={userId}
+      />
     </div>
   );
 }

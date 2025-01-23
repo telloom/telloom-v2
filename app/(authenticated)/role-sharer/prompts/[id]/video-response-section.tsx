@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Video as VideoIcon, Upload, Paperclip, Edit, Check, ArrowLeft, Download, Trash2, AlertTriangle } from 'lucide-react';
+import { Video as VideoIcon, Upload, Paperclip, Edit, Check, ArrowLeft, Download, Trash2, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react';
 import { RecordingInterface } from '@/components/RecordingInterface';
 import { UploadPopup } from '@/components/UploadPopup';
 import dynamic from 'next/dynamic';
@@ -88,6 +88,79 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
   const [attachmentToDelete, setAttachmentToDelete] = useState<string | null>(null);
   const [showVideoDeleteConfirm, setShowVideoDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Add these state variables and refs after the existing state declarations
+  const transcriptTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const summaryTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const notesTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(false);
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
+  const [isNotesExpanded, setIsNotesExpanded] = useState(false);
+  const transcriptContentRef = useRef<HTMLDivElement>(null);
+  const summaryContentRef = useRef<HTMLDivElement>(null);
+  const notesContentRef = useRef<HTMLDivElement>(null);
+  const [transcriptOverflows, setTranscriptOverflows] = useState(false);
+  const [summaryOverflows, setSummaryOverflows] = useState(false);
+  const [notesOverflows, setNotesOverflows] = useState(false);
+
+  // Add the autoResize function and effects
+  const autoResize = (textarea: HTMLTextAreaElement | null) => {
+    if (!textarea) return;
+    textarea.style.height = 'inherit';
+    textarea.style.height = `${Math.max(textarea.scrollHeight, 100)}px`;
+  };
+
+  // Auto-resize effects
+  useEffect(() => {
+    if (isEditingTranscript) {
+      autoResize(transcriptTextareaRef.current);
+    }
+  }, [transcript, isEditingTranscript]);
+
+  useEffect(() => {
+    if (isEditingSummary) {
+      autoResize(summaryTextareaRef.current);
+    }
+  }, [summary, isEditingSummary]);
+
+  useEffect(() => {
+    if (isEditingNotes) {
+      autoResize(notesTextareaRef.current);
+    }
+  }, [responseNotes, isEditingNotes]);
+
+  // Add overflow check effect
+  useEffect(() => {
+    const checkOverflow = () => {
+      const countLines = (element: HTMLElement | null) => {
+        if (!element) return 0;
+        const lineHeight = parseInt(window.getComputedStyle(element).lineHeight);
+        return Math.ceil(element.scrollHeight / lineHeight);
+      };
+
+      if (transcriptContentRef.current) {
+        const lineCount = countLines(transcriptContentRef.current);
+        setTranscriptOverflows(lineCount > 12);
+      }
+      if (summaryContentRef.current) {
+        const lineCount = countLines(summaryContentRef.current);
+        setSummaryOverflows(lineCount > 12);
+      }
+      if (notesContentRef.current) {
+        const lineCount = countLines(notesContentRef.current);
+        setNotesOverflows(lineCount > 12);
+      }
+    };
+
+    checkOverflow();
+    window.addEventListener('resize', checkOverflow);
+    const timeoutId = setTimeout(checkOverflow, 100);
+
+    return () => {
+      window.removeEventListener('resize', checkOverflow);
+      clearTimeout(timeoutId);
+    };
+  }, [transcript, summary, responseNotes, isTranscriptExpanded, isSummaryExpanded, isNotesExpanded]);
 
   // Function to fetch updated response data with proper typing
   const fetchUpdatedResponse = useCallback(async () => {
@@ -279,6 +352,14 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
       }
 
       setIsEditingTranscript(false);
+      // Force overflow check after saving
+      setTimeout(() => {
+        if (transcriptContentRef.current) {
+          const lineHeight = parseInt(window.getComputedStyle(transcriptContentRef.current).lineHeight);
+          const lineCount = Math.ceil(transcriptContentRef.current.scrollHeight / lineHeight);
+          setTranscriptOverflows(lineCount > 12);
+        }
+      }, 100);
       toast.success("Transcript updated successfully");
     } catch (e) {
       console.error('Error in handleSaveTranscript:', e);
@@ -308,6 +389,14 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
       }
 
       setIsEditingSummary(false);
+      // Force overflow check after saving
+      setTimeout(() => {
+        if (summaryContentRef.current) {
+          const lineHeight = parseInt(window.getComputedStyle(summaryContentRef.current).lineHeight);
+          const lineCount = Math.ceil(summaryContentRef.current.scrollHeight / lineHeight);
+          setSummaryOverflows(lineCount > 12);
+        }
+      }, 100);
       toast.success("Summary updated successfully");
     } catch (e) {
       console.error('Error in handleSaveSummary:', e);
@@ -337,6 +426,14 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
       }
 
       setIsEditingNotes(false);
+      // Force overflow check after saving
+      setTimeout(() => {
+        if (notesContentRef.current) {
+          const lineHeight = parseInt(window.getComputedStyle(notesContentRef.current).lineHeight);
+          const lineCount = Math.ceil(notesContentRef.current.scrollHeight / lineHeight);
+          setNotesOverflows(lineCount > 12);
+        }
+      }, 100);
       toast.success("Notes updated successfully");
     } catch (e) {
       console.error('Error in handleSaveNotes:', e);
@@ -610,6 +707,11 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
     }
   };
 
+  // Add getContentStyle helper function after the state declarations
+  const getContentStyle = (isExpanded: boolean) => ({
+    overflow: !isExpanded ? 'hidden' : 'visible'
+  });
+
   if (!response?.video) {
     return (
       <Card className="p-8 flex flex-col items-center justify-center gap-6 bg-gray-50">
@@ -811,70 +913,39 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
                   size="sm"
                   onClick={async () => {
                     try {
-                      if (!transcript) {
-                        toast.error("No transcript available", {
-                          description: "A transcript is required to clean."
+                      if (!transcript || !response?.video?.VideoTranscript?.[0]?.id) {
+                        toast.error("Missing transcript information", {
+                          description: "The transcript or transcript ID is missing."
                         });
                         return;
                       }
 
-                      setPreviousTranscript(transcript);
-                      setIsCleaningTranscript(true);
-                      setCleaningSuccess(false);
-                      console.log('Starting AI transcript cleaning...', {
-                        transcriptLength: transcript.length,
-                        transcriptId: response?.video?.VideoTranscript?.[0]?.id
-                      });
-
-                      const cleanedTranscript = await cleanTranscript({
-                        transcript,
-                      });
-
-                      console.log('AI transcript cleaning completed', {
-                        originalLength: transcript.length,
-                        cleanedLength: cleanedTranscript.length,
-                        transcriptId: response?.video?.VideoTranscript?.[0]?.id
-                      });
-
-                      // Update the local state first
-                      setTranscript(cleanedTranscript);
-                      
-                      // Then save to the database
-                      if (response?.video?.VideoTranscript?.[0]?.id) {
-                        const supabase = createClient();
-                        const { error: saveError } = await supabase
-                          .from('VideoTranscript')
-                          .update({ transcript: cleanedTranscript })
-                          .eq('id', response.video.VideoTranscript[0].id);
-
-                        if (saveError) {
-                          console.error('Failed to save cleaned transcript:', saveError);
-                          throw new Error('Failed to save cleaned transcript');
-                        }
-                        console.log('Cleaned transcript saved successfully');
-                      }
-                      
-                      setCleaningSuccess(true);
-                      toast.success("Transcript cleaned successfully", {
-                        description: "The transcript has been cleaned and saved."
-                      });
-                      
-                      // Reset success state after a delay
-                      setTimeout(() => {
+                        setPreviousTranscript(transcript);
+                        setIsCleaningTranscript(true);
                         setCleaningSuccess(false);
-                      }, 3500);
-                    } catch (error) {
-                      console.error('Error cleaning transcript:', error);
-                      toast.error("Failed to clean transcript", {
-                        description: error instanceof Error ? error.message : "Please try again."
-                      });
-                      // Revert to previous transcript on error
-                      if (previousTranscript) {
-                        setTranscript(previousTranscript);
+
+                        const cleanedTranscript = await cleanTranscript({
+                          transcript,
+                          transcriptId: response.video.VideoTranscript[0].id,
+                          type: 'video'
+                        });
+
+                        setTranscript(cleanedTranscript);
+                        setCleaningSuccess(true);
+                        toast.success("Transcript cleaned successfully");
+                        
+                        setTimeout(() => {
+                          setCleaningSuccess(false);
+                        }, 3500);
+                      } catch (error) {
+                        console.error('Error cleaning transcript:', error);
+                        toast.error("Failed to clean transcript");
+                        if (previousTranscript) {
+                          setTranscript(previousTranscript);
+                        }
+                      } finally {
+                        setIsCleaningTranscript(false);
                       }
-                    } finally {
-                      setIsCleaningTranscript(false);
-                    }
                   }}
                   className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full"
                   disabled={isCleaningTranscript}
@@ -914,12 +985,55 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
                 </Button>
               </div>
             </div>
-            <Textarea
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              disabled={!isEditingTranscript}
-              className="min-h-[100px]"
-            />
+            {isEditingTranscript ? (
+              <Textarea
+                ref={transcriptTextareaRef}
+                value={transcript}
+                onChange={(e) => {
+                  setTranscript(e.target.value);
+                  autoResize(transcriptTextareaRef.current);
+                }}
+                className="min-h-[100px] w-full resize-none transition-height duration-150 whitespace-pre-wrap bg-white focus-visible:ring-0 border-0 focus-visible:ring-offset-0 text-base"
+                style={{ overflow: 'hidden' }}
+              />
+            ) : (
+              <div className="space-y-2">
+                <div
+                  ref={transcriptContentRef}
+                  className={`relative bg-white rounded-lg p-4 whitespace-pre-wrap transition-all duration-200 text-base ${
+                    !isTranscriptExpanded && transcriptOverflows ? "max-h-[16em]" : ""
+                  }`}
+                  style={getContentStyle(isTranscriptExpanded)}
+                >
+                  {transcript || 'No transcript available'}
+                  {!isTranscriptExpanded && transcriptOverflows && (
+                    <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white to-transparent" />
+                  )}
+                </div>
+                {transcriptOverflows && (
+                  <div className="flex justify-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsTranscriptExpanded(!isTranscriptExpanded)}
+                      className="text-[#1B4332] hover:bg-[#8fbc55] rounded-full transition-colors duration-200"
+                    >
+                      {isTranscriptExpanded ? (
+                        <>
+                          <ChevronUp className="h-4 w-4 mr-2" />
+                          Show Less
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-4 w-4 mr-2" />
+                          Show More
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Summary Section */}
@@ -987,7 +1101,9 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
                         promptText,
                         promptCategory,
                         firstName: profile.firstName,
-                        transcript: response.video.VideoTranscript[0].transcript
+                        transcript: response.video.VideoTranscript[0].transcript,
+                        type: 'video',
+                        videoId: response.video.id
                       });
 
                       console.log('AI summary generation completed', {
@@ -1071,12 +1187,56 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
                 </Button>
               </div>
             </div>
-            <Textarea
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-              disabled={!isEditingSummary}
-              className="min-h-[100px]"
-            />
+            {isEditingSummary ? (
+              <Textarea
+                ref={summaryTextareaRef}
+                value={summary}
+                onChange={(e) => {
+                  setSummary(e.target.value);
+                  autoResize(summaryTextareaRef.current);
+                }}
+                className="min-h-[100px] w-full resize-none transition-height duration-150 whitespace-pre-wrap bg-white focus-visible:ring-0 border-0 focus-visible:ring-offset-0 text-base"
+                style={{ overflow: 'hidden' }}
+                placeholder="Enter a summary..."
+              />
+            ) : (
+              <div className="space-y-2">
+                <div
+                  ref={summaryContentRef}
+                  className={`relative bg-white rounded-lg p-4 whitespace-pre-wrap transition-all duration-200 text-base ${
+                    !isSummaryExpanded && summaryOverflows ? "max-h-[16em]" : ""
+                  }`}
+                  style={getContentStyle(isSummaryExpanded)}
+                >
+                  {summary || 'No summary available'}
+                  {!isSummaryExpanded && summaryOverflows && (
+                    <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white to-transparent" />
+                  )}
+                </div>
+                {summaryOverflows && (
+                  <div className="flex justify-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
+                      className="text-[#1B4332] hover:bg-[#8fbc55] rounded-full transition-colors duration-200"
+                    >
+                      {isSummaryExpanded ? (
+                        <>
+                          <ChevronUp className="h-4 w-4 mr-2" />
+                          Show Less
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-4 w-4 mr-2" />
+                          Show More
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Notes Section */}
@@ -1105,13 +1265,56 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
                 </Button>
               </div>
             </div>
-            <Textarea
-              value={responseNotes}
-              onChange={(e) => setResponseNotes(e.target.value)}
-              disabled={!isEditingNotes}
-              className="min-h-[100px]"
-              placeholder="Add notes about this response..."
-            />
+            {isEditingNotes ? (
+              <Textarea
+                ref={notesTextareaRef}
+                value={responseNotes}
+                onChange={(e) => {
+                  setResponseNotes(e.target.value);
+                  autoResize(notesTextareaRef.current);
+                }}
+                className="min-h-[100px] w-full resize-none transition-height duration-150 whitespace-pre-wrap bg-white focus-visible:ring-0 border-0 focus-visible:ring-offset-0 text-base"
+                style={{ overflow: 'hidden' }}
+                placeholder="Add notes about this response..."
+              />
+            ) : (
+              <div className="space-y-2">
+                <div
+                  ref={notesContentRef}
+                  className={`relative bg-white rounded-lg p-4 whitespace-pre-wrap transition-all duration-200 text-base ${
+                    !isNotesExpanded && notesOverflows ? "max-h-[16em]" : ""
+                  }`}
+                  style={getContentStyle(isNotesExpanded)}
+                >
+                  {responseNotes || 'No notes available'}
+                  {!isNotesExpanded && notesOverflows && (
+                    <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white to-transparent" />
+                  )}
+                </div>
+                {notesOverflows && (
+                  <div className="flex justify-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsNotesExpanded(!isNotesExpanded)}
+                      className="text-[#1B4332] hover:bg-[#8fbc55] rounded-full transition-colors duration-200"
+                    >
+                      {isNotesExpanded ? (
+                        <>
+                          <ChevronUp className="h-4 w-4 mr-2" />
+                          Show Less
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-4 w-4 mr-2" />
+                          Show More
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

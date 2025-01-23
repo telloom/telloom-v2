@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
 import Replicate from "replicate";
+import { supabaseAdmin } from '@/utils/supabase/service-role';
 
 export async function POST(request: Request) {
   const startTime = Date.now();
   try {
-    const { promptText, promptCategory, firstName, transcript } = await request.json();
+    const { promptText, promptCategory, firstName, transcript, type, videoId } = await request.json();
+
+    if (!videoId) {
+      return NextResponse.json(
+        { error: "Video ID is required" },
+        { status: 400 }
+      );
+    }
 
     if (!process.env.REPLICATE_API_TOKEN) {
       console.error('Generate summary API: Missing Replicate API token');
@@ -17,6 +25,7 @@ export async function POST(request: Request) {
     console.log('Generate summary API: Starting summary generation', {
       promptCategory,
       transcriptLength: transcript.length,
+      type,
       timestamp: new Date().toISOString()
     });
 
@@ -58,14 +67,63 @@ ${transcript}`;
       throw streamError;
     }
 
+    const summary = fullResponse.trim();
+    
+    console.log('Generate summary API: Attempting to save summary', {
+      type,
+      videoId,
+      summaryLength: summary.length,
+      tableName: type === 'topic' ? 'TopicVideo' : 'PromptResponse',
+      timestamp: new Date().toISOString()
+    });
+    
+    // Update the appropriate table based on type
+    if (type === 'topic') {
+      const { error: updateError } = await supabaseAdmin
+        .from('TopicVideo')
+        .update({ 
+          summary,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('id', videoId)
+        .select();
+
+      if (updateError) {
+        console.error('Generate summary API: Error updating summary', {
+          error: updateError,
+          tableName: 'TopicVideo',
+          videoId
+        });
+        throw updateError;
+      }
+    } else {
+      const { error: updateError } = await supabaseAdmin
+        .from('PromptResponse')
+        .update({ 
+          summary,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('videoId', videoId)
+        .select();
+
+      if (updateError) {
+        console.error('Generate summary API: Error updating summary', {
+          error: updateError,
+          tableName: 'PromptResponse',
+          videoId
+        });
+        throw updateError;
+      }
+    }
+
     const processingTime = Date.now() - startTime;
     console.log('Generate summary API: Summary generation completed', {
-      summaryLength: fullResponse.length,
+      summaryLength: summary.length,
       processingTimeMs: processingTime,
       timestamp: new Date().toISOString()
     });
 
-    return NextResponse.json({ summary: fullResponse.trim() });
+    return NextResponse.json({ summary });
   } catch (error) {
     const processingTime = Date.now() - startTime;
     console.error('Generate summary API: Error occurred', {
