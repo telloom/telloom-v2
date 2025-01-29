@@ -455,24 +455,18 @@ export function AttachmentDialog({
 
   return (
     <>
-      <Dialog 
-        open={isOpen} 
-        onOpenChange={(open) => {
-          if (!isLoading && !open) {
-            handleClose();
-          }
-        }}
-      >
-        <DialogContent
-          className="max-w-5xl h-[90vh] flex flex-col p-0 lg:p-6 m-0 lg:m-4 overflow-y-auto lg:overflow-hidden"
-          aria-describedby="dialog-description"
-        >
-          <DialogHeader>
+      <Dialog open={isOpen} onOpenChange={() => {
+        onClose();
+        setIsEditing(false);
+        setShowDeleteConfirm(false);
+      }}>
+        <DialogContent className="max-w-[95vw] md:max-w-4xl h-[90vh] flex flex-col p-4 md:p-6 mx-auto overflow-y-auto">
+          <DialogHeader className="sr-only">
             <DialogTitle>View Attachment</DialogTitle>
-            <DialogDescription id="dialog-description">
-              View and edit attachment details
-            </DialogDescription>
           </DialogHeader>
+          <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+            {/* Existing code */}
+          </div>
 
           {/* Main Content */}
           <div className="flex flex-col lg:grid lg:grid-cols-[3fr_1fr] h-full">

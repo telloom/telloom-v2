@@ -18,6 +18,7 @@ import { UIAttachment, toThumbnailAttachment, toUIAttachment } from '@/types/com
 import { VideoResponseSectionProps, PromptResponseAttachment } from '@/types/models';
 import { AttachmentDialog, Attachment } from '@/components/AttachmentDialog';
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
+import { VideoDownloadButton } from '@/components/video/VideoDownloadButton';
 
 
 // Dynamically import components that could cause hydration issues
@@ -330,6 +331,77 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
     }
   }, [attachments]);
 
+  const handleStartEditing = async (section: 'transcript' | 'summary' | 'notes') => {
+    if (!response?.id) {
+      toast.error('No response found');
+      return;
+    }
+
+    const supabase = createClient();
+    try {
+      // Fetch fresh data before starting edit
+      const { data: freshData, error } = await supabase
+        .from('PromptResponse')
+        .select(`
+          id,
+          summary,
+          responseNotes,
+          video:Video (
+            VideoTranscript (
+              transcript
+            )
+          )
+        `)
+        .eq('id', response.id)
+        .single();
+
+      if (error) throw error;
+
+      // Update state with fresh data
+      if (freshData) {
+        if (section === 'transcript' && freshData.video?.VideoTranscript?.[0]?.transcript) {
+          setTranscript(freshData.video.VideoTranscript[0].transcript);
+          setIsEditingTranscript(true);
+        } else if (section === 'summary') {
+          setSummary(freshData.summary || '');
+          setIsEditingSummary(true);
+        } else if (section === 'notes') {
+          setResponseNotes(freshData.responseNotes || '');
+          setIsEditingNotes(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching fresh data:', error);
+      toast.error('Failed to start editing. Please try again.');
+    }
+  };
+
+  // Update click handlers to handle both edit and save
+  const handleTranscriptClick = () => {
+    if (isEditingTranscript) {
+      handleSaveTranscript();
+    } else {
+      handleStartEditing('transcript');
+    }
+  };
+
+  const handleSummaryClick = () => {
+    if (isEditingSummary) {
+      handleSaveSummary();
+    } else {
+      handleStartEditing('summary');
+    }
+  };
+
+  const handleNotesClick = () => {
+    if (isEditingNotes) {
+      handleSaveNotes();
+    } else {
+      handleStartEditing('notes');
+    }
+  };
+
+  // Update handleSaveTranscript to match the expected type
   const handleSaveTranscript = async () => {
     if (!response?.video?.VideoTranscript?.[0]?.id) {
       toast.error("No transcript ID found");
@@ -850,42 +922,52 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
           </div>
 
           {/* Date Section */}
-          <div className="flex items-center gap-2 py-2">
-            <span className="text-sm text-gray-500">Date Recorded:</span>
-            {isEditingDate ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={dateRecorded ? dateRecorded.toISOString().split('T')[0] : ''}
-                  onChange={(e) => setDateRecorded(e.target.value ? new Date(e.target.value) : null)}
-                  className="px-2 py-1 border rounded text-sm"
-                  aria-label="Date recorded"
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSaveDate}
-                  className="rounded-full"
-                >
-                  <Check className="h-4 w-4 mr-2" />
-                  Save
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-sm">
-                  {dateRecorded ? new Date(dateRecorded).toLocaleDateString() : 'Not set'}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsEditingDate(true)}
-                  className="rounded-full"
-                >
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit
-                </Button>
-              </div>
+          <div className="flex items-center justify-between py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Date Recorded:</span>
+              {isEditingDate ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={dateRecorded ? dateRecorded.toISOString().split('T')[0] : ''}
+                    onChange={(e) => setDateRecorded(e.target.value ? new Date(e.target.value) : null)}
+                    className="px-2 py-1 border rounded text-sm"
+                    aria-label="Date recorded"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSaveDate}
+                    className="rounded-full"
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Save
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">
+                    {dateRecorded ? new Date(dateRecorded).toLocaleDateString() : 'Not set'}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditingDate(true)}
+                    className="rounded-full"
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                </div>
+              )}
+            </div>
+            {response?.video?.muxAssetId && response?.profileSharerId && (
+              <VideoDownloadButton 
+                muxAssetId={response.video.muxAssetId}
+                videoType="prompt"
+                userId={response.profileSharerId}
+                topicName={promptCategory}
+              />
             )}
           </div>
 
@@ -967,21 +1049,20 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    if (isEditingTranscript) {
-                      handleSaveTranscript();
-                    } else {
-                      setIsEditingTranscript(true);
-                    }
-                  }}
+                  onClick={handleTranscriptClick}
                   className="rounded-full"
                 >
                   {isEditingTranscript ? (
-                    <Check className="h-4 w-4 mr-2" />
+                    <>
+                      <Check className="h-4 w-4 mr-2" />
+                      Save
+                    </>
                   ) : (
-                    <Edit className="h-4 w-4 mr-2" />
+                    <>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </>
                   )}
-                  {isEditingTranscript ? 'Save' : 'Edit'}
                 </Button>
               </div>
             </div>
@@ -1169,21 +1250,20 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    if (isEditingSummary) {
-                      handleSaveSummary();
-                    } else {
-                      setIsEditingSummary(true);
-                    }
-                  }}
+                  onClick={handleSummaryClick}
                   className="rounded-full"
                 >
                   {isEditingSummary ? (
-                    <Check className="h-4 w-4 mr-2" />
+                    <>
+                      <Check className="h-4 w-4 mr-2" />
+                      Save
+                    </>
                   ) : (
-                    <Edit className="h-4 w-4 mr-2" />
+                    <>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </>
                   )}
-                  {isEditingSummary ? 'Save' : 'Edit'}
                 </Button>
               </div>
             </div>
@@ -1247,21 +1327,20 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    if (isEditingNotes) {
-                      handleSaveNotes();
-                    } else {
-                      setIsEditingNotes(true);
-                    }
-                  }}
+                  onClick={handleNotesClick}
                   className="rounded-full"
                 >
                   {isEditingNotes ? (
-                    <Check className="h-4 w-4 mr-2" />
+                    <>
+                      <Check className="h-4 w-4 mr-2" />
+                      Save
+                    </>
                   ) : (
-                    <Edit className="h-4 w-4 mr-2" />
+                    <>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </>
                   )}
-                  {isEditingNotes ? 'Save' : 'Edit'}
                 </Button>
               </div>
             </div>
@@ -1325,6 +1404,7 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
             <Button
               onClick={() => setShowAttachmentUpload(true)}
               variant="outline"
+              size="sm"
               className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full"
             >
               <Paperclip className="mr-2 h-4 w-4" />

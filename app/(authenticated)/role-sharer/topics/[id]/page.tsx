@@ -1,14 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RecordingInterface } from '@/components/RecordingInterface';
 import { VideoPopup } from '@/components/VideoPopup';
 import { UploadInterface } from '@/components/UploadInterface';
 import { ArrowLeft, Video as VideoIcon, Play, CheckCircle2, LayoutGrid, Table as TableIcon, Upload, Paperclip } from 'lucide-react';
-import { PromptCategory, Prompt, PromptResponse, PromptResponseAttachment, Video } from '@/types/models';
+import { PromptCategory, Prompt, PromptResponse } from '@/types/models';
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -21,14 +21,11 @@ import {
 import dynamic from 'next/dynamic';
 import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
-import { PromptResponseGallery } from '@/components/PromptResponseGallery';
 import { ErrorBoundary } from 'react-error-boundary';
 import { cn } from "@/lib/utils";
-import Image from 'next/image';
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
 import { AttachmentDialog } from '@/components/AttachmentDialog';
 import { MuxPlayer } from '@/components/MuxPlayer';
-// End of Selection
 import { UIAttachment, toUIAttachment } from '@/types/component-interfaces';
 import { TopicVideoCard } from '@/components/TopicVideoCard';
 
@@ -96,13 +93,8 @@ const ErrorFallback = ({ error, resetErrorBoundary }: { error: Error | string; r
   );
 };
 
-interface AttachmentWithUrls extends PromptResponseAttachment {
-  signedUrl?: string;
-  displayUrl?: string;
-}
-
 // Main content component
-const TopicPageContent = ({
+const TopicPageContent: React.FC<TopicPageContentProps> = ({
   promptCategory,
   viewMode,
   sortByStatus,
@@ -125,7 +117,7 @@ const TopicPageContent = ({
   handleCloseUpload,
   refreshData,
   router
-}: TopicPageContentProps) => {
+}) => {
   const [selectedAttachment, setSelectedAttachment] = useState<{
     attachment: any;
     attachments: any[];
@@ -133,11 +125,9 @@ const TopicPageContent = ({
   } | null>(null);
   const [overflowingPrompts, setOverflowingPrompts] = useState<Set<string>>(new Set());
   const promptRefs = useRef<{ [key: string]: HTMLElement | null }>({});
+  const [gallerySignedUrls, setGallerySignedUrls] = useState<Record<string, string>>({});
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [gallerySignedUrls, setGallerySignedUrls] = useState<Record<string, string>>({});
-  const [currentAttachments, setCurrentAttachments] = useState<UIAttachment[]>([]);
 
   // Define fetchSignedUrls at component level
   const fetchSignedUrls = useCallback(async (promptResponse: PromptResponse | null) => {
@@ -177,7 +167,7 @@ const TopicPageContent = ({
   useEffect(() => {
     Object.entries(promptRefs.current).forEach(([promptId, element]) => {
       if (element && element.scrollHeight > element.clientHeight) {
-        setOverflowingPrompts(prev => new Set([...prev, promptId]));
+        setOverflowingPrompts(prev => new Set([...Array.from(prev), promptId]));
       }
     });
   }, [promptCategory]);
@@ -186,13 +176,17 @@ const TopicPageContent = ({
   useEffect(() => {
     if (selectedPromptResponse?.PromptResponseAttachment) {
       const rawAttachments = selectedPromptResponse.PromptResponseAttachment;
-      const uiAttachments = rawAttachments.map((att) => toUIAttachment(att));
-      setCurrentAttachments(uiAttachments);
+      const uiAttachments: UIAttachment[] = rawAttachments.map((att) => toUIAttachment(att));
+      setSelectedAttachment({
+        attachment: uiAttachments[0],
+        attachments: uiAttachments,
+        currentIndex: 0
+      });
 
       // Then fetch the signed URLs for them
       void fetchSignedUrls(selectedPromptResponse);
     } else {
-      setCurrentAttachments([]);
+      setSelectedAttachment(null);
     }
   }, [selectedPromptResponse, fetchSignedUrls]);
 
@@ -313,75 +307,18 @@ const TopicPageContent = ({
     }
   }, [gallerySignedUrls]);
 
-  // Wrap refreshData to prevent state reset during refresh
-  const handleRefreshData = useCallback(async () => {
-    console.log('[TopicPageContent] Starting data refresh');
-    setIsRefreshing(true);
-    await refreshData();
-    setIsRefreshing(false);
-    console.log('[TopicPageContent] Data refresh complete');
-  }, [refreshData]);
-
   // Handle upload success
-  const handleUploadSuccess = useCallback(async (muxId: string) => {
-    console.log('🎉 [TopicPage] Upload success callback:', {
-      muxId,
-      currentVideoId,
-      isVideoReady,
-      timestamp: new Date().toISOString()
-    });
-
-    // Wait for video to be ready before setting states
-    try {
-      const supabase = createClient();
-      let attempts = 0;
-      const maxAttempts = 60;
-      
-      while (attempts < maxAttempts) {
-        const { data: video, error } = await supabase
-          .from('Video')
-          .select('status, muxPlaybackId')
-          .eq('muxPlaybackId', muxId)
-          .single();
-
-        if (error) {
-          console.error('❌ [TopicPage] Error checking video status:', error);
-          throw error;
-        }
-
-        console.log('🔄 [TopicPage] Checking video status:', {
-          status: video?.status,
-          playbackId: video?.muxPlaybackId,
-          attempt: attempts + 1
-        });
-
-        if (video?.status === 'READY' && video?.muxPlaybackId) {
-          console.log('✅ [TopicPage] Video is ready:', video.muxPlaybackId);
-          setCurrentVideoId(video.muxPlaybackId);
-          setIsVideoReady(true);
-          break;
-        }
-
-        if (video?.status === 'ERRORED') {
-          throw new Error('Video processing failed');
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        attempts++;
-      }
-
-    } catch (err) {
-      console.error('❌ [TopicPage] Error in upload success handler:', err);
-      toast.error('Failed to process video');
-    }
-  }, []);
+  const handleUploadSuccess = useCallback(async (playbackId: string) => {
+    setCurrentVideoId(playbackId);
+    setIsVideoReady(true);
+    await refreshData();
+  }, [refreshData]);
 
   // Render
   if (!promptCategory) return null;
 
-  const completedCount =
-    promptCategory?.prompts?.filter((p) => p.PromptResponse?.length > 0)?.length || 0;
-  const totalCount = promptCategory?.prompts?.length || 0;
+  const completedCount = promptCategory.prompts?.filter((p: Prompt) => p.PromptResponse?.length > 0)?.length || 0;
+  const totalCount = promptCategory.prompts?.length || 0;
   const progressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
   // Sort
@@ -816,14 +753,7 @@ const TopicPageContent = ({
         <VideoPopup
           key={`upload-${selectedPrompt.id}-${currentVideoId}`}
           open={isUploadPopupOpen}
-          onClose={() => {
-            if (isVideoReady && currentVideoId) {
-              window.location.reload();
-            } else {
-              setIsUploadPopupOpen(false);
-              setSelectedPrompt(null);
-            }
-          }}
+          onClose={handleCloseUpload}
           promptText={selectedPrompt.promptText}
           videoId={currentVideoId || ""}
         >
@@ -1015,25 +945,9 @@ const TopicPageContent = ({
   );
 };
 
-interface RefreshError extends Error {
-  code?: string;
-  details?: string;
-}
-
-interface DatabasePromptResponseAttachment {
-  id: string;
-  fileUrl: string;
-  fileType: string;
-  fileName: string;
-  description?: string | null;
-  dateCaptured?: string | null;
-  yearCaptured?: number | null;
-}
-
 export default function TopicPage() {
   const router = useRouter();
   const params = useParams();
-  const searchParams = useSearchParams();
   const [topicId, setTopicId] = useState<string | null>(null);
   const [promptCategory, setPromptCategory] = useState<PromptCategory | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);

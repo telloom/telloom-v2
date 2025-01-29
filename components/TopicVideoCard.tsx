@@ -5,12 +5,12 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card } from "@/components/ui/card";
 import { createClient } from '@/utils/supabase/client';
 import { TopicVideoUploader } from './TopicVideoUploader';
 import { Button } from './ui/button';
-import { Paperclip, Play, Upload } from 'lucide-react';
+import { Paperclip, Play, Upload, PlayCircle } from 'lucide-react';
 import { VideoPopup } from './VideoPopup';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from './ui/dialog';
 import { useRouter } from 'next/navigation';
@@ -30,6 +30,25 @@ interface TopicVideo {
   muxPlaybackId: string;
 }
 
+interface PlaylistVideo {
+  id: string;
+  muxPlaybackId: string;
+  promptText: string;
+}
+
+interface PromptWithResponse {
+  id: string;
+  promptText: string;
+  isContextEstablishing: boolean;
+  PromptResponse: Array<{
+    id: string;
+    Video: {
+      id: string;
+      muxPlaybackId: string;
+    } | null;
+  }>;
+}
+
 export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCardProps) {
   const [video, setVideo] = useState<TopicVideo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,6 +57,10 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
   const [showUploader, setShowUploader] = useState(false);
   const [attachments, setAttachments] = useState<UIAttachment[]>([]);
   const [currentAttachmentIndex, setCurrentAttachmentIndex] = useState(0);
+  const [showPlaylist, setShowPlaylist] = useState(false);
+  const [playlistVideos, setPlaylistVideos] = useState<PlaylistVideo[]>([]);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const [showCompletionMessage, setShowCompletionMessage] = useState(false);
   const supabase = createClient();
   const router = useRouter();
 
@@ -214,6 +237,73 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
     fetchAttachmentsCount();
   }, [promptCategoryId, supabase]);
 
+  // New useEffect to fetch playlist videos
+  useEffect(() => {
+    const fetchPlaylistVideos = async () => {
+      try {
+        // First get all prompts in this category
+        const { data: prompts, error: promptError } = await supabase
+          .from('Prompt')
+          .select(`
+            id,
+            promptText,
+            isContextEstablishing,
+            PromptResponse (
+              id,
+              Video (
+                id,
+                muxPlaybackId
+              )
+            )
+          `)
+          .eq('promptCategoryId', promptCategoryId)
+          .order('isContextEstablishing', { ascending: false });
+
+        if (promptError) throw promptError;
+
+        // Filter and transform the data
+        const videos: PlaylistVideo[] = [];
+        const contextEstablishingPrompts = (prompts as PromptWithResponse[] || []).filter(p => 
+          p.isContextEstablishing && 
+          p.PromptResponse?.[0]?.Video?.muxPlaybackId
+        );
+        
+        const regularPrompts = (prompts as PromptWithResponse[] || []).filter(p => 
+          !p.isContextEstablishing && 
+          p.PromptResponse?.[0]?.Video?.muxPlaybackId
+        );
+
+        // Add context establishing videos first
+        contextEstablishingPrompts.forEach(prompt => {
+          if (prompt.PromptResponse?.[0]?.Video?.muxPlaybackId) {
+            videos.push({
+              id: prompt.PromptResponse[0].Video.id,
+              muxPlaybackId: prompt.PromptResponse[0].Video.muxPlaybackId,
+              promptText: prompt.promptText
+            });
+          }
+        });
+
+        // Then add regular videos
+        regularPrompts.forEach(prompt => {
+          if (prompt.PromptResponse?.[0]?.Video?.muxPlaybackId) {
+            videos.push({
+              id: prompt.PromptResponse[0].Video.id,
+              muxPlaybackId: prompt.PromptResponse[0].Video.muxPlaybackId,
+              promptText: prompt.promptText
+            });
+          }
+        });
+
+        setPlaylistVideos(videos);
+      } catch (error) {
+        console.error('Error fetching playlist videos:', error);
+      }
+    };
+
+    fetchPlaylistVideos();
+  }, [promptCategoryId, supabase]);
+
   const handleUploadSuccess = async () => {
     const { data: videoData, error: videoError } = await supabase
       .from('TopicVideo')
@@ -264,6 +354,31 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
     }
   };
 
+  const handleVideoEnd = useCallback(() => {
+    if (currentVideoIndex < playlistVideos.length - 1) {
+      setCurrentVideoIndex(prev => prev + 1);
+    } else {
+      setShowCompletionMessage(true);
+    }
+  }, [currentVideoIndex, playlistVideos.length]);
+
+  const handleNextVideo = useCallback(() => {
+    if (currentVideoIndex < playlistVideos.length - 1) {
+      setCurrentVideoIndex(prev => prev + 1);
+    }
+  }, [currentVideoIndex, playlistVideos.length]);
+
+  const handlePreviousVideo = useCallback(() => {
+    if (currentVideoIndex > 0) {
+      setCurrentVideoIndex(prev => prev - 1);
+    }
+  }, [currentVideoIndex]);
+
+  const handleRestartPlaylist = useCallback(() => {
+    setCurrentVideoIndex(0);
+    setShowCompletionMessage(false);
+  }, []);
+
   if (isLoading) {
     return (
       <Card className="p-4">
@@ -290,20 +405,40 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
 
         <div className="flex justify-center gap-3">
           {video?.muxPlaybackId ? (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowVideo(true);
-              }}
-              className="rounded-full bg-[#1B4332] hover:bg-[#1B4332]/90"
-            >
-              <div className="flex items-center text-sm">
-                <Play className="h-4 w-4 mr-2" />
-                Watch
-              </div>
-            </Button>
+            <>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowVideo(true);
+                }}
+                className="rounded-full bg-[#1B4332] hover:bg-[#1B4332]/90"
+              >
+                <div className="flex items-center text-sm">
+                  <Play className="h-4 w-4 mr-2" />
+                  Watch
+                </div>
+              </Button>
+              {playlistVideos.length > 0 && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowPlaylist(true);
+                    setCurrentVideoIndex(0);
+                    setShowCompletionMessage(false);
+                  }}
+                  className="rounded-full bg-[#1B4332] hover:bg-[#1B4332]/90"
+                >
+                  <div className="flex items-center text-sm">
+                    <PlayCircle className="h-4 w-4 mr-2" />
+                    Watch All Responses ({playlistVideos.length})
+                  </div>
+                </Button>
+              )}
+            </>
           ) : (
             <Button
               variant="default"
@@ -341,6 +476,28 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
         onClose={() => setShowVideo(false)}
         promptText={categoryName}
         videoId={video?.muxPlaybackId}
+      />
+
+      {/* Playlist Video Popup */}
+      <VideoPopup
+        open={showPlaylist}
+        onClose={() => {
+          setShowPlaylist(false);
+          setCurrentVideoIndex(0);
+          setShowCompletionMessage(false);
+        }}
+        promptText={playlistVideos[currentVideoIndex]?.promptText || ''}
+        videoId={playlistVideos[currentVideoIndex]?.muxPlaybackId}
+        onNext={handleNextVideo}
+        onPrevious={handlePreviousVideo}
+        hasNext={currentVideoIndex < playlistVideos.length - 1}
+        hasPrevious={currentVideoIndex > 0}
+        onVideoEnd={handleVideoEnd}
+        showProgress={true}
+        currentVideo={currentVideoIndex + 1}
+        totalVideos={playlistVideos.length}
+        showCompletionMessage={showCompletionMessage}
+        onRestart={handleRestartPlaylist}
       />
 
       {/* Attachments Dialog */}

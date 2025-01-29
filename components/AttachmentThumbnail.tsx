@@ -4,7 +4,7 @@
 
 import { ThumbnailAttachment } from '@/types/component-interfaces';
 import Image from 'next/image';
-import { FileIcon } from 'lucide-react';
+import { FileIcon, ImageOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import * as pdfjs from 'pdfjs-dist';
 
@@ -25,6 +25,7 @@ const sizeClasses = {
 
 export default function AttachmentThumbnail({ attachment, size = 'md', className = '' }: AttachmentThumbnailProps) {
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
   const sizeClass = sizeClasses[size];
   const combinedClassName = `relative ${sizeClass} ${className}`.trim();
 
@@ -101,7 +102,16 @@ export default function AttachmentThumbnail({ attachment, size = 'md', className
           fill
           className={`rounded-lg ${size === 'lg' ? 'object-contain' : 'object-cover'}`}
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          onError={() => setImageError(true)}
         />
+        {imageError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-lg">
+            <div className="text-center">
+              <ImageOff className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+              <p className="text-sm text-gray-500">Failed to load image</p>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

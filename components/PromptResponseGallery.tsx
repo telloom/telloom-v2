@@ -120,15 +120,21 @@ export function PromptResponseGallery({ promptResponseId }: PromptResponseGaller
         const attachmentsWithUrls = await Promise.all(
           (data || []).map(async (attachment) => {
             try {
-              // The fileUrl is already just the filename
+              // Extract the filename from the fileUrl if it contains the full path
+              const filePath = attachment.fileUrl.includes('attachments/') 
+                ? attachment.fileUrl.split('attachments/')[1]
+                : attachment.fileUrl;
+
+              console.log('Getting signed URL for file:', filePath);
+              
               const { data: signedUrl } = await supabase
                 .storage
                 .from('attachments')
-                .createSignedUrl(attachment.fileUrl, 3600);
+                .createSignedUrl(filePath, 3600);
 
               console.log('Got signed URL for attachment:', {
                 id: attachment.id,
-                fileName: attachment.fileUrl,
+                fileName: filePath,
                 signedUrl: signedUrl?.signedUrl
               });
 
@@ -181,7 +187,11 @@ export function PromptResponseGallery({ promptResponseId }: PromptResponseGaller
 
   const handleDownload = async (attachment: Attachment) => {
     try {
-      const response = await fetch(attachment.fileUrl);
+      if (!attachment.signedUrl) {
+        console.error('No signed URL available for download');
+        return;
+      }
+      const response = await fetch(attachment.signedUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -332,13 +342,15 @@ export function PromptResponseGallery({ promptResponseId }: PromptResponseGaller
                   <div className={`flex-1 flex items-center justify-center ${isEditing ? 'max-h-[50vh]' : 'max-h-[70vh]'}`}>
                     {attachments[selectedIndex].fileType.startsWith('image/') ? (
                       imageErrors[attachments[selectedIndex].id] ? (
-                        <div className="flex flex-col items-center justify-center text-gray-400">
-                          <ImageOff className="h-16 w-16 mb-4" />
-                          <span>Failed to load image</span>
+                        <div className="h-full w-full flex flex-col items-center justify-center bg-gray-50 rounded-lg">
+                          <div className="flex flex-col items-center justify-center p-4 text-center">
+                            <ImageOff className="h-16 w-16 mb-4 text-gray-400" />
+                            <span className="text-sm text-gray-500">Failed to load image</span>
+                          </div>
                         </div>
                       ) : (
                         <img
-                          src={attachments[selectedIndex].fileUrl}
+                          src={attachments[selectedIndex].signedUrl || ''}
                           alt={attachments[selectedIndex].fileName}
                           className="max-h-full w-auto object-contain"
                           onError={() => handleImageError(attachments[selectedIndex].id)}

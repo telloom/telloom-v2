@@ -263,6 +263,7 @@ export enum Role {
     promptCategory: string;
     response?: {
       id: string;
+      profileSharerId: string;
       summary?: string | null;
       responseNotes?: string | null;
       video?: {

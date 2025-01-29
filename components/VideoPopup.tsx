@@ -11,7 +11,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import { MuxPlayer } from './MuxPlayer';
 
 interface VideoPopupProps {
@@ -24,6 +24,12 @@ interface VideoPopupProps {
   hasNext?: boolean;
   hasPrevious?: boolean;
   children?: React.ReactNode;
+  showProgress?: boolean;
+  currentVideo?: number;
+  totalVideos?: number;
+  showCompletionMessage?: boolean;
+  onRestart?: () => void;
+  onVideoEnd?: () => void;
 }
 
 export function VideoPopup({
@@ -35,7 +41,13 @@ export function VideoPopup({
   onPrevious,
   hasNext = false,
   hasPrevious = false,
-  children
+  children,
+  showProgress = false,
+  currentVideo,
+  totalVideos,
+  showCompletionMessage = false,
+  onRestart,
+  onVideoEnd
 }: VideoPopupProps) {
   // Add cleanup on close
   const handleClose = useCallback(() => {
@@ -44,14 +56,31 @@ export function VideoPopup({
     }
   }, [onClose]);
 
+  const handleContentClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+  }, []);
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-6 m-4 overflow-hidden" aria-describedby="video-dialog-description">
+      <DialogContent 
+        className="max-w-5xl h-[90vh] flex flex-col p-6 m-4 overflow-hidden" 
+        aria-describedby="video-dialog-description"
+        onClick={handleContentClick}
+      >
         <DialogHeader>
-          <DialogTitle>{promptText}</DialogTitle>
-          <DialogDescription id="video-dialog-description">
-            {videoId ? "Watch and respond to the video prompt." : "Record your video response."}
-          </DialogDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle>{promptText}</DialogTitle>
+              <DialogDescription id="video-dialog-description">
+                {videoId ? "Watch and respond to the video prompt." : "Record your video response."}
+              </DialogDescription>
+            </div>
+            {showProgress && currentVideo && totalVideos && (
+              <div className="bg-[#8fbc55] text-[#1B4332] px-4 py-1.5 rounded-full text-sm font-semibold">
+                {currentVideo}/{totalVideos}
+              </div>
+            )}
+          </div>
         </DialogHeader>
         <div className="flex items-center justify-center p-4 relative flex-1 min-h-0 overflow-auto">
           {/* Navigation buttons */}
@@ -60,7 +89,10 @@ export function VideoPopup({
               variant="ghost"
               size="icon"
               className="absolute left-6 top-1/2 -translate-y-1/2 z-10"
-              onClick={onPrevious}
+              onClick={(e) => {
+                e.stopPropagation();
+                onPrevious?.();
+              }}
             >
               <ChevronLeft className="h-6 w-6" />
             </Button>
@@ -70,7 +102,10 @@ export function VideoPopup({
               variant="ghost"
               size="icon"
               className="absolute right-6 top-1/2 -translate-y-1/2 z-10"
-              onClick={onNext}
+              onClick={(e) => {
+                e.stopPropagation();
+                onNext?.();
+              }}
             >
               <ChevronRight className="h-6 w-6" />
             </Button>
@@ -78,17 +113,35 @@ export function VideoPopup({
 
           {/* Content area */}
           <div className="flex items-center justify-center w-full">
-            {children || (videoId && (
+            {children || (videoId && !showCompletionMessage && (
               <div className="relative w-full max-w-[800px]" style={{ width: 'min(60vw, calc(55vh * 16/9))' }}>
                 <div className="w-full">
                   <div className="aspect-video bg-black rounded-md overflow-hidden relative">
                     <div className="absolute inset-0">
-                      <MuxPlayer playbackId={videoId} />
+                      <MuxPlayer 
+                        playbackId={videoId} 
+                        onEnded={onVideoEnd}
+                      />
                     </div>
                   </div>
                 </div>
               </div>
             ))}
+            {showCompletionMessage && (
+              <div className="text-center">
+                <h3 className="text-xl font-semibold mb-4">You've watched all responses!</h3>
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRestart?.();
+                  }}
+                  className="rounded-full bg-[#1B4332] hover:bg-[#1B4332]/90"
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Start Over
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>

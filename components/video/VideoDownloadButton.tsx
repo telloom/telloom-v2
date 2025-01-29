@@ -37,7 +37,7 @@ export function VideoDownloadButton({
             muxAssetId,
             quality: 'info',
             videoType,
-            checkAvailabilityOnly: true // New flag to indicate this is just a check
+            checkAvailabilityOnly: true
           }),
         });
 
@@ -46,7 +46,8 @@ export function VideoDownloadButton({
         }
 
         const data = await response.json();
-        setIsAvailable(data.isAvailable);
+        // For prompt videos, we'll consider them available if we have the muxAssetId
+        setIsAvailable(videoType === 'prompt' ? true : data.isAvailable);
       } catch (error) {
         console.error('Error checking download availability:', error);
         setIsAvailable(false);
@@ -59,10 +60,14 @@ export function VideoDownloadButton({
   // Fetch user profile when userId changes
   useEffect(() => {
     const fetchUserProfile = async () => {
-      if (!userId) return;
+      if (!userId) {
+        console.log('No userId provided for profile fetch');
+        return;
+      }
 
       const supabase = createClient();
       try {
+        console.log('Fetching ProfileSharer for userId:', userId);
         // First get the ProfileSharer record
         const { data: sharer, error: sharerError } = await supabase
           .from('ProfileSharer')
@@ -71,14 +76,16 @@ export function VideoDownloadButton({
           .single();
 
         if (sharerError) {
-          console.error('Error fetching ProfileSharer:', sharerError);
+          console.error('Error fetching ProfileSharer:', sharerError.message);
           return;
         }
 
         if (!sharer) {
-          console.error('No ProfileSharer found');
+          console.error('No ProfileSharer found for userId:', userId);
           return;
         }
+
+        console.log('Found ProfileSharer with profileId:', sharer.profileId);
 
         // Then get the Profile information
         const { data: profile, error: profileError } = await supabase
@@ -88,13 +95,17 @@ export function VideoDownloadButton({
           .single();
 
         if (profileError) {
-          console.error('Error fetching Profile:', profileError);
+          console.error('Error fetching Profile:', profileError.message);
           return;
         }
 
-        if (profile) {
-          setUserProfile(profile);
+        if (!profile) {
+          console.error('No Profile found for profileId:', sharer.profileId);
+          return;
         }
+
+        console.log('Successfully fetched profile:', profile);
+        setUserProfile(profile);
       } catch (error) {
         console.error('Error in profile fetch chain:', error);
       }
@@ -113,8 +124,17 @@ export function VideoDownloadButton({
       // Create filename with user's name if available
       let filename = 'video.mp4';
       if (userProfile) {
-        const sanitizedTopicName = topicName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        filename = `${userProfile.lastName}-${userProfile.firstName}_${sanitizedTopicName}_${shortUuid}.mp4`;
+        const sanitizedTopicName = topicName
+          .toLowerCase()
+          .split(/\s+/)
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join('-')
+          .replace(/[^a-zA-Z0-9-]/g, ''); // Remove special chars except hyphens
+        if (videoType === 'topic') {
+          filename = `${userProfile.lastName}-${userProfile.firstName}_${sanitizedTopicName}_Topic_${shortUuid}.mp4`;
+        } else {
+          filename = `${userProfile.lastName}-${userProfile.firstName}_${sanitizedTopicName}_Prompt_${shortUuid}.mp4`;
+        }
       }
 
       const response = await fetch('/api/mux/download', {

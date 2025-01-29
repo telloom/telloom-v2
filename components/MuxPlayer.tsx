@@ -5,7 +5,12 @@
 
 import MuxPlayerReact from '@mux/mux-player-react';
 
-export function MuxPlayer({ playbackId }: { playbackId: string }) {
+interface MuxPlayerProps {
+  playbackId: string;
+  onEnded?: () => void;
+}
+
+export function MuxPlayer({ playbackId, onEnded }: MuxPlayerProps) {
   if (!playbackId) return null;
 
   return (
@@ -26,6 +31,7 @@ export function MuxPlayer({ playbackId }: { playbackId: string }) {
           metadata={{
             videoTitle: "Video Response",
           }}
+          onEnded={onEnded}
         />
       </div>
     </div>

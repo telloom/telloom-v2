@@ -221,6 +221,7 @@ export default function PromptPage() {
 
   const transformedResponse = userResponse ? {
     id: userResponse.id,
+    profileSharerId: userResponse.profileSharerId,
     summary: userResponse.summary || null,
     responseNotes: null,
     dateRecorded: null,
@@ -293,10 +294,10 @@ export default function PromptPage() {
         </div>
         <Card className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4">
               <CardTitle className="text-xl">{prompt.promptText}</CardTitle>
               {prompt.PromptCategory?.category && (
-                <div className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+                <div className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm whitespace-nowrap flex-shrink-0 flex items-center justify-center">
                   {prompt.PromptCategory.category}
                 </div>
               )}
