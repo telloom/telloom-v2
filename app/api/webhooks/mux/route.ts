@@ -294,6 +294,28 @@ export async function POST(request: Request) {
         break;
       }
 
+      case 'video.asset.static_renditions.ready': {
+        const muxAssetId = eventData.id;
+        console.log('Processing static renditions ready:', { muxAssetId });
+        
+        await supabaseAdmin
+          .from('VideoDownload')
+          .update({ status: 'ready' })
+          .eq('muxAssetId', muxAssetId);
+        break;
+      }
+
+      case 'video.asset.master.ready': {
+        const muxAssetId = eventData.id;
+        console.log('Processing master ready event:', { muxAssetId });
+        
+        await supabaseAdmin
+          .from('TopicVideoDownload')
+          .update({ status: 'ready' })
+          .eq('muxAssetId', muxAssetId);
+        break;
+      }
+
       default: {
         console.log('Ignoring unhandled event type:', eventType);
       }

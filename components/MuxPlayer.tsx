@@ -10,7 +10,7 @@ export function MuxPlayer({ playbackId }: { playbackId: string }) {
 
   return (
     <div className="relative w-full">
-      <div className="aspect-video bg-black">
+      <div className="aspect-video bg-black rounded-lg overflow-hidden">
         <MuxPlayerReact
           playbackId={playbackId}
           streamType="on-demand"
@@ -20,7 +20,8 @@ export function MuxPlayer({ playbackId }: { playbackId: string }) {
             top: 0,
             left: 0,
             width: '100%',
-            height: '100%'
+            height: '100%',
+            borderRadius: '0.5rem' // 8px to match rounded-lg
           }}
           metadata={{
             videoTitle: "Video Response",

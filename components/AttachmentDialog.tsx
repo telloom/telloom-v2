@@ -467,7 +467,7 @@ export function AttachmentDialog({
           className="max-w-5xl h-[90vh] flex flex-col p-0 lg:p-6 m-0 lg:m-4 overflow-y-auto lg:overflow-hidden"
           aria-describedby="dialog-description"
         >
-          <DialogHeader className="sr-only">
+          <DialogHeader>
             <DialogTitle>View Attachment</DialogTitle>
             <DialogDescription id="dialog-description">
               View and edit attachment details

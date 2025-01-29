@@ -42,9 +42,43 @@ declare module '@mux/mux-node' {
     url: string;
   }
 
+  interface Asset {
+    id: string;
+    playback_ids?: Array<{
+      id: string;
+      policy: string;
+    }>;
+    master?: {
+      status: string;
+      url?: string;
+    };
+    mp4_support?: 'none' | 'standard' | 'capped-1080p' | 'audio-only';
+    static_renditions?: {
+      status: 'preparing' | 'ready' | 'failed';
+      files?: Array<{
+        name: string;
+        ext: string;
+        height?: number;
+        width?: number;
+        bitrate?: number;
+        filesize?: number;
+      }>;
+    };
+  }
+
   interface VideoAPI {
     uploads: {
       create(options: VideoUploadOptions): Promise<VideoUpload>;
+    };
+    assets: {
+      retrieve(assetId: string): Promise<Asset>;
+      delete(assetId: string): Promise<void>;
+      masterAccess: {
+        update(assetId: string, params: { master_access: 'temporary' | 'none' }): Promise<Asset>;
+      };
+      mp4Support: {
+        update(assetId: string, params: { mp4_support: 'none' | 'standard' | 'capped-1080p' | 'audio-only' }): Promise<Asset>;
+      };
     };
   }
 

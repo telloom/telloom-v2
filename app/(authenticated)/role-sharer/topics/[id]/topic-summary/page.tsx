@@ -3,14 +3,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { TopicVideoResponseSection } from '@/components/TopicVideoResponseSection';
 import { UIAttachment, toUIAttachment } from '@/types/component-interfaces';
 import { PromptResponseAttachment } from '@/types/models';
+import { ArrowLeft } from 'lucide-react';
 
 export default function TopicSummaryPage() {
   const params = useParams();
+  const router = useRouter();
   const topicId = typeof params.id === 'string' ? params.id : '';
 
   const [isLoading, setIsLoading] = useState(true);
@@ -258,12 +260,24 @@ export default function TopicSummaryPage() {
   }, [topicId]);
 
   if (isLoading) {
-    return <div>Loading topic summary...</div>;
+    return (
+      <div className="container mx-auto space-y-6 py-6">
+        <div className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 rounded-lg p-6">
+          <p>Loading Topic Summary...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="container mx-auto space-y-6 py-6">
-      <h1 className="text-2xl font-bold mb-4">{topicName}</h1>
+      <button 
+        onClick={() => router.push(`/role-sharer/topics/${topicId}`)}
+        className="flex items-center gap-1 px-4 py-1 rounded-full text-black hover:bg-[#8fbc55] transition-all duration-300"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        <span>Back to Topic</span>
+      </button>
       <TopicVideoResponseSection
         topicId={topicId}
         topicName={topicName}

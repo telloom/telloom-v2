@@ -28,7 +28,7 @@ import Image from 'next/image';
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
 import { AttachmentDialog } from '@/components/AttachmentDialog';
 import { MuxPlayer } from '@/components/MuxPlayer';
-import { supabase } from '@/lib/supabase/client';
+// End of Selection
 import { UIAttachment, toUIAttachment } from '@/types/component-interfaces';
 import { TopicVideoCard } from '@/components/TopicVideoCard';
 
@@ -1267,15 +1267,10 @@ export default function TopicPage() {
   // Render or error fallback
   if (isLoading) {
     return (
-      <div className="container mx-auto py-8">
-        <Card className="p-6 border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
-          <CardHeader>
-            <CardTitle>Loading...</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>Please wait while we load your topic...</p>
-          </CardContent>
-        </Card>
+      <div className="container mx-auto space-y-6 py-6">
+        <div className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 rounded-lg p-6">
+          <p>Loading Topic...</p>
+        </div>
       </div>
     );
   }

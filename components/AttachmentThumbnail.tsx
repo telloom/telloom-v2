@@ -6,6 +6,10 @@ import { ThumbnailAttachment } from '@/types/component-interfaces';
 import Image from 'next/image';
 import { FileIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import * as pdfjs from 'pdfjs-dist';
+
+// Set worker path to minified version without source maps
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 interface AttachmentThumbnailProps {
   attachment: ThumbnailAttachment;
@@ -48,11 +52,6 @@ export default function AttachmentThumbnail({ attachment, size = 'md', className
       if (!url) return;
 
       try {
-        // Dynamically import PDF.js
-        const pdfjs = await import('pdfjs-dist');
-        // Set worker path
-        pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
-
         // Load the PDF document
         const loadingTask = pdfjs.getDocument(url);
         const pdf = await loadingTask.promise;

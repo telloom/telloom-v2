@@ -185,15 +185,10 @@ export default function PromptPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-8">
-        <Card className="p-6 border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
-          <CardHeader>
-            <CardTitle>Loading...</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>Please wait while we load your prompt...</p>
-          </CardContent>
-        </Card>
+      <div className="container mx-auto space-y-6 py-6">
+        <div className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 rounded-lg p-6">
+          <p>Loading Prompt Response...</p>
+        </div>
       </div>
     );
   }

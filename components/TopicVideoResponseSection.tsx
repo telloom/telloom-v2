@@ -17,6 +17,7 @@ import { cleanTranscript } from '@/utils/cleanTranscript';
 import { UIAttachment, toThumbnailAttachment, toUIAttachment } from '@/types/component-interfaces';
 import { AttachmentDialog, Attachment } from '@/components/AttachmentDialog';
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
+import { VideoDownloadButton } from '@/components/video/VideoDownloadButton';
 
 // Dynamically import components that could cause hydration issues
 const MuxPlayer = dynamic(
@@ -88,6 +89,7 @@ export function TopicVideoResponseSection({
   const [isNotesExpanded, setIsNotesExpanded] = useState(false);
   const [notesOverflows, setNotesOverflows] = useState(false);
   const notesContentRef = useRef<HTMLDivElement>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Update attachments when initialAttachments change
   useEffect(() => {
@@ -451,6 +453,57 @@ export function TopicVideoResponseSection({
     }
   };
 
+  const handleDownloadVideo = async (quality: 'high' | 'low') => {
+    if (!video?.muxAssetId) {
+      toast.error('No video asset found');
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+      
+      const res = await fetch('/api/mux/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          muxAssetId: video.muxAssetId,
+          quality
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        if (res.status === 429) {
+          toast.error('Daily download limit reached', {
+            description: 'Please try again tomorrow'
+          });
+        } else {
+          throw new Error(error.error || 'Failed to get download URL');
+        }
+        return;
+      }
+
+      const { url } = await res.json();
+      
+      // Create a temporary link to trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${topicName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${quality}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success('Download started');
+    } catch (error) {
+      console.error('Error downloading video:', error);
+      toast.error('Failed to download video');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   if (!video && !userId) {
     return <div>Unable to load video section</div>;
   }
@@ -562,54 +615,72 @@ export function TopicVideoResponseSection({
       <Card className="p-8 border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-4">
+            {/* Topic Title */}
+            <h2 className="text-2xl font-semibold text-black">{topicName}</h2>
+            
             {/* Video and Text Content */}
             <div className="relative">
-              <div className="aspect-video bg-black rounded-lg overflow-hidden">
-                {video.muxPlaybackId && (
-                  <div suppressHydrationWarning>
-                    <MuxPlayer playbackId={video.muxPlaybackId} />
-                  </div>
-                )}
+              <div className="space-y-4">
+                <div className="rounded-lg overflow-hidden">
+                  <MuxPlayer
+                    playbackId={video.muxPlaybackId}
+                    metadata={{
+                      video_title: topicName,
+                      player_name: 'Telloom Player',
+                    }}
+                    streamType="on-demand"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Date Section */}
-            <div className="flex items-center gap-2 py-2">
-              <span className="text-sm text-gray-500">Date Recorded:</span>
-              {isEditingDate ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    value={dateRecorded || ''}
-                    onChange={(e) => setDateRecorded(e.target.value || null)}
-                    className="px-2 py-1 border rounded text-sm"
-                    aria-label="Date recorded"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleSaveDate}
-                    className="rounded-full"
-                  >
-                    <Check className="h-4 w-4 mr-2" />
-                    Save
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">
-                    {dateRecorded ? dateRecorded.split('T')[0] : 'Not set'}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsEditingDate(true)}
-                    className="rounded-full"
-                  >
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
-                  </Button>
-                </div>
+            {/* Date and Download Section */}
+            <div className="flex items-center justify-between py-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500">Date Recorded:</span>
+                {isEditingDate ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={dateRecorded || ''}
+                      onChange={(e) => setDateRecorded(e.target.value || null)}
+                      className="px-2 py-1 border rounded text-sm"
+                      aria-label="Date recorded"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleSaveDate}
+                      className="rounded-full"
+                    >
+                      <Check className="h-4 w-4 mr-2" />
+                      Save
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">
+                      {dateRecorded ? dateRecorded.split('T')[0] : 'Not set'}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsEditingDate(true)}
+                      className="rounded-full"
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {video.muxAssetId && (
+                <VideoDownloadButton 
+                  muxAssetId={video.muxAssetId}
+                  videoType="topic"
+                  userId={userId}
+                  topicName={topicName}
+                />
               )}
             </div>
 
