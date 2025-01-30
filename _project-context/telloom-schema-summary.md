@@ -5,7 +5,7 @@
 The schema models a platform where users can assume multiple roles and interact with content, subscriptions, and other users. The main components are:
 
 - User Profiles and Roles
-- Content Models
+- Content Models (Videos, Prompts, Responses)
 - Subscription and Purchase Models
 - Auxiliary Models
 
@@ -14,250 +14,198 @@ The schema models a platform where users can assume multiple roles and interact 
 ### 1. User Profiles and Roles
 
 #### Profile
-
-- Represents a user.
-- Roles: Users can have multiple roles—Listener, Sharer, Executor, Admin.
+- Core user information
 - Key Fields:
-  - Personal info: name, email, etc.
-  - Authentication: passwordHash.
+  - Personal info: fullName, firstName, lastName, email, phone
+  - Authentication: passwordHash
+  - Address fields: addressStreet, addressUnit, addressCity, addressState, addressZipcode
+  - Executor info: executorFirstName, executorLastName, executorRelation, executorPhone, executorEmail
+  - System fields: isAdmin, revenuecatAppUserId, status
 - Relationships:
-  - roles: Links to ProfileRole.
-  - profileSharer: If the user is a Sharer.
-  - executorForSharers: Sharers for whom the user is an Executor.
-  - followings: Sharers the user follows as a Listener.
-  - sentInvitations, receivedInvitations: Invitations sent and received.
+  - roles: Links to ProfileRole
+  - profileSharer: If user is a Sharer
+  - executorForSharers: Sharers for whom user is an Executor
+  - followings: Sharers user follows as a Listener
 
 #### Role Enum
-
 - Possible roles:
-  - LISTENER: Views content from followed Sharers.
-  - SHARER: Creates and shares content.
-  - EXECUTOR: Manages Sharer's content after passing.
-  - ADMIN: Administrative privileges.
+  - LISTENER: Views content from followed Sharers
+  - SHARER: Creates and shares content
+  - EXECUTOR: Manages Sharer's content after passing
+  - ADMIN: Administrative privileges
 
 #### ProfileRole
-
-- Connects Profile and Role (many-to-many).
-- Ensures each role is assigned only once per user.
+- Connects Profile and Role (many-to-many)
+- Ensures each role is assigned only once per user
 
 #### ProfileSharer
-
-- Extends Profile for Sharers.
-- Capabilities:
-  - Create and manage own content (videos, prompt responses).
-  - Invite Listeners and assign an Executor.
+- Extends Profile for Sharers
+- Fields:
+  - subscriptionStatus: Boolean indicating subscription state
 - Relationships:
-  - executorAssignment: Assigned Executor.
-  - followers: Listeners following this Sharer.
-  - Content models: videos, promptResponses, etc.
-  - sentInvitations: Invitations sent.
+  - executorAssignment: Assigned Executor
+  - followers: Listeners following this Sharer
+  - Content: videos, promptResponses, etc.
 
 #### ProfileExecutor
-
-- Represents the Sharer-Executor relationship.
-- Constraints:
-  - Each Sharer can have one Executor.
-  - An Executor can manage content for multiple Sharers.
-- Relationships:
-  - Links to Sharer's ProfileSharer and Executor's Profile.
+- Represents Sharer-Executor relationship
+- Each Sharer can have one Executor
+- An Executor can manage content for multiple Sharers
 
 #### ProfileListener
-
-- Manages Listener-Sharer relationships.
-- Capabilities:
-  - Listeners can follow multiple Sharers.
-  - Sharers can have multiple Listeners.
-- Key Fields:
-  - hasAccess: Indicates if the Listener currently has access.
-- Relationships:
-  - Tracks viewed content.
+- Manages Listener-Sharer relationships
+- Fields:
+  - hasAccess: Boolean for access control
+  - sharedSince: Timestamp of relationship start
+  - notifications: Boolean for notification preferences
+  - lastViewed: Timestamp of last view
 
 #### Invitation
-
-- Handles invitations to potential Listeners or Executors.
-- Functionality:
-  - Invites users via email, even if they don't have an account.
-  - Tracks invitation status (PENDING, ACCEPTED, DECLINED, EXPIRED).
-- Key Fields:
-  - inviteeEmail: Email of the person being invited.
-  - role: Role being invited to (LISTENER or EXECUTOR).
-  - token: Unique token for the invitation link.
+- Handles invitations for potential Listeners or Executors
+- Fields:
+  - inviteeEmail: Target email
+  - role: LISTENER or EXECUTOR
+  - status: PENDING, ACCEPTED, DECLINED, EXPIRED
+  - token: Unique invitation identifier
 
 ### 2. Content Models
 
 #### Prompt
+- Represents questions for Sharers
+- Fields:
+  - promptText: The actual question
+  - promptType: Type of prompt
+  - isContextEstablishing: Boolean flag
+  - isObjectPrompt: Boolean for object-related prompts
+  - search_vector: For text search functionality
 
-- Represents questions for Sharers to answer.
-- Relationships:
-  - promptResponses: Responses to the prompt.
-  - videos: Associated videos.
+#### PromptCategory
+- Organizes prompts into categories
+- Fields:
+  - category: Category name
+  - description: Category description
+  - theme: Theme classification
 
 #### PromptResponse
-
-- Contains Sharer's response to a prompt.
+- Contains Sharer's response to a prompt
 - Fields:
-  - responseText: Text response.
-  - privacyLevel: Visibility setting.
+  - privacyLevel: Visibility setting
+  - responseNotes: Text response
+  - summary: Response summary
+  - search_vector: For text search
 - Relationships:
-  - profileSharer: Creator.
-  - video: Optional video response.
-  - attachments: Related files.
-  - Engagement tracking: favorites, recentlyWatched.
-  - permissions: Access permissions.
-  - viewedBy: Listeners who viewed the response.
+  - video: Optional video response
+  - attachments: Related files
+  - permissions: Access control
+  - viewedBy: Tracking views
 
-#### Video
-
-- Represents videos uploaded by Sharers.
+#### Video and TopicVideo
+- Represents video content
 - Fields:
-  - Metadata, Mux integration details.
-- Relationships:
-  - profileSharer: Uploader.
-  - promptResponses: Linked responses.
-  - videoTranscript: Transcript.
-  - viewedBy: Listeners who viewed the video.
+  - Mux integration: muxAssetId, muxPlaybackId, muxUploadId
+  - Technical details: duration, aspectRatio, quality, dimensions
+  - Metadata: title, description, status
+- Related Models:
+  - VideoTranscript/TopicVideoTranscript: Stores transcriptions
+  - VideoDownload/TopicVideoDownload: Tracks downloads
 
 #### PromptResponseAttachment
-
-- Attachments for a PromptResponse.
+- Manages files attached to responses
 - Fields:
-  - fileUrl, fileType, fileName, etc.
+  - File info: fileUrl, fileType, fileName, fileSize
+  - Metadata: title, description, dateCaptured
+- Related Models:
+  - PromptResponseAttachmentPersonTag: Links people to attachments
 
-#### VideoTranscript
-
-- Stores transcripts of videos.
-- Relationship:
-  - Linked to a Video.
+#### PersonTag
+- Tags people in attachments
+- Fields:
+  - name: Person's name
+  - relation: Relationship type
 
 ### 3. Subscription and Purchase Models
 
 #### Product
-
-- Represents purchasable items.
+- Purchasable items
 - Fields:
-  - RevenueCat IDs, store identifiers.
-- Relationships:
-  - packages, purchases, subscriptions.
+  - RevenueCat integration: revenuecatId, storeIdentifier
+  - displayName: Product name
 
 #### Package
-
-- Bundles products under an offering.
-- Relationships:
-  - Linked to Offering and Product.
+- Bundles products under offerings
+- Fields:
+  - RevenueCat details: revenuecatId, lookupKey
+  - position: Display order
 
 #### Offering
-
-- Collection of Packages.
+- Collection of packages
 - Fields:
-  - displayName, isCurrent.
+  - isCurrent: Active status flag
+  - displayName: Offering name
 
 #### Subscription
-
-- Tracks user subscriptions.
+- Tracks user subscriptions
 - Fields:
-  - Start/end dates, status.
-- Relationships:
-  - product, subscriptionEntitlements.
+  - Timing: startsAt, currentPeriodStartsAt, currentPeriodEndsAt
+  - Status: givesAccess, autoRenewalStatus
+  - Store details: store, environment
 
 #### Purchase
-
-- Records user purchases.
+- Records user purchases
 - Fields:
-  - Purchase date, amount, status.
-- Relationship:
-  - product.
-
-#### Entitlement
-
-- Access rights granted to users.
-- Relationship:
-  - Linked via SubscriptionEntitlement.
-
-#### SubscriptionEntitlement
-
-- Links Subscription and Entitlement.
+  - Transaction details: purchasedAt, revenueInUsd
+  - Store info: store, environment
 
 ### 4. Auxiliary Models
 
 #### Object and ObjectCategory
+- Object: Significant items (e.g., heirlooms)
+- ObjectCategory: Categories for objects
+- Links objects to PromptResponses
 
-- Object: Significant items (e.g., heirlooms).
-- ObjectCategory: Categories for objects.
-- Relationship:
-  - Objects linked to PromptResponse.
-
-#### PromptCategory
-
-- Categories for prompts.
-- Groups related prompts.
-
-#### ThematicVideo
-
-- Edited videos composed of multiple responses.
-- Relationships:
-  - Linked to ProfileSharer and PromptResponses.
-
-#### ResponsePermission
-
-- Manages permissions for PromptResponses.
-- Defines access levels.
+#### TopicFavorite and TopicQueueItem
+- Manage user interactions with topics
+- Track favorites and queued topics
 
 #### Engagement Tracking
+- PromptResponseFavorite: Tracks favorites
+- PromptResponseRecentlyWatched: Records viewing history
 
-- PromptResponseFavorite: Tracks favorites.
-- PromptResponseRecentlyWatched: Tracks recent views.
+## Security and Access Control
 
-## How It Works Together
+The schema implements comprehensive row-level security through policies:
 
-### User Roles and Interactions
+1. Profile-based Access:
+   - Users can only access their own profile data
+   - Admins have full access across all models
 
-- Multiple Roles per User: Assigned via ProfileRole.
-- Sharers:
-  - Create and manage content.
-  - Invite Listeners and Executors.
-  - Assign one Executor.
-- Executors:
-  - Manage content for assigned Sharers.
-  - Invite additional Listeners.
-  - Can serve multiple Sharers.
-- Listeners:
-  - View content from followed Sharers.
-  - Follow via accepted invitations (ProfileListener).
-  - Can follow multiple Sharers.
-- Admins:
-  - Have elevated privileges.
+2. Role-based Permissions:
+   - Sharers can manage their own content
+   - Listeners can view content from followed Sharers
+   - Executors can manage assigned Sharers' content
 
-### Key Relationships and Interactions
+3. Content Privacy:
+   - PromptResponses have privacy levels
+   - Attachments inherit parent response privacy
+   - Videos require proper relationship access
 
-- Invitations:
-  - Sharers or Executors send invitations via email.
-  - Invitees accept using a unique token.
-  - Upon acceptance, they are assigned the appropriate role and relationships are established.
-- Content Management:
-  - Sharers create content linked to their ProfileSharer.
-  - Executors gain rights to manage a Sharer's content after being assigned.
-- Access Control:
-  - Listeners must accept an invitation to view a Sharer's content.
-  - Access is managed via the ProfileListener relationship.
-  - Executors have permissions tied to their relationship in ProfileExecutor.
-  - Role Checks enforce permissions for actions like content creation, editing, and deletion.
+4. Subscription Management:
+   - Users can only access their own subscription data
+   - Purchase records are user-scoped
 
-### Summary of Workflow
+## Database Functions
 
-1. User Registration:
-   - A new user creates a Profile.
-   - Roles can be assigned upon registration or later.
-2. Assigning Roles:
-   - Roles are linked via the ProfileRole model.
-3. Inviting Others:
-   - Sharers invite Listeners and Executors using the Invitation model.
-   - Invitations are sent via email with a unique token.
-4. Establishing Relationships:
-   - Upon accepting an invitation, a ProfileListener or ProfileExecutor record is created.
-   - This sets up the necessary permissions and access controls.
-5. Content Interaction:
-   - Sharers create content that Listeners can view.
-   - Executors manage the Sharer's content as needed.
-6. Role-Based Permissions:
-   - Actions are permitted based on the user's roles and relationships.
-   - The schema enforces constraints to maintain data integrity and proper access.
+Key functions include:
+
+- User Management: handle_new_user, update_full_name
+- Content Processing: update_prompt_search_vector, prompt_response_search_update
+- Access Control: is_admin
+- File Management: generate_attachment_filename, slugify
+- Progress Tracking: get_sharer_topic_progress
+
+## Indexes and Search
+
+The schema includes:
+- Full-text search capabilities (search_vector columns)
+- Timestamp tracking for all major entities
+- Efficient querying through strategic indexing

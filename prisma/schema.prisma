@@ -134,6 +134,7 @@ model Profile {
   isAdmin                                     Boolean                         @default(false)
   createdAt                                   DateTime                        @default(now()) @db.Timestamptz(6)
   updatedAt                                   DateTime                        @db.Timestamptz(6)
+  FollowRequest                               FollowRequest[]
   Invitation_Invitation_inviteeEmailToProfile Invitation[]                    @relation("Invitation_inviteeEmailToProfile")
   Invitation_Invitation_inviterIdToProfile    Invitation[]                    @relation("Invitation_inviterIdToProfile")
   ProfileExecutor                             ProfileExecutor[]
@@ -193,6 +194,7 @@ model ProfileSharer {
   profileId                String                     @unique @db.Uuid
   subscriptionStatus       Boolean
   createdAt                DateTime                   @default(now()) @db.Timestamptz(6)
+  FollowRequest            FollowRequest[]
   Invitation               Invitation[]
   PersonTag                PersonTag[]
   ProfileExecutor          ProfileExecutor?
@@ -536,6 +538,26 @@ model TopicVideoDownload {
   @@index([profileId, downloadedAt])
 }
 
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model FollowRequest {
+  id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sharerId      String                @db.Uuid
+  requestorId   String                @db.Uuid
+  status        follow_request_status @default(PENDING)
+  createdAt     DateTime?             @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime?             @default(now()) @db.Timestamptz(6)
+  approvedAt    DateTime?             @db.Timestamptz(6)
+  deniedAt      DateTime?             @db.Timestamptz(6)
+  Profile       Profile               @relation(fields: [requestorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  ProfileSharer ProfileSharer         @relation(fields: [sharerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([sharerId, requestorId], map: "unique_follow_request")
+  @@index([requestorId], map: "idx_follow_request_requestor")
+  @@index([sharerId], map: "idx_follow_request_sharer")
+  @@index([status], map: "idx_follow_request_status")
+}
+
 enum InvitationStatus {
   PENDING
   ACCEPTED
@@ -617,4 +639,10 @@ enum person_relation {
   Godfather
   Godchild
   Other
+}
+
+enum follow_request_status {
+  PENDING
+  APPROVED
+  DENIED
 }

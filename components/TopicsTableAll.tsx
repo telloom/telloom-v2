@@ -30,7 +30,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ArrowRight, ArrowUpDown, ArrowUp, ArrowDown, Search, LayoutGrid, Table as TableIcon } from 'lucide-react';
+import { ArrowRight, ArrowUpDown, ArrowUp, ArrowDown, Search, LayoutGrid, Table as TableIcon, ListOrdered } from 'lucide-react';
 import TopicCard from "@/components/TopicCard";
 import { PromptCategory } from '@/types/models';
 
@@ -478,10 +478,7 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
                 <TableRow
                   key={category.id}
                   className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => {
-                    setSelectedCategory(category);
-                    setIsPromptListOpen(true);
-                  }}
+                  onClick={() => router.push(`/role-sharer/topics/${category.id}`)}
                 >
                   <TableCell className="w-[50%] md:w-[40%] font-medium">{category.category}</TableCell>
                   <TableCell className="hidden md:table-cell w-[30%]">
@@ -574,7 +571,32 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => router.push(`/role-sharer/topics/${category.id}`)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedCategory(category);
+                                setIsPromptListOpen(true);
+                              }}
+                              className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-[#8fbc55] rounded-full"
+                            >
+                              <ListOrdered className="h-5 w-5 md:h-6 md:w-6 text-[#1B4332]" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>View prompts</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/role-sharer/topics/${category.id}`);
+                              }}
                               className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-[#8fbc55] rounded-full"
                             >
                               <ArrowRight className={cn(

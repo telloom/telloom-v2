@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { createClient } from '@/utils/supabase/client';
 import { TopicVideoUploader } from './TopicVideoUploader';
 import { Button } from './ui/button';
-import { Paperclip, Play, Upload, PlayCircle } from 'lucide-react';
+import { Paperclip, Play, Upload } from 'lucide-react';
 import { VideoPopup } from './VideoPopup';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from './ui/dialog';
 import { useRouter } from 'next/navigation';
@@ -417,7 +417,7 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
               >
                 <div className="flex items-center text-sm">
                   <Play className="h-4 w-4 mr-2" />
-                  Watch
+                  Topic Video
                 </div>
               </Button>
               {playlistVideos.length > 0 && (
@@ -433,8 +433,8 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
                   className="rounded-full bg-[#1B4332] hover:bg-[#1B4332]/90"
                 >
                   <div className="flex items-center text-sm">
-                    <PlayCircle className="h-4 w-4 mr-2" />
-                    Watch All Responses ({playlistVideos.length})
+                    <Play className="h-4 w-4 mr-2" />
+                    All Responses ({playlistVideos.length})
                   </div>
                 </Button>
               )}
