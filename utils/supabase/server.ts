@@ -4,88 +4,67 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-export const createClient = () => {
+export async function createClient() {
+  // Await cookies() so that cookieStore is the resolved object.
+  const cookieStore = await cookies();
+
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        async get(name: string) {
-          const cookieStore = await cookies();
+        // Synchronous get method after awaiting cookies()
+        get(name: string) {
           const cookie = cookieStore.get(name);
           return cookie?.value;
         },
-        async set(name: string, value: string, options: CookieOptions) {
-          const cookieStore = await cookies();
-          try {
-            cookieStore.set({ name, value, ...options });
-          } catch {
-            // Handle cookies in edge functions
-          }
+        // Synchronous set method
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options });
         },
-        async remove(name: string, options: CookieOptions) {
-          const cookieStore = await cookies();
-          try {
-            cookieStore.delete({ name, ...options });
-          } catch {
-            // Handle cookies in edge functions
-          }
+        // Synchronous remove method (using delete as defined on the cookieStore)
+        remove(name: string, options: CookieOptions) {
+          cookieStore.delete({ name, ...options });
         },
       },
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        flowType: 'pkce',
-        debug: process.env.NODE_ENV === 'development'
-      },
-      global: {
-        headers: {
-          'x-client-info': `@supabase/auth-helpers-nextjs/0.0.0`
-        }
-      },
-      db: {
-        schema: 'public'
-      }
     }
   );
-};
+}
 
 export async function getUser() {
-  const supabase = createClient();
   try {
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (error || !user) {
-      return null;
-    }
+    const supabase = await createClient();
+    // Remove unused 'error' from the destructuring
+    const { data: { user } } = await supabase.auth.getUser();
     return user;
   } catch (error) {
-    console.error('Error:', error);
+    console.error('[getUser] Unexpected error:', error);
     return null;
   }
 }
 
-// Helper function for role-based layouts
+// Helper function for role-based layouts remains unchanged.
 export async function checkRole(requiredRole: string) {
-  const supabase = createClient();
   try {
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (error || !user) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
       return false;
     }
 
-    const { data: roles } = await supabase
+    const { data: roles, error: rolesError } = await supabase
       .from('ProfileRole')
       .select('role')
-      .eq('profileId', user.id);
+      .eq('profileId', user.id)
+      .single();
 
-    if (!roles) {
+    if (rolesError) {
       return false;
     }
 
-    return roles.some(role => role.role === requiredRole);
-  } catch (error) {
-    console.error('Error checking role:', error);
+    return roles?.role === requiredRole;
+  } catch {
     return false;
   }
 }

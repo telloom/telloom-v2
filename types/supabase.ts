@@ -152,7 +152,7 @@ export type Database = {
             foreignKeyName: "_PromptResponseToThematicVideo_B_fkey"
             columns: ["B"]
             isOneToOne: false
-            referencedRelation: "ThematicVideo"
+            referencedRelation: "TopicVideo"
             referencedColumns: ["id"]
           },
         ]
@@ -183,6 +183,54 @@ export type Database = {
           updatedAt?: string | null
         }
         Relationships: []
+      }
+      FollowRequest: {
+        Row: {
+          approvedAt: string | null
+          createdAt: string | null
+          deniedAt: string | null
+          id: string
+          requestorId: string
+          sharerId: string
+          status: Database["public"]["Enums"]["follow_request_status"]
+          updatedAt: string | null
+        }
+        Insert: {
+          approvedAt?: string | null
+          createdAt?: string | null
+          deniedAt?: string | null
+          id?: string
+          requestorId: string
+          sharerId: string
+          status?: Database["public"]["Enums"]["follow_request_status"]
+          updatedAt?: string | null
+        }
+        Update: {
+          approvedAt?: string | null
+          createdAt?: string | null
+          deniedAt?: string | null
+          id?: string
+          requestorId?: string
+          sharerId?: string
+          status?: Database["public"]["Enums"]["follow_request_status"]
+          updatedAt?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "FollowRequest_requestorId_fkey"
+            columns: ["requestorId"]
+            isOneToOne: false
+            referencedRelation: "Profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "FollowRequest_sharerId_fkey"
+            columns: ["sharerId"]
+            isOneToOne: false
+            referencedRelation: "ProfileSharer"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       Invitation: {
         Row: {
@@ -785,6 +833,7 @@ export type Database = {
           promptId: string | null
           responseNotes: string | null
           search_vector: unknown | null
+          summary: string | null
           updatedAt: string | null
           videoId: string | null
         }
@@ -797,6 +846,7 @@ export type Database = {
           promptId?: string | null
           responseNotes?: string | null
           search_vector?: unknown | null
+          summary?: string | null
           updatedAt?: string | null
           videoId?: string | null
         }
@@ -809,6 +859,7 @@ export type Database = {
           promptId?: string | null
           responseNotes?: string | null
           search_vector?: unknown | null
+          summary?: string | null
           updatedAt?: string | null
           videoId?: string | null
         }
@@ -1199,86 +1250,6 @@ export type Database = {
           },
         ]
       }
-      ThematicVideo: {
-        Row: {
-          airtableRecordId: string | null
-          aspectRatio: string | null
-          createdAt: string | null
-          description: string | null
-          duration: number | null
-          id: string
-          languageCode: string | null
-          maxFrameRate: number | null
-          maxHeight: number | null
-          maxWidth: number | null
-          metadata: Json | null
-          muxAssetId: string | null
-          muxPlaybackId: string | null
-          muxUploadId: string | null
-          passthrough: string | null
-          profileSharerId: string
-          resolutionTier: string | null
-          title: string
-          updatedAt: string | null
-          url: string
-          videoQuality: string | null
-        }
-        Insert: {
-          airtableRecordId?: string | null
-          aspectRatio?: string | null
-          createdAt?: string | null
-          description?: string | null
-          duration?: number | null
-          id?: string
-          languageCode?: string | null
-          maxFrameRate?: number | null
-          maxHeight?: number | null
-          maxWidth?: number | null
-          metadata?: Json | null
-          muxAssetId?: string | null
-          muxPlaybackId?: string | null
-          muxUploadId?: string | null
-          passthrough?: string | null
-          profileSharerId: string
-          resolutionTier?: string | null
-          title: string
-          updatedAt?: string | null
-          url: string
-          videoQuality?: string | null
-        }
-        Update: {
-          airtableRecordId?: string | null
-          aspectRatio?: string | null
-          createdAt?: string | null
-          description?: string | null
-          duration?: number | null
-          id?: string
-          languageCode?: string | null
-          maxFrameRate?: number | null
-          maxHeight?: number | null
-          maxWidth?: number | null
-          metadata?: Json | null
-          muxAssetId?: string | null
-          muxPlaybackId?: string | null
-          muxUploadId?: string | null
-          passthrough?: string | null
-          profileSharerId?: string
-          resolutionTier?: string | null
-          title?: string
-          updatedAt?: string | null
-          url?: string
-          videoQuality?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ThematicVideo_profileSharerId_fkey"
-            columns: ["profileSharerId"]
-            isOneToOne: false
-            referencedRelation: "ProfileSharer"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       TopicFavorite: {
         Row: {
           createdAt: string
@@ -1351,11 +1322,205 @@ export type Database = {
           },
         ]
       }
+      TopicVideo: {
+        Row: {
+          airtableRecordId: string | null
+          aspectRatio: string | null
+          createdAt: string | null
+          dateRecorded: string | null
+          description: string | null
+          duration: number | null
+          errorMessage: string | null
+          id: string
+          languageCode: string | null
+          maxFrameRate: number | null
+          maxHeight: number | null
+          maxWidth: number | null
+          metadata: Json | null
+          muxAssetId: string | null
+          muxPlaybackId: string | null
+          muxUploadId: string | null
+          passthrough: string | null
+          profileSharerId: string
+          promptCategoryId: string | null
+          resolutionTier: string | null
+          status: Database["public"]["Enums"]["VideoStatus"]
+          summary: string | null
+          title: string
+          updatedAt: string | null
+          url: string
+          videoQuality: string | null
+        }
+        Insert: {
+          airtableRecordId?: string | null
+          aspectRatio?: string | null
+          createdAt?: string | null
+          dateRecorded?: string | null
+          description?: string | null
+          duration?: number | null
+          errorMessage?: string | null
+          id?: string
+          languageCode?: string | null
+          maxFrameRate?: number | null
+          maxHeight?: number | null
+          maxWidth?: number | null
+          metadata?: Json | null
+          muxAssetId?: string | null
+          muxPlaybackId?: string | null
+          muxUploadId?: string | null
+          passthrough?: string | null
+          profileSharerId: string
+          promptCategoryId?: string | null
+          resolutionTier?: string | null
+          status?: Database["public"]["Enums"]["VideoStatus"]
+          summary?: string | null
+          title: string
+          updatedAt?: string | null
+          url: string
+          videoQuality?: string | null
+        }
+        Update: {
+          airtableRecordId?: string | null
+          aspectRatio?: string | null
+          createdAt?: string | null
+          dateRecorded?: string | null
+          description?: string | null
+          duration?: number | null
+          errorMessage?: string | null
+          id?: string
+          languageCode?: string | null
+          maxFrameRate?: number | null
+          maxHeight?: number | null
+          maxWidth?: number | null
+          metadata?: Json | null
+          muxAssetId?: string | null
+          muxPlaybackId?: string | null
+          muxUploadId?: string | null
+          passthrough?: string | null
+          profileSharerId?: string
+          promptCategoryId?: string | null
+          resolutionTier?: string | null
+          status?: Database["public"]["Enums"]["VideoStatus"]
+          summary?: string | null
+          title?: string
+          updatedAt?: string | null
+          url?: string
+          videoQuality?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ThematicVideo_profileSharerId_fkey"
+            columns: ["profileSharerId"]
+            isOneToOne: false
+            referencedRelation: "ProfileSharer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "TopicVideo_promptCategoryId_fkey"
+            columns: ["promptCategoryId"]
+            isOneToOne: false
+            referencedRelation: "PromptCategory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      TopicVideoDownload: {
+        Row: {
+          downloadedAt: string | null
+          id: string
+          last_attempted: string | null
+          muxAssetId: string
+          profileId: string
+          quality: string
+          retries: number | null
+          status: string | null
+        }
+        Insert: {
+          downloadedAt?: string | null
+          id?: string
+          last_attempted?: string | null
+          muxAssetId: string
+          profileId: string
+          quality?: string
+          retries?: number | null
+          status?: string | null
+        }
+        Update: {
+          downloadedAt?: string | null
+          id?: string
+          last_attempted?: string | null
+          muxAssetId?: string
+          profileId?: string
+          quality?: string
+          retries?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "TopicVideoDownload_profileId_fkey"
+            columns: ["profileId"]
+            isOneToOne: false
+            referencedRelation: "Profile"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      TopicVideoTranscript: {
+        Row: {
+          createdAt: string | null
+          id: string
+          language: string | null
+          muxAssetId: string | null
+          muxTrackId: string | null
+          name: string | null
+          source: string | null
+          topicVideoId: string
+          transcript: string | null
+          type: string | null
+          updatedAt: string | null
+        }
+        Insert: {
+          createdAt?: string | null
+          id?: string
+          language?: string | null
+          muxAssetId?: string | null
+          muxTrackId?: string | null
+          name?: string | null
+          source?: string | null
+          topicVideoId: string
+          transcript?: string | null
+          type?: string | null
+          updatedAt?: string | null
+        }
+        Update: {
+          createdAt?: string | null
+          id?: string
+          language?: string | null
+          muxAssetId?: string | null
+          muxTrackId?: string | null
+          name?: string | null
+          source?: string | null
+          topicVideoId?: string
+          transcript?: string | null
+          type?: string | null
+          updatedAt?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "TopicVideoTranscript_topicVideoId_fkey"
+            columns: ["topicVideoId"]
+            isOneToOne: false
+            referencedRelation: "TopicVideo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       Video: {
         Row: {
           airtableRecordId: string | null
           aspectRatio: string | null
           createdAt: string | null
+          dateRecorded: string | null
           duration: number | null
           id: string
           languageCode: string | null
@@ -1377,6 +1542,7 @@ export type Database = {
           airtableRecordId?: string | null
           aspectRatio?: string | null
           createdAt?: string | null
+          dateRecorded?: string | null
           duration?: number | null
           id?: string
           languageCode?: string | null
@@ -1398,6 +1564,7 @@ export type Database = {
           airtableRecordId?: string | null
           aspectRatio?: string | null
           createdAt?: string | null
+          dateRecorded?: string | null
           duration?: number | null
           id?: string
           languageCode?: string | null
@@ -1432,25 +1599,84 @@ export type Database = {
           },
         ]
       }
+      VideoDownload: {
+        Row: {
+          downloadedAt: string
+          id: string
+          last_attempted: string | null
+          muxAssetId: string
+          profileId: string
+          quality: string
+          retries: number | null
+          status: string | null
+        }
+        Insert: {
+          downloadedAt?: string
+          id?: string
+          last_attempted?: string | null
+          muxAssetId: string
+          profileId: string
+          quality?: string
+          retries?: number | null
+          status?: string | null
+        }
+        Update: {
+          downloadedAt?: string
+          id?: string
+          last_attempted?: string | null
+          muxAssetId?: string
+          profileId?: string
+          quality?: string
+          retries?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "VideoDownload_profileId_fkey"
+            columns: ["profileId"]
+            isOneToOne: false
+            referencedRelation: "Profile"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       VideoTranscript: {
         Row: {
           createdAt: string
           id: string
+          language: string | null
+          muxAssetId: string | null
+          muxTrackId: string | null
+          name: string | null
+          source: string | null
           transcript: string
+          type: string | null
           updatedAt: string
           videoId: string
         }
         Insert: {
           createdAt?: string
           id?: string
+          language?: string | null
+          muxAssetId?: string | null
+          muxTrackId?: string | null
+          name?: string | null
+          source?: string | null
           transcript: string
+          type?: string | null
           updatedAt: string
           videoId: string
         }
         Update: {
           createdAt?: string
           id?: string
+          language?: string | null
+          muxAssetId?: string | null
+          muxTrackId?: string | null
+          name?: string | null
+          source?: string | null
           transcript?: string
+          type?: string | null
           updatedAt?: string
           videoId?: string
         }
@@ -1469,6 +1695,48 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_invitation_by_token: {
+        Args: {
+          p_token: string
+        }
+        Returns: undefined
+      }
+      cancel_invitation: {
+        Args: {
+          p_invitation_id: string
+        }
+        Returns: undefined
+      }
+      create_invitation: {
+        Args: {
+          p_sharer_id: string
+          p_invitee_email: string
+          p_role: string
+        }
+        Returns: string
+      }
+      executor_create_invitation: {
+        Args: {
+          executor_id: string
+          sharer_id: string
+          invitee_email: string
+          role: string
+        }
+        Returns: string
+      }
+      generate_attachment_filename: {
+        Args: {
+          profile_sharer_id: string
+          prompt_response_id: string
+          original_filename: string
+          attachment_id: string
+        }
+        Returns: string
+      }
+      generate_invitation_token: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_sharer_topic_progress: {
         Args: {
           sharer_profile_id: string
@@ -1480,12 +1748,99 @@ export type Database = {
           progress_percent: number
         }[]
       }
-      is_admin: {
-        Args: Record<PropertyKey, never>
+      get_topic_name: {
+        Args: {
+          prompt_response_id: string
+        }
+        Returns: string
+      }
+      handle_follow_request: {
+        Args: {
+          sharer_id: string
+        }
+        Returns: string
+      }
+      handle_follow_request_response: {
+        Args: {
+          request_id: string
+          should_approve: boolean
+        }
+        Returns: undefined
+      }
+      handle_invitation_acceptance: {
+        Args: {
+          invitation_id: string
+        }
+        Returns: undefined
+      }
+      has_role: {
+        Args: {
+          user_id: string
+          role_name: string
+        }
         Returns: boolean
+      }
+      is_active_executor_for: {
+        Args: {
+          executor_id: string
+          profile_sharer_id: string
+        }
+        Returns: boolean
+      }
+      is_admin:
+        | {
+            Args: Record<PropertyKey, never>
+            Returns: boolean
+          }
+        | {
+            Args: {
+              user_id: string
+            }
+            Returns: boolean
+          }
+      is_executor_for: {
+        Args: {
+          executor_id: string
+          sharer_id: string
+        }
+        Returns: boolean
+      }
+      is_listener_for: {
+        Args: {
+          listener_id: string
+          sharer_id: string
+        }
+        Returns: boolean
+      }
+      resend_invitation: {
+        Args: {
+          p_invitation_id: string
+        }
+        Returns: string
+      }
+      revoke_executor_access: {
+        Args: {
+          executor_id: string
+          sharer_id: string
+        }
+        Returns: undefined
+      }
+      revoke_listener_access: {
+        Args: {
+          listener_id: string
+          sharer_id: string
+        }
+        Returns: undefined
+      }
+      slugify: {
+        Args: {
+          "": string
+        }
+        Returns: string
       }
     }
     Enums: {
+      follow_request_status: "PENDING" | "APPROVED" | "DENIED"
       InvitationStatus: "PENDING" | "ACCEPTED" | "DECLINED" | "EXPIRED"
       person_relation:
         | "Spouse"

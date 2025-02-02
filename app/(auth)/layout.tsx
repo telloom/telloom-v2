@@ -6,16 +6,28 @@ export default async function AuthLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error } = await supabase.auth.getUser();
 
-  if (user) {
-    redirect('/role-sharer/topics');
+    // If there's a user, redirect to the main app
+    if (user) {
+      redirect('/role-sharer/topics');
+    }
+
+    // If there's no user (including auth session missing errors), show the auth pages
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        {children}
+      </div>
+    );
+  } catch (error) {
+    console.error('Unexpected error in auth layout:', error);
+    // For any other errors, still show the auth pages
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        {children}
+      </div>
+    );
   }
-
-  return (
-    <div className="min-h-screen bg-background">
-      {children}
-    </div>
-  );
 } 

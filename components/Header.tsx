@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -18,43 +18,61 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import { Button } from './ui/button';
+import { UserPlus } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserStore } from '@/stores/userStore';
 import { createClient } from '@/utils/supabase/client';
+import InviteModal from './invite/InviteModal';
 
 export default function Header() {
   const { user } = useAuth();
   const { profile, setProfile } = useUserStore();
   const router = useRouter();
   const supabase = createClient();
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [userRoles, setUserRoles] = useState<string[]>([]);
 
-  // Fetch the user's profile when user changes
+  // Fetch the user's profile and roles when user changes
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchProfileAndRoles = async () => {
       if (!user) {
         setProfile(null);
+        setUserRoles([]);
         return;
       }
 
       try {
-        const { data: profile, error } = await supabase
-          .from('Profile')
-          .select('*')
-          .eq('id', user.id)
-          .single();
+        const [profileResult, rolesResult] = await Promise.all([
+          supabase
+            .from('Profile')
+            .select('*')
+            .eq('id', user.id)
+            .single(),
+          supabase
+            .from('ProfileRole')
+            .select('role')
+            .eq('profileId', user.id)
+        ]);
 
-        if (error) {
-          console.error('Error fetching profile:', error);
+        if (profileResult.error) {
+          console.error('Error fetching profile:', profileResult.error);
           return;
         }
 
-        setProfile(profile);
+        if (rolesResult.error) {
+          console.error('Error fetching roles:', rolesResult.error);
+          return;
+        }
+
+        setProfile(profileResult.data);
+        setUserRoles(rolesResult.data.map(r => r.role));
       } catch (error) {
-        console.error('Error fetching profile:', error);
+        console.error('Error fetching profile and roles:', error);
       }
     };
 
-    fetchProfile();
+    fetchProfileAndRoles();
   }, [user, setProfile, supabase]);
 
   const handleSignOut = async () => {
@@ -71,6 +89,8 @@ export default function Header() {
       console.error('Error during sign out:', error);
     }
   };
+
+  const canInvite = userRoles.some(role => ['SHARER', 'EXECUTOR'].includes(role));
 
   return (
     <header className="flex items-center justify-between px-6 py-3 shadow-md">
@@ -89,6 +109,17 @@ export default function Header() {
       </div>
       {user ? (
         <div className="flex items-center space-x-3">
+          {canInvite && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2 border-2 border-[#1B4332] hover:bg-[#8fbc55] hover:text-[#1B4332] transition-all duration-300"
+              onClick={() => setShowInviteModal(true)}
+            >
+              <UserPlus className="h-4 w-4" />
+              <span>Invite</span>
+            </Button>
+          )}
           <span className="text-sm">
             Welcome, {profile?.firstName || user.email}
           </span>
@@ -127,6 +158,13 @@ export default function Header() {
         <div>
           <Link href="/login">Login</Link>
         </div>
+      )}
+
+      {showInviteModal && (
+        <InviteModal 
+          open={showInviteModal} 
+          onOpenChange={setShowInviteModal}
+        />
       )}
     </header>
   );

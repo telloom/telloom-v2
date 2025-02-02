@@ -2,49 +2,105 @@
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_new_user();
 
+-- Grant necessary permissions
+GRANT USAGE ON SCHEMA auth TO postgres;
+GRANT ALL ON auth.users TO postgres;
+GRANT ALL ON ALL TABLES IN SCHEMA auth TO postgres;
+
+-- Add permissions for authenticator role
+GRANT USAGE ON SCHEMA auth TO authenticator;
+GRANT ALL ON auth.users TO authenticator;
+GRANT ALL ON ALL TABLES IN SCHEMA auth TO authenticator;
+
+-- Grant necessary permissions to authenticated users
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT ALL ON public."Profile" TO authenticated;
+GRANT ALL ON public."ProfileRole" TO authenticated;
+
+-- Grant necessary permissions
+GRANT USAGE ON SCHEMA public TO anon;
+GRANT ALL ON public."Profile" TO anon;
+GRANT ALL ON public."ProfileRole" TO anon;
+
 -- Create function to handle new user creation with role assignment
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_now timestamptz;
+  v_profile_id uuid;
+  v_role_id uuid;
 BEGIN
-  -- Create Profile record
-  INSERT INTO public."Profile" (
-    id,
-    email,
-    firstName,
-    lastName,
-    createdAt,
-    updatedAt
-  )
-  VALUES (
-    new.id,
+  -- Log the start of the function and the input data with more detail
+  RAISE LOG 'handle_new_user() started for user % (%) with metadata: %', 
     new.email,
-    new.raw_user_meta_data->>'firstName',
-    new.raw_user_meta_data->>'lastName',
-    now(),
-    now()
-  );
+    new.id, 
+    new.raw_user_meta_data;
 
-  -- Assign initial LISTENER role
-  INSERT INTO public."ProfileRole" (
-    profileId,
-    role,
-    createdAt
-  )
-  VALUES (
-    new.id,
-    'LISTENER',
-    now()
-  );
+  -- Set variables
+  v_now := now();
+  v_profile_id := new.id;
+  v_role_id := gen_random_uuid();
 
-  RETURN new;
+  BEGIN
+    -- Create Profile record with minimal required fields
+    RAISE LOG 'Creating Profile record for user % with email %', new.id, new.email;
+    
+    INSERT INTO public."Profile" (
+      id,
+      email,
+      createdAt,
+      updatedAt
+    )
+    VALUES (
+      v_profile_id,
+      new.email,
+      v_now,
+      v_now
+    );
+    
+    RAISE LOG 'Profile record created successfully for user %', new.id;
+
+    -- Create initial ProfileRole record (LISTENER)
+    RAISE LOG 'Creating ProfileRole record for user % with role LISTENER', new.id;
+    
+    INSERT INTO public."ProfileRole" (
+      id,
+      profileId,
+      role
+    )
+    VALUES (
+      v_role_id,
+      v_profile_id,
+      'LISTENER'
+    );
+    
+    RAISE LOG 'ProfileRole record created successfully for user %', new.id;
+    RAISE LOG 'handle_new_user() completed successfully for user %', new.id;
+    
+    RETURN new;
+  EXCEPTION
+    WHEN OTHERS THEN
+      -- Enhanced error logging
+      RAISE LOG 'Error in handle_new_user() for user % (%)', new.email, new.id;
+      RAISE LOG 'Error details - Code: %, Message: %, State: %', SQLSTATE, SQLERRM, SQLSTATE;
+      RAISE LOG 'Error context - Detail: %, Hint: %', ERRDETAIL, ERRHINT;
+      
+      -- Re-raise the error to ensure it's not silently swallowed
+      RAISE EXCEPTION 'Failed to create user profile: % (SQLSTATE: %)', SQLERRM, SQLSTATE;
+  END;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Create trigger for new user creation
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
 
 -- Update Profile policies
 DROP POLICY IF EXISTS "Users can view own profile" ON "Profile";
@@ -93,6 +149,10 @@ CREATE POLICY "Users can delete own roles"
 ON "ProfileRole"
 FOR DELETE
 USING (auth.uid() = "profileId");
+
+-- Enable RLS
+ALTER TABLE public."Profile" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."ProfileRole" ENABLE ROW LEVEL SECURITY;
 
 -- Update ProfileSharer policies
 DROP POLICY IF EXISTS "Users can manage own sharer profile" ON "ProfileSharer";

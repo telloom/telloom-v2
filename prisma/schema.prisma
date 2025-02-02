@@ -23,19 +23,22 @@ model Entitlement {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model Invitation {
-  id                                       String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sharerId                                 String           @db.Uuid
-  inviterId                                String?          @db.Uuid
-  inviteeEmail                             String
-  role                                     Role
-  status                                   InvitationStatus @default(PENDING)
-  token                                    String           @unique
-  createdAt                                DateTime         @default(now()) @db.Timestamptz(6)
-  updatedAt                                DateTime         @db.Timestamptz(6)
-  acceptedAt                               DateTime?
-  Profile_Invitation_inviteeEmailToProfile Profile          @relation("Invitation_inviteeEmailToProfile", fields: [inviteeEmail], references: [email])
-  Profile_Invitation_inviterIdToProfile    Profile?         @relation("Invitation_inviterIdToProfile", fields: [inviterId], references: [id], onDelete: Cascade)
-  ProfileSharer                            ProfileSharer    @relation(fields: [sharerId], references: [id], onDelete: Cascade)
+  id                                    String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sharerId                              String           @db.Uuid
+  inviterId                             String?          @db.Uuid
+  inviteeEmail                          String
+  role                                  Role
+  status                                InvitationStatus @default(PENDING)
+  token                                 String           @unique
+  createdAt                             DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt                             DateTime         @db.Timestamptz(6)
+  acceptedAt                            DateTime?
+  executorFirstName                     String?
+  executorLastName                      String?
+  executorRelation                      String?
+  executorPhone                         String?
+  Profile_Invitation_inviterIdToProfile Profile?         @relation("Invitation_inviterIdToProfile", fields: [inviterId], references: [id], onDelete: Cascade)
+  ProfileSharer                         ProfileSharer    @relation(fields: [sharerId], references: [id], onDelete: Cascade)
 
   @@unique([sharerId, inviteeEmail, role])
 }
@@ -109,44 +112,43 @@ model Product {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model Profile {
-  id                                          String                          @id @db.Uuid
-  fullName                                    String?
-  username                                    String?                         @unique
-  avatarUrl                                   String?
-  email                                       String?                         @unique
-  passwordHash                                String?                         @unique
-  firstName                                   String?
-  lastName                                    String?
-  phone                                       String?
-  revenuecatAppUserId                         String?
-  status                                      String?
-  airtableRecordId                            String?
-  addressStreet                               String?
-  addressUnit                                 String?
-  addressCity                                 String?
-  addressState                                String?
-  addressZipcode                              String?
-  executorFirstName                           String?
-  executorLastName                            String?
-  executorRelation                            String?
-  executorPhone                               String?
-  executorEmail                               String?
-  isAdmin                                     Boolean                         @default(false)
-  createdAt                                   DateTime                        @default(now()) @db.Timestamptz(6)
-  updatedAt                                   DateTime                        @db.Timestamptz(6)
-  FollowRequest                               FollowRequest[]
-  Invitation_Invitation_inviteeEmailToProfile Invitation[]                    @relation("Invitation_inviteeEmailToProfile")
-  Invitation_Invitation_inviterIdToProfile    Invitation[]                    @relation("Invitation_inviterIdToProfile")
-  ProfileExecutor                             ProfileExecutor[]
-  ProfileListener                             ProfileListener[]
-  ProfileRole                                 ProfileRole[]
-  ProfileSharer                               ProfileSharer?
-  PromptResponseFavorite                      PromptResponseFavorite[]
-  PromptResponseRecentlyWatched               PromptResponseRecentlyWatched[]
-  TopicFavorite                               TopicFavorite[]
-  TopicQueueItem                              TopicQueueItem[]
-  TopicVideoDownload                          TopicVideoDownload[]
-  VideoDownload                               VideoDownload[]
+  id                                       String                          @id @db.Uuid
+  fullName                                 String?
+  username                                 String?                         @unique
+  avatarUrl                                String?
+  email                                    String?                         @unique
+  passwordHash                             String?                         @unique
+  firstName                                String?
+  lastName                                 String?
+  phone                                    String?
+  revenuecatAppUserId                      String?
+  status                                   String?
+  airtableRecordId                         String?
+  addressStreet                            String?
+  addressUnit                              String?
+  addressCity                              String?
+  addressState                             String?
+  addressZipcode                           String?
+  executorFirstName                        String?
+  executorLastName                         String?
+  executorRelation                         String?
+  executorPhone                            String?
+  executorEmail                            String?
+  isAdmin                                  Boolean                         @default(false)
+  createdAt                                DateTime                        @default(now()) @db.Timestamptz(6)
+  updatedAt                                DateTime                        @db.Timestamptz(6)
+  FollowRequest                            FollowRequest[]
+  Invitation_Invitation_inviterIdToProfile Invitation[]                    @relation("Invitation_inviterIdToProfile")
+  ProfileExecutor                          ProfileExecutor[]
+  ProfileListener                          ProfileListener[]
+  ProfileRole                              ProfileRole[]
+  ProfileSharer                            ProfileSharer?
+  PromptResponseFavorite                   PromptResponseFavorite[]
+  PromptResponseRecentlyWatched            PromptResponseRecentlyWatched[]
+  TopicFavorite                            TopicFavorite[]
+  TopicQueueItem                           TopicQueueItem[]
+  TopicVideoDownload                       TopicVideoDownload[]
+  VideoDownload                            VideoDownload[]
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.

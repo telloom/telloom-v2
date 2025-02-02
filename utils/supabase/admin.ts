@@ -11,14 +11,37 @@ if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
 }
 
 export const createAdminClient = () => {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
+  console.log('[Admin Client] Creating admin client with environment:', {
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'present' : 'missing',
+    serviceRole: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'present' : 'missing',
+    nodeEnv: process.env.NODE_ENV
+  });
+
+  try {
+    const client = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+          detectSessionInUrl: false
+        },
+        db: {
+          schema: 'public'
+        }
       }
-    }
-  );
+    );
+
+    console.log('[Admin Client] Successfully created admin client');
+    return client;
+  } catch (error: any) {
+    console.error('[Admin Client] Error creating admin client:', {
+      message: error?.message,
+      name: error?.name,
+      code: error?.code,
+      stack: error?.stack?.split('\n').slice(0, 3)
+    });
+    throw error;
+  }
 };

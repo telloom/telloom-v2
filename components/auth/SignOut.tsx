@@ -1,3 +1,8 @@
+/**
+ * File: components/auth/SignOut.tsx
+ * Description: Sign out component that handles user logout.
+ */
+
 "use client";
 
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
@@ -13,4 +18,4 @@ export default function SignOut() {
   };
 
   return <button onClick={handleSignOut}>Sign Out</button>;
-}
+} 

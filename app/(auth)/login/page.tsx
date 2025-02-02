@@ -1,21 +1,23 @@
-// app/(auth)/login/page.tsx
+/**
+ * File: app/(auth)/login/page.tsx
+ * Description: Login page that provides user authentication functionality using Supabase Auth.
+ * Uses the LoginForm component for handling the authentication flow.
+ */
 
 import { LoginForm } from '@/components/auth/LoginForm';
+import { redirect } from 'next/navigation';
+import { getUser } from '@/utils/supabase/server';
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  // Check if user is already authenticated
+  const user = await getUser();
+  if (user) {
+    redirect('/role-sharer/topics');
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm space-y-8">
-        <div>
-          <h1 className="text-4xl font-bold tracking-tight text-foreground">
-            Welcome back
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Sign in to your account to continue
-          </p>
-        </div>
-        <LoginForm />
-      </div>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+      <LoginForm />
     </div>
   );
 }
