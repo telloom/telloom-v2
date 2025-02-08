@@ -97,11 +97,22 @@ DROP POLICY IF EXISTS "authenticated_access" ON "PromptResponse";
 DROP POLICY IF EXISTS "authenticated_access" ON "Video";
 DROP POLICY IF EXISTS "authenticated_access" ON "ProfileSharer";
 
--- Create proper policies for Profile
+-- Create updated profile policies
 CREATE POLICY "Users can view own profile"
 ON "Profile"
 FOR SELECT
 USING (auth.uid() = id);
+
+CREATE POLICY "Users can view sharer profiles"
+ON "Profile"
+FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM "ProfileRole" pr
+    WHERE pr."profileId" = "Profile".id
+    AND pr.role = 'SHARER'
+  )
+);
 
 CREATE POLICY "Users can update own profile"
 ON "Profile" 

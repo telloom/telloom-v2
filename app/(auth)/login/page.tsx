@@ -4,6 +4,8 @@
  * Uses the LoginForm component for handling the authentication flow.
  */
 
+// app/(auth)/login/page.tsx
+// app/(auth)/login/page.tsx
 import { LoginForm } from '@/components/auth/LoginForm';
 import { redirect } from 'next/navigation';
 import { getUser } from '@/utils/supabase/server';
@@ -16,7 +18,7 @@ export default async function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+    <div className="flex justify-center items-center min-h-screen">
       <LoginForm />
     </div>
   );

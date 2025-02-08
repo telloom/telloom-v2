@@ -31,12 +31,12 @@ export async function POST(request: Request) {
       password: formData.password,
       options: {
         data: {
-          first_name: formData.firstName,
-          last_name: formData.lastName,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
           phone: formData.phone,
-          full_name: `${formData.firstName} ${formData.lastName}`
+          fullName: `${formData.firstName} ${formData.lastName}`
         },
-        emailRedirectTo: `${request.headers.get('origin')}/auth/callback`
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/api/auth/confirm?next=/select-role`
       }
     })
 

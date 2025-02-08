@@ -1,34 +1,41 @@
-import React from 'react';
-import Header from '@/components/Header';
-import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
+import { RequestFollowFormWrapper } from '@/components/listener/RequestFollowFormWrapper';
 
-export default async function ListenerPage() {
+export default async function RoleListenerPage() {
   const supabase = createClient();
-  
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
-  if (userError || !user) {
-    redirect('/login');
-  }
+  const { data: { user } } = await supabase.auth.getUser();
 
-  // Verify user has LISTENER role
-  const { data: roles } = await supabase
-    .from('ProfileRole')
-    .select('role')
-    .eq('profileId', user.id);
+  // Check if user has any listener relationships
+  const { data: listenerRelationships, error } = await supabase
+    .from('ProfileListener')
+    .select('*')
+    .eq('listenerId', user.id)
+    .eq('hasAccess', true);
 
-  if (!roles?.some(r => r.role === 'LISTENER')) {
-    redirect('/select-role');
+  if (error) {
+    console.error('Error fetching listener relationships:', error);
   }
 
   return (
-    <>
-      <Header />
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">Listener Dashboard</h1>
-        {/* Add your listener dashboard content here */}
-      </div>
-    </>
+    <div className="container mx-auto px-4 py-8">
+      {(!listenerRelationships || listenerRelationships.length === 0) ? (
+        <div className="max-w-2xl mx-auto">
+          <h1 className="text-3xl font-bold text-center mb-8 text-[#1B4332]">
+            Connect with a Sharer
+          </h1>
+          <p className="text-center text-muted-foreground mb-8">
+            To get started, request to follow a Sharer by entering their email address below.
+          </p>
+          <RequestFollowFormWrapper />
+        </div>
+      ) : (
+        <div>
+          <h1 className="text-3xl font-bold text-center mb-8 text-[#1B4332]">
+            Your Sharers
+          </h1>
+          {/* We'll add the content for viewing sharers here later */}
+        </div>
+      )}
+    </div>
   );
 }

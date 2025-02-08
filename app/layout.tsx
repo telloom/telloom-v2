@@ -15,8 +15,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <SupabaseListener />
+        <Toaster position="top-center" richColors />
         {children}
-        <Toaster richColors position="top-center" />
       </body>
     </html>
   );

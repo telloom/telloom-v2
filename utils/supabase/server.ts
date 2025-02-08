@@ -4,27 +4,23 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-export async function createClient() {
-  // Await cookies() so that cookieStore is the resolved object.
-  const cookieStore = await cookies();
-
+export function createClient() {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        // Synchronous get method after awaiting cookies()
-        get(name: string) {
-          const cookie = cookieStore.get(name);
-          return cookie?.value;
+        async get(name: string) {
+          const cookieStore = await cookies();
+          return cookieStore.get(name)?.value;
         },
-        // Synchronous set method
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
+        async set(name: string, value: string, options: CookieOptions) {
+          const cookieStore = await cookies();
+          cookieStore.set(name, value, options);
         },
-        // Synchronous remove method (using delete as defined on the cookieStore)
-        remove(name: string, options: CookieOptions) {
-          cookieStore.delete({ name, ...options });
+        async remove(name: string, _options: CookieOptions) {
+          const cookieStore = await cookies();
+          cookieStore.delete(name);
         },
       },
     }
@@ -33,8 +29,7 @@ export async function createClient() {
 
 export async function getUser() {
   try {
-    const supabase = await createClient();
-    // Remove unused 'error' from the destructuring
+    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     return user;
   } catch (error) {
@@ -43,10 +38,10 @@ export async function getUser() {
   }
 }
 
-// Helper function for role-based layouts remains unchanged.
+// Helper function for role-based layouts
 export async function checkRole(requiredRole: string) {
   try {
-    const supabase = await createClient();
+    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
@@ -56,14 +51,13 @@ export async function checkRole(requiredRole: string) {
     const { data: roles, error: rolesError } = await supabase
       .from('ProfileRole')
       .select('role')
-      .eq('profileId', user.id)
-      .single();
+      .eq('profileId', user.id);
 
     if (rolesError) {
       return false;
     }
 
-    return roles?.role === requiredRole;
+    return roles?.some(r => r.role === requiredRole);
   } catch {
     return false;
   }

@@ -5,8 +5,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Ear, Share2, Briefcase } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Headphones, VideoIcon, BookMarked } from 'lucide-react'
 import { cn } from "@/lib/utils"
 import { Role } from '@/types/models'
 
@@ -17,6 +17,8 @@ interface RoleCardProps {
   icon: React.ElementType;
   disabled?: boolean;
   available?: boolean;
+  selected?: boolean;
+  onSelect: (role: Role) => void;
 }
 
 export default function RoleSelection() {
@@ -33,8 +35,8 @@ export default function RoleSelection() {
         const rolesResponse = await fetch('/api/auth/user');
         const userData = await rolesResponse.json();
         
-        if (userData.user?.profile?.roles) {
-          setAvailableRoles(userData.user.profile.roles);
+        if (userData.user?.roles) {
+          setAvailableRoles(userData.user.roles);
         }
 
         // Get active role if exists
@@ -93,87 +95,97 @@ export default function RoleSelection() {
     }
   };
 
-  const RoleCard = ({ role, title, description, icon: Icon, disabled = false, available = false }: RoleCardProps) => (
+  const RoleCard = ({ role, title, description, icon: Icon, disabled = false, available = false, selected = false, onSelect }: RoleCardProps) => (
     <Card 
       className={cn(
-        "relative cursor-pointer transition-all duration-300",
-        selectedRole === role 
-          ? "bg-primary text-primary-foreground shadow-lg" 
-          : "hover:bg-secondary",
-        (disabled || !available) && "opacity-50 cursor-not-allowed hover:bg-background"
+        "border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300",
+        "relative cursor-pointer min-h-[240px]",
+        selected ? "bg-[#1B4332] text-white" : "hover:bg-gray-50",
+        (disabled || !available) && "opacity-50 cursor-not-allowed hover:bg-background hover:shadow-[6px_6px_0_0_#8fbc55]"
       )}
-      onClick={() => !disabled && available && handleRoleSelect(role)}
+      onClick={() => !disabled && available && onSelect(role)}
     >
-      <CardHeader>
+      <CardHeader className="space-y-4 p-5">
+        <div className="flex items-center justify-center">
+          <Icon className={cn(
+            "w-10 h-10",
+            selected ? "text-white" : "text-[#1B4332]"
+          )} />
+        </div>
         <CardTitle className={cn(
-          "flex items-center justify-center text-2xl",
-          selectedRole === role && "text-primary-foreground"
+          "text-center text-2xl font-semibold",
+          selected ? "text-white" : "text-[#1B4332]"
         )}>
-          <Icon className="w-8 h-8 mr-2" />
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-5 pt-0">
         <p className={cn(
-          "text-center",
-          selectedRole === role && "text-primary-foreground"
+          "text-center text-sm",
+          selected ? "text-white/90" : "text-muted-foreground"
         )}>
           {description}
         </p>
+        {(disabled || !available) && (
+          <div className="absolute bottom-4 left-0 right-0 text-center">
+            <span className={cn(
+              "text-xs font-medium px-3 py-1 rounded-full bg-gray-100",
+              "text-muted-foreground"
+            )}>
+              {disabled ? "Invitation Only" : "Not Available"}
+            </span>
+          </div>
+        )}
+        {selected && (
+          <div className="absolute bottom-4 left-0 right-0 text-center">
+            <span className="text-xs font-medium text-white/90">
+              Currently Selected
+            </span>
+          </div>
+        )}
       </CardContent>
-      <CardFooter className="flex justify-center">
-        <span className={cn(
-          "px-4 py-2 rounded-full text-sm font-semibold",
-          selectedRole === role 
-            ? "bg-primary-foreground text-primary" 
-            : "bg-secondary text-secondary-foreground",
-          (disabled || !available) && "bg-muted text-muted-foreground"
-        )}>
-          {disabled 
-            ? "Invitation Only" 
-            : !available 
-              ? "Not Available"
-              : selectedRole === role 
-                ? "Selected" 
-                : "Select"}
-        </span>
-      </CardFooter>
     </Card>
   )
 
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-center mb-8">Loading...</h1>
+        <h1 className="text-3xl font-bold text-center mb-8 text-[#1B4332]">Loading...</h1>
       </div>
     );
   }
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-center mb-8">Select Your Role</h1>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <h1 className="text-3xl font-bold text-center mb-8 text-[#1B4332]">Select Your Role</h1>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
         <RoleCard
           role={Role.LISTENER}
           title="Listener"
-          description="Listen and provide support to others in the community."
-          icon={Ear}
+          description="View and celebrate the personal stories, details, and wisdom of your loved ones."
+          icon={Headphones}
           available={availableRoles.includes(Role.LISTENER)}
+          selected={selectedRole === Role.LISTENER}
+          onSelect={handleRoleSelect}
         />
         <RoleCard
           role={Role.SHARER}
           title="Sharer"
-          description="Share your experiences and seek support from the community."
-          icon={Share2}
+          description="Capture your life's stories, facts, and wisdom so your family can connect with your experiences."
+          icon={VideoIcon}
           available={availableRoles.includes(Role.SHARER)}
+          selected={selectedRole === Role.SHARER}
+          onSelect={handleRoleSelect}
         />
         <RoleCard
           role={Role.EXECUTOR}
           title="Executor"
-          description="Execute tasks and manage community projects."
-          icon={Briefcase}
+          description="Manage and organize a Sharer's content, ensuring their stories, facts, and insights stay well-preserved."
+          icon={BookMarked}
           available={availableRoles.includes(Role.EXECUTOR)}
+          selected={selectedRole === Role.EXECUTOR}
           disabled={!availableRoles.includes(Role.EXECUTOR)}
+          onSelect={handleRoleSelect}
         />
       </div>
     </div>

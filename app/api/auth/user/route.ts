@@ -1,15 +1,12 @@
 // app/api/auth/user/route.ts
 
 import { createClient } from '@/utils/supabase/server';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const cookieStore = cookies();
-  const supabase = createClient(cookieStore);
-
   try {
     console.log('Getting authenticated user...');
+    const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user) {
@@ -19,41 +16,23 @@ export async function GET() {
 
     console.log('Found user:', user.id);
 
-    // Fetch user profile with roles
-    const { data: profile, error: profileError } = await supabase
-      .from('Profile')
-      .select(`
-        id,
-        firstName,
-        lastName,
-        email,
-        avatarUrl,
-        roles:ProfileRole (
-          id,
-          role
-        )
-      `)
-      .eq('id', user.id)
-      .single();
+    // Fetch user roles
+    const { data: roles, error: rolesError } = await supabase
+      .from('ProfileRole')
+      .select('role')
+      .eq('profileId', user.id);
 
-    console.log('Profile query result:', { profile, error: profileError });
+    console.log('Roles query result:', { roles, error: rolesError });
 
-    if (profileError) {
-      console.error('Error fetching profile:', profileError);
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    if (rolesError) {
+      console.error('Error fetching roles:', rolesError);
+      return NextResponse.json({ error: 'Failed to fetch roles' }, { status: 500 });
     }
-
-    // Check for SHARER role
-    const hasSharerRole = profile.roles?.some(r => r.role === 'SHARER');
-    console.log('Has SHARER role:', hasSharerRole);
 
     return NextResponse.json({
       user: {
         ...user,
-        profile: {
-          ...profile,
-          roles: profile.roles?.map((r: any) => r.role) || []
-        }
+        roles: roles?.map(r => r.role) || []
       }
     });
 

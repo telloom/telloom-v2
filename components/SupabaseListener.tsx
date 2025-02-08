@@ -23,6 +23,7 @@ export default function SupabaseListener() {
   const isAuthPage = pathname?.includes('/login') || 
                     pathname?.includes('/signup') || 
                     pathname?.includes('/invitation') ||
+                    pathname?.includes('/check-email') ||
                     pathname?.includes('/forgot-password');
 
   // Verify user authentication state

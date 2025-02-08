@@ -8,14 +8,14 @@ export default async function AuthLayout({
 }) {
   try {
     const supabase = await createClient();
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    // If there's a user, redirect to the main app
+    // If there's a user, redirect to select-role
     if (user) {
-      redirect('/role-sharer/topics');
+      redirect('/select-role');
     }
 
-    // If there's no user (including auth session missing errors), show the auth pages
+    // If there's no user, show the auth pages
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         {children}

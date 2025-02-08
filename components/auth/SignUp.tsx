@@ -14,6 +14,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { signup } from '@/app/(auth)/signup/actions';
 import { z } from 'zod';
+import { useRouter } from 'next/navigation';  // <-- Added import for router
 
 // Base validation schemas for individual fields
 const emailSchema = z.string().email('Invalid email address');
@@ -22,17 +23,19 @@ const nameSchema = z.string().min(2, 'Must be at least 2 characters');
 const phoneSchema = z.string().min(10, 'Phone number must be at least 10 digits');
 
 // Combined validation schema for signup form
-const signupSchema = z.object({
-  email: emailSchema,
-  password: passwordSchema,
-  confirmPassword: passwordSchema,
-  firstName: nameSchema,
-  lastName: nameSchema,
-  phone: phoneSchema
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
+const signupSchema = z
+  .object({
+    email: emailSchema,
+    password: passwordSchema,
+    confirmPassword: passwordSchema,
+    firstName: nameSchema,
+    lastName: nameSchema,
+    phone: phoneSchema,
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ['confirmPassword'],
+  });
 
 type SignupFormData = z.infer<typeof signupSchema>;
 
@@ -49,6 +52,7 @@ export default function SignUp() {
   const [errors, setErrors] = useState<Partial<Record<keyof SignupFormData, string>>>({});
   const [loading, setLoading] = useState(false);
   const [touchedFields, setTouchedFields] = useState<Partial<Record<keyof SignupFormData, boolean>>>({});
+  const router = useRouter();  // <-- Initialize router
 
   const validateField = useCallback((name: keyof SignupFormData, value: string) => {
     try {
@@ -140,6 +144,8 @@ export default function SignUp() {
         }
       } else if (result.success) {
         toast.success(result.message || 'Sign-up successful! Please check your email to confirm your account.');
+        // Redirect to the check-email page upon successful signup
+        router.push('/check-email');
       }
     } catch (error: any) {
       console.error('Sign-up error:', error);

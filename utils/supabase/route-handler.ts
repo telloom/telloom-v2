@@ -1,26 +1,26 @@
 // utils/supabase/route-handler.ts
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-export const createRouteHandlerClient = async () => {
-  // Await cookies() so that cookieStore is resolved
-  const cookieStore = await cookies();
-
+export function createRouteHandlerClient() {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
+        async get(name: string) {
+          const cookieStore = await cookies();
           return cookieStore.get(name)?.value;
         },
-        set(name: string, value: string, options: any) {
+        async set(name: string, value: string, options: CookieOptions) {
+          const cookieStore = await cookies();
           cookieStore.set(name, value, options);
         },
-        remove(name: string) {
+        async remove(name: string, _options: CookieOptions) {
+          const cookieStore = await cookies();
           cookieStore.delete(name);
         },
       },
     }
   );
-};
+}

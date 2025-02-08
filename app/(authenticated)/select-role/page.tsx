@@ -1,27 +1,16 @@
 // app/select-role/page.tsx
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
-import RoleSelection from '@/components/RoleSelection';
-import Header from '@/components/Header';
-import AuthenticatedLayout from '@/components/AuthenticatedLayout';
+import SelectRoleClient from '@/components/SelectRoleClient';
 
 export default async function SelectRolePage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  const supabase = await createClient();
+  const { data: { user }, error } = await supabase.auth.getUser();
 
   if (error || !user) {
-    redirect('/auth/login');
+    redirect('/login');
   }
 
-  return (
-    <>
-      <Header />
-      <AuthenticatedLayout>
-        <RoleSelection />
-      </AuthenticatedLayout>
-    </>
-  );
+  // Always show the role selection UI
+  return <SelectRoleClient />;
 }

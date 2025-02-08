@@ -7,39 +7,17 @@ export default async function AuthenticatedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = createClient();
-  
-  try {
-    // Verify user is authenticated using getUser
-    const { data: { user }, error } = await supabase.auth.getUser();
-    
-    if (error) {
-      console.error('Auth error:', error);
-      redirect('/login');
-    }
-    
-    if (!user) {
-      redirect('/login');
-    }
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-    // Verify user has required role
-    const { data: roles } = await supabase
-      .from('ProfileRole')
-      .select('role')
-      .eq('profileId', user.id);
-
-    if (!roles?.length) {
-      redirect('/select-role');
-    }
-
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        {children}
-      </div>
-    );
-  } catch (error) {
-    console.error('Layout error:', error);
+  if (!user) {
     redirect('/login');
   }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+      {children}
+    </div>
+  );
 } 

@@ -40,10 +40,8 @@ type DBPromptCategory = {
   }>;
 };
 
-export default async function SharerTopicsPage() {
-  const supabase = createClient();
-  
-  // Check authentication and role
+export default async function TopicsPage() {
+  const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   
   if (userError || !user) {

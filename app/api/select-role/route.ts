@@ -1,29 +1,26 @@
 // app/api/select-role/route.ts
 // This component handles the API route for selecting a user role
 
-import { createClient } from '@/utils/supabase/server';
+import { createRouteHandlerClient } from '@/utils/supabase/route-handler';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { cookies } from 'next/headers';
 
 const roleSchema = z.object({
   role: z.enum(['LISTENER', 'SHARER', 'EXECUTOR']),
 });
 
 export async function POST(request: Request) {
-  const supabase = createClient();
-
-  // Get the authenticated user
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    const supabase = createRouteHandlerClient();
+
+    // Get the authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      console.error('Auth error:', authError);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const parseResult = roleSchema.safeParse(body);
 
@@ -36,55 +33,57 @@ export async function POST(request: Request) {
 
     const { role } = parseResult.data;
 
-    // Verify user has the requested role
-    const { data: userRoles, error: roleCheckError } = await supabase
+    // Check if the user has this role
+    const { data: existingRole } = await supabase
       .from('ProfileRole')
       .select('role')
-      .eq('profileId', user.id);
+      .eq('profileId', user.id)
+      .eq('role', role)
+      .single();
 
-    if (roleCheckError) {
-      console.error('Error checking roles:', roleCheckError);
-      return NextResponse.json(
-        { error: 'Failed to verify roles' },
-        { status: 500 }
-      );
-    }
-
-    // Check if user has the requested role
-    const hasRole = userRoles?.some(r => r.role === role);
-    if (!hasRole) {
+    if (!existingRole) {
       return NextResponse.json(
         { error: 'You do not have access to this role' },
         { status: 403 }
       );
     }
 
-    // Set the active role in a cookie
-    const cookieStore = cookies();
-    cookieStore.set('activeRole', role, {
-      path: '/',
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 30, // 30 days
+    // Return success with redirect URL
+    return NextResponse.json({ 
+      success: true, 
+      redirectUrl: `/role-${role.toLowerCase()}`
     });
-
-    return NextResponse.json({ success: true, role });
   } catch (error) {
-    console.error('Error setting active role:', error);
-    return NextResponse.json(
-      { error: 'An unexpected error occurred' },
-      { status: 500 }
-    );
+    console.error('Error in select-role route:', error);
+    return NextResponse.json({ error: 'Failed to set role' }, { status: 500 });
   }
 }
 
 export async function GET() {
-  const cookieStore = cookies();
-  const activeRole = cookieStore.get('activeRole')?.value;
+  try {
+    const supabase = createRouteHandlerClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-  if (!activeRole) {
-    return NextResponse.json({ role: null });
+    if (authError || !user) {
+      return NextResponse.json({ roles: [] });
+    }
+
+    // Get all roles for the user
+    const { data: roles, error: rolesError } = await supabase
+      .from('ProfileRole')
+      .select('role')
+      .eq('profileId', user.id);
+
+    if (rolesError) {
+      console.error('Error fetching roles:', rolesError);
+      return NextResponse.json({ error: 'Failed to fetch roles' }, { status: 500 });
+    }
+
+    return NextResponse.json({ 
+      roles: roles?.map(r => r.role) || []
+    });
+  } catch (error) {
+    console.error('Error in get role route:', error);
+    return NextResponse.json({ error: 'Failed to fetch roles' }, { status: 500 });
   }
-
-  return NextResponse.json({ role: activeRole });
 }
