@@ -5,7 +5,6 @@ import TopicsList from '@/components/TopicsList';
 import RandomPrompt from '@/components/RandomPrompt';
 import TopicsAllButton from '@/components/TopicsAllButton';
 import { PromptCategory } from '@/types/models';
-import { cookies } from 'next/headers';
 
 export default async function RoleSharerPage() {
   const supabase = await createClient();
@@ -21,48 +20,9 @@ export default async function RoleSharerPage() {
     .select('role')
     .eq('profileId', user.id);
 
-  // Get active role from cookie
-  const cookieStore = await cookies();
-  const activeRole = cookieStore.get('activeRole')?.value;
-
   // If user doesn't have SHARER role at all, redirect to select-role
   if (!roles?.some(r => r.role === 'SHARER')) {
-    cookieStore.delete('activeRole');
     redirect('/select-role');
-  }
-
-  // Check if they have a ProfileSharer record
-  const { data: profileSharer } = await supabase
-    .from('ProfileSharer')
-    .select('id')
-    .eq('profileId', user.id)
-    .single();
-
-  if (!profileSharer) {
-    // If they don't have a ProfileSharer record, create one
-    const { error: createError } = await supabase
-      .from('ProfileSharer')
-      .insert([{ profileId: user.id }]);
-
-    if (createError) {
-      console.error('Error creating ProfileSharer:', createError);
-      redirect('/select-role');
-    }
-  }
-
-  // If user has multiple roles but hasn't selected SHARER explicitly
-  if (roles.length > 1 && activeRole !== 'SHARER') {
-    redirect('/select-role');
-  }
-
-  // Set SHARER as active role if not already set
-  if (!activeRole) {
-    cookieStore.set('activeRole', 'SHARER', {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-    });
   }
 
   try {

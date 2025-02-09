@@ -6,6 +6,7 @@ import { Headphones, Share2, UserCog } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import Image from 'next/image';
 
 type Role = 'LISTENER' | 'SHARER' | 'EXECUTOR';
 
@@ -94,45 +95,56 @@ export default function SelectRoleClient() {
   };
 
   return (
-    <div className="container max-w-6xl py-6 space-y-8">
-      <div className="space-y-2 text-center">
-        <h1 className="text-3xl font-semibold">Select Your Role</h1>
-        <p className="text-muted-foreground">Choose how you want to use Telloom</p>
-      </div>
+    <div className="w-full text-center">
+      {isLoading ? (
+        <>
+          <Image
+            src="/images/Telloom Logo V1-Horizontal Green.png"
+            alt="Telloom Logo"
+            width={160}
+            height={40}
+            className="mx-auto mb-6"
+          />
+          <div className="flex justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1B4332] border-t-transparent" />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="space-y-2 mb-8">
+            <h1 className="text-2xl md:text-3xl font-semibold">Select Your Role</h1>
+            <p className="text-muted-foreground">Choose how you want to use Telloom</p>
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {ROLES.map(({ role, title, description, icon: Icon }) => {
-          const isAvailable = availableRoles.includes(role);
-          
-          return (
-            <Card
-              key={role}
-              className={`p-6 space-y-4 text-center transition-all duration-300 border-2 border-[#1B4332] 
-                ${isAvailable 
-                  ? 'cursor-pointer shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55]' 
-                  : 'opacity-50 cursor-not-allowed'
-                }`}
-              onClick={() => !isLoading && handleRoleSelect(role)}
-            >
-              <div className="flex justify-center">
-                <Icon className="h-12 w-12 text-[#1B4332]" />
-              </div>
-              <h2 className="text-2xl font-semibold">{title}</h2>
-              <p className="text-muted-foreground">{description}</p>
-              {!isAvailable && (
-                <div className="text-xs text-muted-foreground mt-2">
-                  Role not available
-                </div>
-              )}
-            </Card>
-          );
-        })}
-      </div>
-
-      {isLoading && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[#1B4332]" />
-        </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            {ROLES.map(({ role, title, description, icon: Icon }) => {
+              const isAvailable = availableRoles.includes(role);
+              
+              return (
+                <Card
+                  key={role}
+                  className={`p-4 md:p-6 space-y-4 text-center transition-all duration-300 border-2 border-[#1B4332] 
+                    ${isAvailable 
+                      ? 'cursor-pointer shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55]' 
+                      : 'opacity-50 cursor-not-allowed'
+                    }`}
+                  onClick={() => !isLoading && handleRoleSelect(role)}
+                >
+                  <div className="flex justify-center">
+                    <Icon className="h-10 w-10 md:h-12 md:w-12 text-[#1B4332]" />
+                  </div>
+                  <h2 className="text-xl md:text-2xl font-semibold">{title}</h2>
+                  <p className="text-sm md:text-base text-muted-foreground">{description}</p>
+                  {!isAvailable && (
+                    <div className="text-xs text-muted-foreground mt-2">
+                      Role not available
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );

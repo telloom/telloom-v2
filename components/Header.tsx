@@ -93,7 +93,7 @@ export default function Header() {
   const canInvite = userRoles.some(role => ['SHARER', 'EXECUTOR'].includes(role));
 
   return (
-    <header className="flex items-center justify-between px-6 py-3 shadow-md">
+    <header className="flex items-center justify-between px-6 py-3 bg-background">
       <div>
         <Link href="/">
           <Image

@@ -1,7 +1,9 @@
 import { checkRole } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
+import RoleLayoutLoading from '@/components/RoleLayoutLoading';
 
-export default async function RoleListenerLayout({
+async function RoleListenerLayoutContent({
   children,
 }: {
   children: React.ReactNode;
@@ -13,10 +15,23 @@ export default async function RoleListenerLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-[calc(100vh-65px)] overflow-hidden">
       {children}
     </div>
   );
 }
+
+export default function RoleListenerLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <Suspense fallback={<RoleLayoutLoading />}>
+      <RoleListenerLayoutContent>{children}</RoleListenerLayoutContent>
+    </Suspense>
+  );
+}
+
 
 

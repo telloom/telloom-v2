@@ -3,6 +3,7 @@
 
 import { createRouteHandlerClient } from '@/utils/supabase/route-handler';
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { z } from 'zod';
 
 const roleSchema = z.object({
@@ -48,11 +49,22 @@ export async function POST(request: Request) {
       );
     }
 
-    // Return success with redirect URL
-    return NextResponse.json({ 
+    // Create response with redirect URL
+    const response = NextResponse.json({ 
       success: true, 
       redirectUrl: `/role-${role.toLowerCase()}`
     });
+
+    // Set the activeRole cookie
+    const cookieStore = cookies();
+    cookieStore.set('activeRole', role, {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    });
+
+    return response;
   } catch (error) {
     console.error('Error in select-role route:', error);
     return NextResponse.json({ error: 'Failed to set role' }, { status: 500 });

@@ -11,6 +11,11 @@ export default async function SelectRolePage() {
     redirect('/login');
   }
 
-  // Always show the role selection UI
-  return <SelectRoleClient />;
+  return (
+    <div className="min-h-[calc(100vh-65px)] flex items-center justify-center">
+      <div className="w-full max-w-6xl px-4 py-6 md:py-8">
+        <SelectRoleClient />
+      </div>
+    </div>
+  );
 }

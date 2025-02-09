@@ -211,10 +211,7 @@ export default function RequestFollowForm() {
   return (
     <Card className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
       <CardHeader>
-        <CardTitle className="text-[#1B4332]">Request to Follow</CardTitle>
-        <CardDescription>
-          Enter the email address of the Sharer you'd like to follow
-        </CardDescription>
+        <CardTitle className="text-black">Request to Follow</CardTitle>
       </CardHeader>
       <CardContent>
         <Form {...form}>
