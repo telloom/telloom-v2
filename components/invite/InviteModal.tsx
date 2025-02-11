@@ -29,15 +29,37 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useInvitationStore } from '@/stores/invitationStore';
-import InvitationsList from './InvitationsList';
-import ActiveConnections from './ActiveConnections';
-import { Separator } from '@/components/ui/separator';
+import { Loader2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { CheckIcon } from "@radix-ui/react-icons";
+import * as React from "react";
+import * as SelectPrimitive from "@radix-ui/react-select";
+
+const personRelations = [
+  'Spouse', 'Partner', 'Mother', 'Father', 'Sister', 'Brother', 'Daughter', 'Son',
+  'Grandmother', 'Grandfather', 'GreatGrandmother', 'GreatGrandfather',
+  'Granddaughter', 'Grandson', 'GreatGranddaughter', 'GreatGrandson',
+  'Aunt', 'Uncle', 'GreatAunt', 'GreatUncle', 'Niece', 'Nephew', 'Cousin',
+  'Friend', 'Coworker', 'Mentor', 'Teacher', 'Boss',
+  'MotherInLaw', 'FatherInLaw', 'SisterInLaw', 'BrotherInLaw',
+  'StepMother', 'StepFather', 'StepSister', 'StepBrother', 'StepDaughter', 'StepSon',
+  'Godmother', 'Godfather', 'Godchild', 'Other'
+] as const;
 
 const executorSchema = z.object({
   email: z.string().email('Please enter a valid email'),
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
-  relation: z.string().min(1, 'Relation is required'),
+  relation: z.enum(personRelations, {
+    required_error: 'Please select a relation',
+  }),
   phone: z.string().min(1, 'Phone number is required'),
 });
 
@@ -50,6 +72,28 @@ interface InviteModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const SelectItem = React.forwardRef<
+  React.ElementRef<typeof SelectPrimitive.Item>,
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
+>(({ className, children, ...props }, ref) => (
+  <SelectPrimitive.Item
+    ref={ref}
+    className={cn(
+      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none hover:bg-[#8fbc55] hover:text-[#1B4332] focus:bg-[#8fbc55] focus:text-[#1B4332] data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      className
+    )}
+    {...props}
+  >
+    <span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
+      <SelectPrimitive.ItemIndicator>
+        <CheckIcon className="h-4 w-4" />
+      </SelectPrimitive.ItemIndicator>
+    </span>
+    <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+  </SelectPrimitive.Item>
+))
+SelectItem.displayName = SelectPrimitive.Item.displayName
+
 export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
   const [activeTab, setActiveTab] = useState<'LISTENER' | 'EXECUTOR'>('LISTENER');
   const { sendInvitation, isLoading } = useInvitationStore();
@@ -60,7 +104,7 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
       email: '',
       firstName: '',
       lastName: '',
-      relation: '',
+      relation: undefined,
       phone: '',
     },
   });
@@ -91,19 +135,18 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Manage Connections</DialogTitle>
-          <DialogDescription>
-            Send invitations and manage your listeners and executors
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto p-0 border-2 border-[#1B4332]">
+        <div className="p-6">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-semibold">Send Invitation</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Invite someone to join as a listener or executor
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-6">
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Send New Invitation</h3>
+          <div className="mt-6">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'LISTENER' | 'EXECUTOR')}>
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-2 mb-6">
                 <TabsTrigger value="LISTENER">Invite Listener</TabsTrigger>
                 <TabsTrigger value="EXECUTOR">Invite Executor</TabsTrigger>
               </TabsList>
@@ -118,7 +161,11 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                         <FormItem>
                           <FormLabel>Email</FormLabel>
                           <FormControl>
-                            <Input placeholder="email@example.com" {...field} />
+                            <Input 
+                              placeholder="email@example.com" 
+                              {...field} 
+                              className="rounded-full h-10"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -126,10 +173,17 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                     />
                     <Button 
                       type="submit" 
-                      className="w-full bg-[#1B4332] hover:bg-[#8fbc55] text-white"
+                      className="w-full rounded-full bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-all duration-300"
                       disabled={isLoading}
                     >
-                      Send Invitation
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        'Send Invitation'
+                      )}
                     </Button>
                   </form>
                 </Form>
@@ -145,7 +199,11 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                         <FormItem>
                           <FormLabel>Email</FormLabel>
                           <FormControl>
-                            <Input placeholder="email@example.com" {...field} />
+                            <Input 
+                              placeholder="email@example.com" 
+                              {...field} 
+                              className="rounded-full h-10"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -159,7 +217,7 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                           <FormItem>
                             <FormLabel>First Name</FormLabel>
                             <FormControl>
-                              <Input {...field} />
+                              <Input {...field} className="rounded-full h-10" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -172,7 +230,7 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                           <FormItem>
                             <FormLabel>Last Name</FormLabel>
                             <FormControl>
-                              <Input {...field} />
+                              <Input {...field} className="rounded-full h-10" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -185,9 +243,20 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Relation</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="rounded-full h-10">
+                                <SelectValue placeholder="Select a relation" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {personRelations.map((relation) => (
+                                <SelectItem key={relation} value={relation}>
+                                  {relation}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -199,7 +268,7 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                         <FormItem>
                           <FormLabel>Phone</FormLabel>
                           <FormControl>
-                            <Input {...field} />
+                            <Input {...field} className="rounded-full h-10" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -207,23 +276,22 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                     />
                     <Button 
                       type="submit" 
-                      className="w-full bg-[#1B4332] hover:bg-[#8fbc55] text-white"
+                      className="w-full rounded-full bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-all duration-300"
                       disabled={isLoading}
                     >
-                      Send Invitation
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        'Send Invitation'
+                      )}
                     </Button>
                   </form>
                 </Form>
               </TabsContent>
             </Tabs>
-          </div>
-
-          <Separator />
-
-          <div className="space-y-6">
-            <InvitationsList />
-            <Separator />
-            <ActiveConnections />
           </div>
         </div>
       </DialogContent>

@@ -1,12 +1,12 @@
 -- Drop existing policies
-DROP POLICY IF EXISTS "Users can view follow requests" ON "FollowRequest";
-DROP POLICY IF EXISTS "Users can create follow requests" ON "FollowRequest";
-DROP POLICY IF EXISTS "Users can manage follow requests" ON "FollowRequest";
+DROP POLICY IF EXISTS "view_follow_requests" ON "FollowRequest";
+DROP POLICY IF EXISTS "create_follow_requests" ON "FollowRequest";
+DROP POLICY IF EXISTS "update_follow_requests" ON "FollowRequest";
 
 -- Enable RLS
 ALTER TABLE "FollowRequest" ENABLE ROW LEVEL SECURITY;
 
--- Simple policy for viewing follow requests
+-- Policy for viewing follow requests with Profile access
 CREATE POLICY "view_follow_requests"
 ON "FollowRequest"
 FOR SELECT
@@ -20,6 +20,35 @@ USING (
     FROM "ProfileSharer"
     WHERE id = "sharerId"
     AND "profileId" = auth.uid()
+  )
+);
+
+-- Add policy for Profile table to allow viewing requestor profiles
+CREATE POLICY "view_requestor_profiles"
+ON "Profile"
+FOR SELECT
+TO authenticated
+USING (
+  -- Users can view their own profile
+  auth.uid() = id OR
+  -- Users can view profiles of people who have sent them follow requests
+  EXISTS (
+    SELECT 1 
+    FROM "FollowRequest" fr
+    JOIN "ProfileSharer" ps ON fr."sharerId" = ps.id
+    WHERE fr."requestorId" = "Profile".id
+    AND ps."profileId" = auth.uid()
+  ) OR
+  -- Users can view profiles of sharers they've sent requests to
+  EXISTS (
+    SELECT 1
+    FROM "FollowRequest" fr
+    WHERE fr."requestorId" = auth.uid()
+    AND "Profile".id IN (
+      SELECT "profileId"
+      FROM "ProfileSharer"
+      WHERE id = fr."sharerId"
+    )
   )
 );
 
@@ -49,4 +78,5 @@ USING (
 );
 
 -- Grant necessary permissions
-GRANT ALL ON "FollowRequest" TO authenticated; 
+GRANT ALL ON "FollowRequest" TO authenticated;
+GRANT ALL ON "Profile" TO authenticated; 
