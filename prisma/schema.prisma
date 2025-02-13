@@ -139,6 +139,7 @@ model Profile {
   updatedAt                                DateTime                        @db.Timestamptz(6)
   FollowRequest                            FollowRequest[]
   Invitation_Invitation_inviterIdToProfile Invitation[]                    @relation("Invitation_inviterIdToProfile")
+  Notification                             Notification[]
   ProfileExecutor                          ProfileExecutor[]
   ProfileListener                          ProfileListener[]
   ProfileRole                              ProfileRole[]
@@ -171,7 +172,7 @@ model ProfileListener {
   lastViewed     DateTime?
   notifications  Boolean          @default(true)
   createdAt      DateTime         @default(now()) @db.Timestamptz(6)
-  updatedAt      DateTime         @db.Timestamptz(6)
+  updatedAt      DateTime?        @db.Timestamptz(6)
   Profile        Profile          @relation(fields: [listenerId], references: [id], onDelete: Cascade)
   ProfileSharer  ProfileSharer    @relation(fields: [sharerId], references: [id], onDelete: Cascade)
   PromptResponse PromptResponse[] @relation("ListenerPromptViews")
@@ -182,10 +183,12 @@ model ProfileListener {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model ProfileRole {
-  id        String  @id @db.Uuid
-  profileId String  @db.Uuid
+  id        String   @id @db.Uuid
+  profileId String   @db.Uuid
   role      Role
-  Profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @db.Timestamptz(6)
+  Profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@unique([profileId, role])
 }
@@ -558,6 +561,23 @@ model FollowRequest {
   @@index([requestorId], map: "idx_follow_request_requestor")
   @@index([sharerId], map: "idx_follow_request_sharer")
   @@index([status], map: "idx_follow_request_status")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Notification {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId    String   @db.Uuid
+  type      String
+  message   String
+  data      Json?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @db.Timestamptz(6)
+  Profile   Profile  @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_notification_user")
+
+  @@index([userId], map: "idx_notification_userid")
+  @@index([createdAt], map: "notification_created_at_idx")
+  @@index([userId], map: "notification_user_id_idx")
 }
 
 enum InvitationStatus {

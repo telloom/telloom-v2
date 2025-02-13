@@ -2,12 +2,9 @@
 
 import { useEffect } from 'react';
 import { format } from 'date-fns';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Loader2, X } from 'lucide-react';
 import { useSharerConnectionsStore } from '@/stores/connections/sharerConnectionsStore';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 export default function InvitationsList() {
   const { invitations, isLoading, error, fetchInvitations, cancelInvitation } = useSharerConnectionsStore();
@@ -43,7 +40,9 @@ export default function InvitationsList() {
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">Pending Invitations</h3>
-      <div className="rounded-md border">
+
+      {/* Desktop view */}
+      <div className="hidden md:block rounded-md border">
         <table className="w-full">
           <thead>
             <tr className="border-b bg-muted/50">
@@ -55,14 +54,23 @@ export default function InvitationsList() {
           <tbody>
             {invitations.map((invitation) => (
               <tr key={invitation.id} className="border-b">
-                <td className="py-3 px-4">{invitation.inviteeEmail}</td>
+                <td className="py-3 px-4">
+                  <div>
+                    <div>{invitation.inviteeEmail}</div>
+                    {invitation.role === 'EXECUTOR' && (
+                      <div className="text-sm text-muted-foreground">
+                        {invitation.executorFirstName} {invitation.executorLastName}
+                      </div>
+                    )}
+                  </div>
+                </td>
                 <td className="py-3 px-4 capitalize">{invitation.role.toLowerCase()}</td>
                 <td className="py-3 px-4 text-right">
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => cancelInvitation(invitation.id)}
-                    className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                    className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-50"
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -71,6 +79,40 @@ export default function InvitationsList() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile view */}
+      <div className="md:hidden space-y-4">
+        {invitations.map((invitation) => (
+          <div
+            key={invitation.id}
+            className="border rounded-lg p-4 space-y-2"
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="font-medium break-all">
+                  {invitation.inviteeEmail}
+                </div>
+                {invitation.role === 'EXECUTOR' && (
+                  <div className="text-sm text-muted-foreground">
+                    {invitation.executorFirstName} {invitation.executorLastName}
+                  </div>
+                )}
+                <span className="text-xs capitalize bg-muted px-2 py-1 rounded-full mt-2 inline-block">
+                  {invitation.role.toLowerCase()}
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => cancelInvitation(invitation.id)}
+                className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-50"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

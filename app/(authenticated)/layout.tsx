@@ -7,10 +7,10 @@ export default async function AuthenticatedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = createClient();
+  const { data: { user }, error } = await supabase.auth.getUser();
 
-  if (!user) {
+  if (error || !user) {
     redirect('/login');
   }
 

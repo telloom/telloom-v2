@@ -18,13 +18,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuFooter,
 } from './ui/dropdown-menu';
 import { Button } from './ui/button';
-import { UserPlus, Users, UserCircle, Settings, LogOut, SwitchCamera } from 'lucide-react';
+import { UserPlus, Users, UserCircle, Settings, LogOut, SwitchCamera, Bell, BellRing, CircleDot } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserStore } from '@/stores/userStore';
 import { createClient } from '@/utils/supabase/client';
 import InviteModal from './invite/InviteModal';
+import NotificationsBadge from '@/components/notifications/NotificationsBadge';
+import useSWR from 'swr';
 
 function useCurrentRole() {
   const pathname = usePathname();
@@ -126,6 +129,43 @@ export default function Header() {
     }
   };
 
+  const getNotificationsLink = () => {
+    const role = currentRole?.toLowerCase();
+    if (!role) return '/select-role';
+
+    if (role === 'executor' && sharerId) {
+      return `/role-executor/${sharerId}/notifications`;
+    }
+
+    return `/role-${role}/notifications`;
+  };
+
+  const getNotificationLink = (notification: any) => {
+    const role = currentRole?.toLowerCase();
+    if (!role) return '/select-role';
+
+    switch (notification.type) {
+      case 'FOLLOW_REQUEST':
+        return `/role-${role}/connections?tab=requests`;
+      case 'INVITATION':
+        return `/role-${role}/connections?tab=pending`;
+      case 'CONNECTION_CHANGE':
+        return `/role-${role}/connections?tab=active`;
+      case 'TOPIC_RESPONSE':
+      case 'TOPIC_COMMENT':
+        return `/role-${role}/topics`;
+      default:
+        return getNotificationsLink();
+    }
+  };
+
+  // Fetch notifications
+  const { data: notificationsData } = useSWR('/api/notifications', (url) => 
+    fetch(url).then(res => res.json())
+  );
+
+  const recentNotifications = notificationsData?.notifications?.slice(0, 3) || [];
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex items-center justify-between px-6 py-3">
@@ -148,16 +188,75 @@ export default function Header() {
               <Button
                 variant="outline"
                 size="sm"
-                className="flex items-center gap-2 border-2 border-[#1B4332] hover:bg-[#8fbc55] hover:text-[#1B4332] transition-all duration-300"
                 onClick={() => setShowInviteModal(true)}
+                className="gap-2 rounded-full border-[1px] hover:bg-[#1B4332] hover:text-white transition-colors"
               >
                 <UserPlus className="h-4 w-4" />
-                <span>Invite</span>
+                Invite
               </Button>
             )}
-            <span className="text-sm">
-              Welcome, {profile?.firstName || user.email}
-            </span>
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button 
+                    className="group relative inline-flex items-center justify-center w-10 h-10 focus:outline-none"
+                    aria-label="View notifications"
+                  >
+                    <Bell className="h-5 w-5 text-foreground group-hover:hidden transition-colors" />
+                    <BellRing className="h-5 w-5 text-[#1B4332] hidden group-hover:block transition-colors" />
+                    <div className="absolute -top-1 -right-1">
+                      <NotificationsBadge />
+                    </div>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-80">
+                  <div className="py-2 px-4 font-semibold border-b">
+                    Notifications
+                  </div>
+                  {recentNotifications.length > 0 ? (
+                    <>
+                      {recentNotifications.map((notification) => (
+                        <DropdownMenuItem
+                          key={notification.id}
+                          asChild
+                          className="py-3 px-4 cursor-pointer"
+                        >
+                          <Link href={getNotificationLink(notification)}>
+                            <div className="flex items-start gap-2">
+                              {!notification.isRead && (
+                                <CircleDot className="h-2 w-2 mt-1.5 shrink-0 text-[#8fbc55]" />
+                              )}
+                              <div className={`${!notification.isRead ? 'font-medium' : ''}`}>
+                                {notification.message}
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {new Date(notification.createdAt).toLocaleString()}
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild className="py-2 px-4">
+                        <Link 
+                          href={getNotificationsLink()} 
+                          className="w-full text-center text-sm text-[#1B4332] hover:text-[#8fbc55]"
+                        >
+                          View all notifications
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  ) : (
+                    <div className="py-3 px-4 text-center text-muted-foreground">
+                      No new notifications
+                    </div>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <span className="text-sm">
+                Welcome, {profile?.firstName || user.email}
+              </span>
+            </div>
             <DropdownMenu>
               <DropdownMenuTrigger>
                 <AvatarComponent className="h-8 w-8">
