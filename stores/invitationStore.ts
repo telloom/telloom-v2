@@ -81,19 +81,26 @@ export const useInvitationStore = create<InvitationStore>((set, get) => ({
         throw new Error('User is not a sharer');
       }
 
+      // Check if the invitee already has a profile
+      const { data: existingProfile } = await supabase
+        .from('Profile')
+        .select('firstName, lastName')
+        .eq('email', email.toLowerCase())
+        .maybeSingle();
+
       const now = new Date().toISOString();
       const { data: invitation, error: insertError } = await supabase
         .from('Invitation')
         .insert([{
           sharerId: sharer.id,
           inviterId: profile.user.id,
-          inviteeEmail: email,
+          inviteeEmail: email.toLowerCase(),
           role,
           status: 'PENDING',
           token: crypto.randomUUID(),
           createdAt: now,
           updatedAt: now,
-          ...(role === 'EXECUTOR' ? {
+          ...(role === 'EXECUTOR' && !existingProfile ? {
             executorFirstName: firstName,
             executorLastName: lastName,
             executorRelation: relation,

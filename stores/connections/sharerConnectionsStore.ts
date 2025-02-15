@@ -38,7 +38,7 @@ export interface FollowRequest {
   id: string;
   requestorId: string;
   sharerId: string;
-  status: string;
+  status: 'PENDING' | 'APPROVED' | 'DENIED' | 'REVOKED';
   createdAt: string;
   updatedAt: string;
   requestor: {
@@ -54,6 +54,7 @@ interface SharerConnectionsStore {
   connections: Connection[];
   invitations: Invitation[];
   followRequests: FollowRequest[];
+  pastFollowRequests: FollowRequest[];
   isLoading: boolean;
   error: string | null;
   
@@ -61,6 +62,7 @@ interface SharerConnectionsStore {
   fetchConnections: () => Promise<void>;
   fetchInvitations: () => Promise<void>;
   fetchFollowRequests: () => Promise<void>;
+  fetchPastFollowRequests: () => Promise<void>;
   
   // Invitation operations
   sendInvitation: (data: {
@@ -84,6 +86,7 @@ export const useSharerConnectionsStore = create<SharerConnectionsStore>((set, ge
   connections: [],
   invitations: [],
   followRequests: [],
+  pastFollowRequests: [],
   isLoading: false,
   error: null,
 
@@ -233,6 +236,55 @@ export const useSharerConnectionsStore = create<SharerConnectionsStore>((set, ge
       console.error('Error in fetchFollowRequests:', error);
       set({ error: 'Failed to fetch follow requests', isLoading: false });
       toast.error('Failed to fetch follow requests');
+    }
+  },
+
+  fetchPastFollowRequests: async () => {
+    const supabase = createClient();
+    set({ isLoading: true, error: null });
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No authenticated user');
+
+      // Get the user's ProfileSharer ID
+      const { data: profileSharer, error: profileSharerError } = await supabase
+        .from('ProfileSharer')
+        .select('id')
+        .eq('profileId', user.id)
+        .single();
+
+      if (profileSharerError) {
+        console.error('ProfileSharer error:', profileSharerError);
+        throw new Error('No ProfileSharer found');
+      }
+      
+      const { data: requests, error: requestsError } = await supabase
+        .from('FollowRequest')
+        .select(`
+          *,
+          requestor:Profile (
+            id,
+            firstName,
+            lastName,
+            email,
+            avatarUrl
+          )
+        `)
+        .eq('sharerId', profileSharer.id)
+        .in('status', ['REVOKED', 'DENIED'])
+        .order('updatedAt', { ascending: false });
+
+      if (requestsError) {
+        console.error('Error fetching past follow requests:', requestsError);
+        throw requestsError;
+      }
+
+      set({ pastFollowRequests: requests || [], isLoading: false });
+    } catch (error) {
+      console.error('Error in fetchPastFollowRequests:', error);
+      set({ error: 'Failed to fetch past follow requests', isLoading: false });
+      toast.error('Failed to fetch past follow requests');
     }
   },
 
@@ -421,30 +473,46 @@ export const useSharerConnectionsStore = create<SharerConnectionsStore>((set, ge
   },
 
   removeConnection: async (connectionId: string) => {
-    const supabase = createClient();
-    set({ isLoading: true, error: null });
-
     try {
-      const connection = get().connections.find(c => c.id === connectionId);
-      if (!connection) throw new Error('Connection not found');
+      const supabase = createClient();
+      
+      // First get the connection details to find the listener
+      const { data: connection, error: connectionError } = await supabase
+        .from('ProfileListener')
+        .select('listenerId, sharerId')
+        .eq('id', connectionId)
+        .single();
 
-      const table = connection.role === 'LISTENER' ? 'ProfileListener' : 'ProfileExecutor';
-      const { error } = await supabase
-        .from(table)
+      if (connectionError) throw connectionError;
+
+      // Delete the ProfileListener record
+      const { error: deleteError } = await supabase
+        .from('ProfileListener')
         .delete()
         .eq('id', connectionId);
 
-      if (error) throw error;
+      if (deleteError) throw deleteError;
 
-      set(state => ({
-        connections: state.connections.filter(conn => conn.id !== connectionId),
-        isLoading: false
-      }));
+      // Update any associated follow request to REVOKED status
+      if (connection) {
+        const { error: updateError } = await supabase
+          .from('FollowRequest')
+          .update({
+            status: 'REVOKED',
+            updatedAt: new Date().toISOString()
+          })
+          .eq('requestorId', connection.listenerId)
+          .eq('sharerId', connection.sharerId)
+          .eq('status', 'APPROVED');
 
+        if (updateError) throw updateError;
+      }
+
+      // Refresh the connections list
+      await get().fetchConnections();
       toast.success('Connection removed successfully');
     } catch (error) {
       console.error('Error removing connection:', error);
-      set({ error: 'Failed to remove connection', isLoading: false });
       toast.error('Failed to remove connection');
     }
   },

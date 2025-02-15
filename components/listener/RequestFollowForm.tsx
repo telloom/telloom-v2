@@ -50,7 +50,7 @@ export default function RequestFollowForm() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         toast.error('Please sign in to continue')
-        return false
+        return null
       }
 
       // Direct profile lookup with RLS
@@ -72,107 +72,82 @@ export default function RequestFollowForm() {
       if (profileError) {
         console.error('Profile search error:', profileError)
         toast.error('An error occurred while searching')
-        return false
+        return null
       }
 
       if (!profile) {
         toast.error('No user found with that email address')
-        return false
+        return null
       }
 
       // Check if they have a ProfileSharer record
       const sharerProfile = profile.ProfileSharer?.[0]
       if (!sharerProfile) {
         toast.error('This user is not a sharer')
-        return false
+        return null
       }
 
-      setFoundSharer({
+      const sharerData = {
         id: profile.id,
         firstName: profile.firstName,
         lastName: profile.lastName,
         email: profile.email,
         avatarUrl: profile.avatarUrl,
         sharerId: sharerProfile.id
-      })
-      return true
+      };
+      
+      setFoundSharer(sharerData)
+      return sharerData
     } catch (error) {
       console.error('Unexpected error:', error)
       toast.error('An error occurred while searching')
-      return false
+      return null
     } finally {
       setIsSearching(false)
     }
   }
 
   const onSubmit = async (data: RequestFollowFormData) => {
-    if (!foundSharer) {
-      const found = await searchSharer(data.email)
-      if (!found) return
-    }
-
-    if (!foundSharer || !foundSharer.sharerId) {
-      toast.error('Unable to find sharer information. Please try again.')
-      return
-    }
-
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      // Get current user first
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (!user || userError) {
-        toast.error('Please sign in to send a follow request')
-        return
+        toast.error('Please sign in to send a follow request');
+        return;
       }
 
-      // Check if already a listener
-      const { data: existingListener } = await supabase
-        .from('ProfileListener')
-        .select('id')
-        .eq('listenerId', user.id)
-        .eq('sharerId', foundSharer.sharerId)
-        .eq('hasAccess', true)
-        .single()
-
-      if (existingListener) {
-        toast.error('You are already following this sharer')
-        return
-      }
-
-      // Check for existing pending request
-      const { data: existingRequest } = await supabase
-        .from('FollowRequest')
-        .select('id, status')
-        .eq('requestorId', user.id)
-        .eq('sharerId', foundSharer.sharerId)
-        .eq('status', 'PENDING')
-        .single()
-
-      if (existingRequest) {
-        toast.error('You already have a pending request for this sharer')
-        return
+      // If we don't have a foundSharer yet, search for them
+      let currentSharer = foundSharer;
+      if (!currentSharer) {
+        const searchResult = await searchSharer(data.email);
+        if (!searchResult) {
+          setIsLoading(false);
+          return;
+        }
+        currentSharer = searchResult;
       }
 
       // Create the follow request
       const { data: followRequest, error: requestError } = await supabase
         .from('FollowRequest')
         .insert({
-          sharerId: foundSharer.sharerId,
+          sharerId: currentSharer.sharerId,
           requestorId: user.id,
           status: 'PENDING'
         })
         .select()
-        .single()
+        .single();
 
       if (requestError) {
-        console.error('Error creating follow request:', requestError)
+        console.error('Error creating follow request:', requestError);
         if (requestError.code === '23505') {
-          toast.error('You already have a pending request for this sharer')
+          toast.error('You already have a pending request for this sharer');
         } else {
-          toast.error('Failed to send follow request')
+          toast.error('Failed to send follow request');
         }
-        return
+        return;
       }
 
       // Send notification
@@ -184,22 +159,22 @@ export default function RequestFollowForm() {
         body: JSON.stringify({
           requestId: followRequest.id,
         }),
-      })
+      });
 
       if (!notifyResponse.ok) {
-        console.error('Failed to send notification')
+        console.error('Failed to send notification');
       }
 
-      toast.success(`Follow request sent to ${foundSharer.firstName}`)
-      form.reset()
-      setFoundSharer(null)
+      toast.success(`Follow request sent to ${currentSharer.firstName}`);
+      form.reset();
+      setFoundSharer(null);
     } catch (error) {
-      console.error('Error sending follow request:', error)
-      toast.error('An unexpected error occurred')
+      console.error('Error sending follow request:', error);
+      toast.error('An unexpected error occurred');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleEmailBlur = async () => {
     const email = form.getValues('email')
@@ -209,11 +184,11 @@ export default function RequestFollowForm() {
   }
 
   return (
-    <Card className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
-      <CardHeader>
-        <CardTitle className="text-black">Request to Follow</CardTitle>
-      </CardHeader>
-      <CardContent>
+    <div>
+      <div className="px-6 pt-6">
+        <h2 className="text-xl font-semibold text-black">Request to Follow</h2>
+      </div>
+      <div className="p-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
@@ -279,7 +254,7 @@ export default function RequestFollowForm() {
             </Button>
           </form>
         </Form>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 } 

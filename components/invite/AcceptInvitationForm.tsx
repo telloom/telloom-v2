@@ -101,9 +101,9 @@ export default function AcceptInvitationForm({
       
       // Redirect based on the role
       if (invitation.role === 'LISTENER') {
-        router.push('/role-listener/dashboard');
+        router.push('/role-listener');
       } else if (invitation.role === 'EXECUTOR') {
-        router.push('/role-executor/dashboard');
+        router.push('/role-executor');
       } else {
         router.push('/');
       }

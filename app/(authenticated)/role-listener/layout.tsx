@@ -15,7 +15,7 @@ async function RoleListenerLayoutContent({
   }
 
   return (
-    <div className="h-[calc(100vh-65px)] overflow-hidden">
+    <div className="min-h-[calc(100vh-65px)]">
       {children}
     </div>
   );

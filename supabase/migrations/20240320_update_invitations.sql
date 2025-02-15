@@ -1,4 +1,4 @@
--- Create or update Invitation table policies
+-- Drop existing policies
 DROP POLICY IF EXISTS "Users can view invitations" ON "Invitation";
 DROP POLICY IF EXISTS "Users can create invitations" ON "Invitation";
 DROP POLICY IF EXISTS "Users can manage invitations" ON "Invitation";
@@ -29,25 +29,7 @@ WITH CHECK (
     AND id = "sharerId"
   ) AND
   -- Role must be valid
-  role IN ('LISTENER', 'EXECUTOR') AND
-  -- Cannot invite if already has active relationship
-  NOT EXISTS (
-    SELECT 1 FROM "Profile" p
-    LEFT JOIN "ProfileExecutor" pe ON (
-      pe."executorId" = p.id AND
-      pe."sharerId" = "Invitation"."sharerId"
-    )
-    LEFT JOIN "ProfileListener" pl ON (
-      pl."listenerId" = p.id AND
-      pl."sharerId" = "Invitation"."sharerId" AND
-      pl."hasAccess" = true
-    )
-    WHERE p.email = "Invitation"."inviteeEmail"
-    AND (
-      ("Invitation".role = 'EXECUTOR' AND pe."executorId" IS NOT NULL) OR
-      ("Invitation".role = 'LISTENER' AND pl."listenerId" IS NOT NULL)
-    )
-  )
+  role IN ('LISTENER', 'EXECUTOR')
 );
 
 -- Create function to generate secure invitation token
@@ -106,7 +88,12 @@ CREATE OR REPLACE FUNCTION public.accept_invitation_by_token(p_token text)
 RETURNS void AS $$
 DECLARE
   v_invitation "Invitation"%ROWTYPE;
+  v_profile_id uuid;
+  v_now timestamptz;
 BEGIN
+  -- Get current timestamp
+  v_now := now();
+
   -- Get invitation details
   SELECT * INTO v_invitation
   FROM "Invitation"
@@ -118,18 +105,18 @@ BEGIN
     RAISE EXCEPTION 'Invalid or expired invitation token';
   END IF;
 
-  -- Verify the current user's email matches the invitation
-  IF NOT EXISTS (
-    SELECT 1 FROM "Profile"
-    WHERE id = auth.uid()
-    AND email = v_invitation."inviteeEmail"
-  ) THEN
-    RAISE EXCEPTION 'This invitation was not sent to your email address';
+  -- Get profile ID for the invitee
+  SELECT id INTO v_profile_id
+  FROM "Profile"
+  WHERE email = v_invitation."inviteeEmail";
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Profile not found for invitation email';
   END IF;
 
   -- Create appropriate relationship based on role
   IF v_invitation.role = 'EXECUTOR' THEN
-    -- Create executor relationship
+    -- Create executor relationship if it doesn't exist
     INSERT INTO "ProfileExecutor" (
       "sharerId",
       "executorId",
@@ -137,43 +124,70 @@ BEGIN
     )
     VALUES (
       v_invitation."sharerId",
-      auth.uid(),
-      now()
-    );
+      v_profile_id,
+      v_now
+    )
+    ON CONFLICT ("sharerId", "executorId") DO NOTHING;
 
     -- Add executor role
     INSERT INTO "ProfileRole" ("profileId", "role", "createdAt")
-    VALUES (auth.uid(), 'EXECUTOR', now())
+    VALUES (v_profile_id, 'EXECUTOR', v_now)
     ON CONFLICT ("profileId", "role") DO NOTHING;
 
-  ELSIF v_invitation.role = 'LISTENER' THEN
-    -- Create listener relationship
+    -- Also create listener relationship for executors
     INSERT INTO "ProfileListener" (
       "sharerId",
       "listenerId",
       "sharedSince",
       "hasAccess",
-      "createdAt"
+      "createdAt",
+      "updatedAt"
     )
     VALUES (
       v_invitation."sharerId",
-      auth.uid(),
-      now(),
+      v_profile_id,
+      v_now,
       true,
-      now()
-    );
+      v_now,
+      v_now
+    )
+    ON CONFLICT ("sharerId", "listenerId") DO NOTHING;
+
+    -- Add listener role for executors
+    INSERT INTO "ProfileRole" ("profileId", "role", "createdAt")
+    VALUES (v_profile_id, 'LISTENER', v_now)
+    ON CONFLICT ("profileId", "role") DO NOTHING;
+  ELSE
+    -- Create listener relationship if it doesn't exist
+    INSERT INTO "ProfileListener" (
+      "sharerId",
+      "listenerId",
+      "sharedSince",
+      "hasAccess",
+      "createdAt",
+      "updatedAt"
+    )
+    VALUES (
+      v_invitation."sharerId",
+      v_profile_id,
+      v_now,
+      true,
+      v_now,
+      v_now
+    )
+    ON CONFLICT ("sharerId", "listenerId") DO NOTHING;
 
     -- Add listener role
     INSERT INTO "ProfileRole" ("profileId", "role", "createdAt")
-    VALUES (auth.uid(), 'LISTENER', now())
+    VALUES (v_profile_id, 'LISTENER', v_now)
     ON CONFLICT ("profileId", "role") DO NOTHING;
   END IF;
 
   -- Update invitation status
   UPDATE "Invitation"
   SET status = 'ACCEPTED',
-      "acceptedAt" = now(),
-      "updatedAt" = now()
+      "acceptedAt" = v_now,
+      "updatedAt" = v_now
   WHERE id = v_invitation.id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

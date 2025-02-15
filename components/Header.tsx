@@ -130,30 +130,35 @@ export default function Header() {
   };
 
   const getNotificationsLink = () => {
-    const role = currentRole?.toLowerCase();
-    if (!role) return '/select-role';
+    if (!currentRole) return '/select-role';
 
-    if (role === 'executor' && sharerId) {
-      return `/role-executor/${sharerId}/notifications`;
+    switch (currentRole) {
+      case 'SHARER':
+        return '/role-sharer/notifications';
+      case 'LISTENER':
+        return '/role-listener/notifications';
+      case 'EXECUTOR':
+        return '/role-executor/notifications';
+      default:
+        return '/select-role';
     }
-
-    return `/role-${role}/notifications`;
   };
 
   const getNotificationLink = (notification: any) => {
-    const role = currentRole?.toLowerCase();
-    if (!role) return '/select-role';
+    if (!currentRole) return '/select-role';
+
+    const rolePath = `role-${currentRole.toLowerCase()}`;
 
     switch (notification.type) {
       case 'FOLLOW_REQUEST':
-        return `/role-${role}/connections?tab=requests`;
+        return `/${rolePath}/connections?tab=requests`;
       case 'INVITATION':
-        return `/role-${role}/connections?tab=pending`;
+        return `/${rolePath}/connections?tab=pending`;
       case 'CONNECTION_CHANGE':
-        return `/role-${role}/connections?tab=active`;
+        return `/${rolePath}/connections?tab=active`;
       case 'TOPIC_RESPONSE':
       case 'TOPIC_COMMENT':
-        return `/role-${role}/topics`;
+        return `/${rolePath}/topics`;
       default:
         return getNotificationsLink();
     }

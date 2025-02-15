@@ -11,8 +11,6 @@ export async function POST(request: Request) {
   try {
     const cookieStore = cookies();
     const supabase = createClient();
-
-    // Get the current user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
@@ -22,97 +20,107 @@ export async function POST(request: Request) {
       );
     }
 
-    const { token } = await request.json();
+    const { invitationId, token } = await request.json();
 
-    // Start a transaction by using a single timestamp
-    const now = new Date().toISOString();
+    if (!invitationId || !token) {
+      return NextResponse.json(
+        { error: 'Invitation ID and token are required' },
+        { status: 400 }
+      );
+    }
 
-    // Fetch the invitation
+    console.log('Processing invitation acceptance for token:', token);
+
+    // Verify the invitation exists and is for this user
     const { data: invitation, error: invitationError } = await supabase
       .from('Invitation')
-      .select('*')
+      .select(`
+        *,
+        sharer:ProfileSharer!sharerId (
+          profile:Profile!profileId (
+            firstName,
+            lastName,
+            email
+          )
+        )
+      `)
+      .eq('id', invitationId)
       .eq('token', token)
+      .eq('inviteeEmail', user.email)
       .eq('status', 'PENDING')
       .single();
 
+    console.log('Invitation lookup result:', { invitation, error: invitationError });
+
     if (invitationError || !invitation) {
       return NextResponse.json(
-        { error: 'Invalid or expired invitation' },
+        { error: 'Invalid invitation' },
         { status: 404 }
       );
     }
 
-    // Verify the email matches
-    if (invitation.inviteeEmail.toLowerCase() !== user.email?.toLowerCase()) {
+    const now = new Date().toISOString();
+
+    // Create executor relationship
+    console.log('Creating executor relationship');
+    const { error: executorError } = await supabase
+      .from('ProfileExecutor')
+      .insert([{
+        id: crypto.randomUUID(),
+        sharerId: invitation.sharerId,
+        executorId: user.id,
+        createdAt: now,
+        updatedAt: now
+      }]);
+
+    if (executorError) {
+      console.error('Error creating executor relationship:', executorError);
       return NextResponse.json(
-        { error: 'Email mismatch' },
-        { status: 403 }
+        { error: 'Failed to create executor relationship' },
+        { status: 500 }
       );
     }
 
-    // Update the invitation status
+    // Add executor role if not exists
+    const { error: roleError } = await supabase
+      .from('ProfileRole')
+      .insert([{
+        id: crypto.randomUUID(),
+        profileId: user.id,
+        role: 'EXECUTOR',
+        createdAt: now,
+        updatedAt: now
+      }])
+      .match(['profileId', 'role']);
+
+    if (roleError) {
+      console.error('Error adding executor role:', roleError);
+      // Don't return error here as the role might already exist
+    }
+
+    // Update invitation status
     const { error: updateError } = await supabase
       .from('Invitation')
       .update({
         status: 'ACCEPTED',
         acceptedAt: now,
-        updatedAt: now,
+        updatedAt: now
       })
-      .eq('id', invitation.id);
+      .eq('id', invitationId);
 
     if (updateError) {
-      throw updateError;
-    }
-
-    // Add the role to ProfileRole if it doesn't exist
-    const { error: roleError } = await supabase
-      .from('ProfileRole')
-      .upsert({
-        id: user.id,
-        profileId: user.id,
-        role: invitation.role,
-      });
-
-    if (roleError) {
-      throw roleError;
-    }
-
-    // Create the appropriate relationship based on the role
-    if (invitation.role === 'LISTENER') {
-      const { error: listenerError } = await supabase
-        .from('ProfileListener')
-        .upsert({
-          id: crypto.randomUUID(),
-          listenerId: user.id,
-          sharerId: invitation.sharerId,
-          sharedSince: now,
-          createdAt: now,
-          updatedAt: now,
-        });
-
-      if (listenerError) {
-        throw listenerError;
-      }
-    } else if (invitation.role === 'EXECUTOR') {
-      const { error: executorError } = await supabase
-        .from('ProfileExecutor')
-        .upsert({
-          id: crypto.randomUUID(),
-          executorId: user.id,
-          sharerId: invitation.sharerId,
-          createdAt: now,
-        });
-
-      if (executorError) {
-        throw executorError;
-      }
+      console.error('Error updating invitation:', updateError);
+      return NextResponse.json(
+        { error: 'Failed to update invitation status' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error accepting invitation:', error);
     return NextResponse.json(
-      { error: 'Failed to accept invitation' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

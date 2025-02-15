@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { Star, ListPlus, MessageSquare, ArrowRight } from 'lucide-react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, A11y, Mousewheel } from 'swiper/modules';
+import { useRouter } from 'next/navigation';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -20,6 +21,7 @@ import { createBrowserClient } from '@supabase/ssr'
 
 export default function TopicsList({ promptCategories: initialPromptCategories }: { promptCategories: PromptCategory[] }) {
   const { width } = useWindowSize();
+  const router = useRouter();
   const [slidesPerView, setSlidesPerView] = useState(3);
   const [randomSuggestedTopics, setRandomSuggestedTopics] = useState<PromptCategory[]>([]);
   const [promptCategories, setPromptCategories] = useState(initialPromptCategories);
@@ -78,6 +80,18 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
 
     const newValue = !category.isFavorite;
 
+    // Get the sharer's profile ID
+    const { data: sharerProfile } = await supabase
+      .from('ProfileSharer')
+      .select('id')
+      .eq('profileId', user.id)
+      .single();
+
+    if (!sharerProfile) {
+      console.error('No sharer profile found');
+      return;
+    }
+
     // Immediately update local state
     updateCategoryStatus(category.id, { isFavorite: newValue });
 
@@ -85,7 +99,12 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
       // Add to favorites
       const { error } = await supabase
         .from('TopicFavorite')
-        .insert({ profileId: user.id, promptCategoryId: category.id });
+        .insert({
+          profileId: user.id,
+          promptCategoryId: category.id,
+          role: 'SHARER',
+          sharerId: sharerProfile.id
+        });
 
       if (error) {
         console.error('Error adding to favorites:', error);
@@ -98,7 +117,9 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
         .from('TopicFavorite')
         .delete()
         .eq('profileId', user.id)
-        .eq('promptCategoryId', category.id);
+        .eq('promptCategoryId', category.id)
+        .eq('role', 'SHARER')
+        .eq('sharerId', sharerProfile.id);
 
       if (error) {
         console.error('Error removing from favorites:', error);
@@ -115,6 +136,18 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
 
     const newValue = !category.isInQueue;
 
+    // Get the sharer's profile ID
+    const { data: sharerProfile } = await supabase
+      .from('ProfileSharer')
+      .select('id')
+      .eq('profileId', user.id)
+      .single();
+
+    if (!sharerProfile) {
+      console.error('No sharer profile found');
+      return;
+    }
+
     // Immediately update local state
     updateCategoryStatus(category.id, { isInQueue: newValue });
 
@@ -122,7 +155,12 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
       // Add to queue
       const { error } = await supabase
         .from('TopicQueueItem')
-        .insert({ profileId: user.id, promptCategoryId: category.id });
+        .insert({
+          profileId: user.id,
+          promptCategoryId: category.id,
+          role: 'SHARER',
+          sharerId: sharerProfile.id
+        });
 
       if (error) {
         console.error('Error adding to queue:', error);
@@ -135,7 +173,9 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
         .from('TopicQueueItem')
         .delete()
         .eq('profileId', user.id)
-        .eq('promptCategoryId', category.id);
+        .eq('promptCategoryId', category.id)
+        .eq('role', 'SHARER')
+        .eq('sharerId', sharerProfile.id);
 
       if (error) {
         console.error('Error removing from queue:', error);
@@ -151,7 +191,7 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
         promptCategory={category} 
         onFavoriteClick={(e) => handleFavoriteClick(e, category)}
         onQueueClick={(e) => handleQueueClick(e, category)}
-        onClick={() => {}}
+        onClick={() => router.push(`/role-sharer/topics/${category.id}`)}
       />
     </SwiperSlide>
   );

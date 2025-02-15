@@ -8,16 +8,18 @@ import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import AcceptInvitationForm from '@/components/invite/AcceptInvitationForm';
 
+interface AcceptInvitationPageProps {
+  searchParams: { [key: string]: string | string[] | undefined };
+}
+
 export default async function AcceptInvitationPage({
   searchParams,
-}: {
-  searchParams: { token?: string };
-}) {
+}: AcceptInvitationPageProps) {
   const cookieStore = cookies();
   const supabase = createClient();
 
   // Check if we have a token
-  const { token } = searchParams;
+  const token = typeof searchParams?.token === 'string' ? searchParams.token : undefined;
   if (!token) {
     redirect('/');
   }
@@ -44,9 +46,9 @@ export default async function AcceptInvitationPage({
     redirect('/?error=invalid-invitation');
   }
 
-  // Check if user is authenticated
-  const { data: { session } } = await supabase.auth.getSession();
-  const isAuthenticated = !!session?.user;
+  // Check if user is authenticated using getUser instead of getSession
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const isAuthenticated = !!user && !userError;
 
   // If user is not authenticated, we'll show them a sign up form
   // If they are authenticated, we'll show them the acceptance confirmation
@@ -69,7 +71,7 @@ export default async function AcceptInvitationPage({
         <AcceptInvitationForm
           invitation={invitation}
           isAuthenticated={isAuthenticated}
-          userEmail={session?.user?.email}
+          userEmail={user?.email}
         />
       </div>
     </div>

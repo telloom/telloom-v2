@@ -154,12 +154,15 @@ model Profile {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model ProfileExecutor {
-  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sharerId      String        @unique @db.Uuid
-  executorId    String        @db.Uuid
-  createdAt     DateTime      @default(now()) @db.Timestamptz(6)
-  Profile       Profile       @relation(fields: [executorId], references: [id], onDelete: Cascade)
-  ProfileSharer ProfileSharer @relation(fields: [sharerId], references: [id], onDelete: Cascade)
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sharerId       String           @unique @db.Uuid
+  executorId     String           @db.Uuid
+  createdAt      DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime         @default(now()) @db.Timestamptz(6)
+  Profile        Profile          @relation(fields: [executorId], references: [id], onDelete: Cascade)
+  ProfileSharer  ProfileSharer    @relation(fields: [sharerId], references: [id], onDelete: Cascade)
+  TopicFavorite  TopicFavorite[]
+  TopicQueueItem TopicQueueItem[]
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -207,6 +210,8 @@ model ProfileSharer {
   Profile                  Profile                    @relation(fields: [profileId], references: [id], onDelete: Cascade)
   PromptResponse           PromptResponse[]
   PromptResponseAttachment PromptResponseAttachment[]
+  TopicFavorite            TopicFavorite[]
+  TopicQueueItem           TopicQueueItem[]
   TopicVideo               TopicVideo[]
   Video                    Video[]
 }
@@ -375,26 +380,42 @@ model SubscriptionEntitlement {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model TopicFavorite {
-  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  profileId        String         @db.Uuid
-  promptCategoryId String         @db.Uuid
-  createdAt        DateTime       @default(now()) @db.Timestamptz(6)
-  Profile          Profile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  PromptCategory   PromptCategory @relation(fields: [promptCategoryId], references: [id], onDelete: Cascade)
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId        String           @db.Uuid
+  promptCategoryId String           @db.Uuid
+  createdAt        DateTime         @default(now()) @db.Timestamptz(6)
+  role             String?
+  sharerId         String?          @db.Uuid
+  executorId       String?          @db.Uuid
+  ProfileExecutor  ProfileExecutor? @relation(fields: [executorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Profile          Profile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  PromptCategory   PromptCategory   @relation(fields: [promptCategoryId], references: [id], onDelete: Cascade)
+  ProfileSharer    ProfileSharer?   @relation(fields: [sharerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([profileId, promptCategoryId])
+  @@index([executorId], map: "topic_favorite_executor_idx")
+  @@index([role], map: "topic_favorite_role_idx")
+  @@index([sharerId], map: "topic_favorite_sharer_idx")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model TopicQueueItem {
-  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  profileId        String         @db.Uuid
-  promptCategoryId String         @db.Uuid
-  createdAt        DateTime       @default(now()) @db.Timestamptz(6)
-  Profile          Profile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  PromptCategory   PromptCategory @relation(fields: [promptCategoryId], references: [id], onDelete: Cascade)
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId        String           @db.Uuid
+  promptCategoryId String           @db.Uuid
+  createdAt        DateTime         @default(now()) @db.Timestamptz(6)
+  role             String?
+  sharerId         String?          @db.Uuid
+  executorId       String?          @db.Uuid
+  ProfileExecutor  ProfileExecutor? @relation(fields: [executorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Profile          Profile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  PromptCategory   PromptCategory   @relation(fields: [promptCategoryId], references: [id], onDelete: Cascade)
+  ProfileSharer    ProfileSharer?   @relation(fields: [sharerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([profileId, promptCategoryId])
+  @@index([executorId], map: "topic_queue_executor_idx")
+  @@index([role], map: "topic_queue_role_idx")
+  @@index([sharerId], map: "topic_queue_sharer_idx")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -667,4 +688,5 @@ enum follow_request_status {
   PENDING
   APPROVED
   DENIED
+  REVOKED
 }

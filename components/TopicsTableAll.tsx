@@ -1,7 +1,7 @@
 // components/TopicsTableAll.tsx
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -21,7 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useRouter, useSearchParams } from 'next/navigation';
-import { createBrowserClient } from '@supabase/ssr'
+import { createClient } from '@/utils/supabase/client';
 import PromptListPopup from './PromptListPopup';
 import { cn } from "@/lib/utils";
 import {
@@ -30,24 +30,143 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ArrowRight, ArrowUpDown, ArrowUp, ArrowDown, Search, LayoutGrid, Table as TableIcon, ListOrdered } from 'lucide-react';
+import { ArrowRight, ArrowUpDown, ArrowUp, ArrowDown, Search, LayoutGrid, Table as TableIcon, ListOrdered, Star, ListPlus } from 'lucide-react';
 import TopicCard from "@/components/TopicCard";
 import { PromptCategory } from '@/types/models';
+import { toast } from 'sonner';
+import dynamic from 'next/dynamic';
 
-type TopicsTableAllProps = {
-  promptCategories: PromptCategory[];
-};
+interface TopicsTableAllProps {
+  initialPromptCategories: PromptCategory[];
+  currentRole?: 'SHARER' | 'EXECUTOR';
+  relationshipId?: string;
+  sharerId?: string;
+}
 
 type SortField = 'topic' | 'theme';
 type SortDirection = 'asc' | 'desc';
 
-export default function TopicsTableAll({ promptCategories: initialPromptCategories }: TopicsTableAllProps) {
+const ActionButton = ({ 
+  onClick, 
+  isActive, 
+  icon: Icon, 
+  tooltip, 
+  isLoading = false
+}: { 
+  onClick: (e: React.MouseEvent) => void; 
+  isActive: boolean; 
+  icon: React.ElementType; 
+  tooltip: string;
+  isLoading?: boolean;
+}) => (
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick(e);
+          }}
+          className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
+          disabled={isLoading}
+        >
+          <Icon className={cn(
+            "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
+            isActive 
+              ? "text-[#1B4332] fill-[#1B4332]" 
+              : "text-gray-400 hover:text-[#8fbc55] hover:fill-[#8fbc55]"
+          )} />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{tooltip}</p>
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
+
+const FilterButtons = dynamic(() => Promise.resolve(({ 
+  viewFilters, 
+  handleViewFilterChange, 
+  handleResetFilters, 
+  viewMode, 
+  setViewMode 
+}: { 
+  viewFilters: string[], 
+  handleViewFilterChange: (value: string) => void, 
+  handleResetFilters: () => void,
+  viewMode: 'table' | 'grid',
+  setViewMode: (mode: 'table' | 'grid') => void
+}) => {
+  return (
+    <div className="flex flex-wrap gap-2 items-center">
+      {[
+        { id: 'favorites', label: 'Favorites' },
+        { id: 'queue', label: 'Queue' },
+        { id: 'with_responses', label: 'Has Responses' }
+      ].map((option) => (
+        <Button
+          key={option.id}
+          variant="outline"
+          onClick={() => handleViewFilterChange(option.id)}
+          className={cn(
+            'border-0 rounded-lg',
+            viewFilters.includes(option.id) 
+              ? 'bg-[#8fbc55] text-[#1B4332] font-medium' 
+              : 'bg-gray-200/50 text-gray-600 hover:bg-[#8fbc55] hover:text-[#1B4332]'
+          )}
+        >
+          {option.label}
+        </Button>
+      ))}
+
+      <Button
+        variant="outline"
+        onClick={handleResetFilters}
+        className="border-0 rounded-lg bg-gray-200/50 text-gray-600 hover:bg-[#8fbc55] hover:text-[#1B4332]"
+      >
+        All Topics
+      </Button>
+
+      <div className="flex items-center gap-2 ml-2 border-l border-gray-200 pl-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setViewMode('table')}
+          className={cn(
+            'p-2 h-9 w-9',
+            viewMode === 'table' ? 'bg-[#8fbc55] text-[#1B4332]' : 'text-gray-500'
+          )}
+        >
+          <TableIcon className="h-5 w-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setViewMode('grid')}
+          className={cn(
+            'p-2 h-9 w-9',
+            viewMode === 'grid' ? 'bg-[#8fbc55] text-[#1B4332]' : 'text-gray-500'
+          )}
+        >
+          <LayoutGrid className="h-5 w-5" />
+        </Button>
+      </div>
+    </div>
+  );
+}), { ssr: false });
+
+export default function TopicsTableAll({ 
+  initialPromptCategories,
+  currentRole = 'SHARER',
+  relationshipId,
+  sharerId
+}: TopicsTableAllProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabase = createClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [viewFilters, setViewFilters] = useState<string[]>(() => {
@@ -55,125 +174,190 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
     return filterParam ? [filterParam] : [];
   });
   const [themeFilter, setThemeFilter] = useState('all');
-  const [promptCategories, setPromptCategories] = useState<PromptCategory[]>(initialPromptCategories);
+  const [promptCategories, setPromptCategories] = useState<PromptCategory[]>(initialPromptCategories || []);
   const [selectedCategory, setSelectedCategory] = useState<PromptCategory | null>(null);
   const [isPromptListOpen, setIsPromptListOpen] = useState(false);
   const [sortField, setSortField] = useState<SortField>('topic');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
-    const loadUserPreferences = async () => {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) return;
+    const fetchUserPreferences = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      const [{ data: favoriteData }, { data: queuedData }] = await Promise.all([
-        supabase
-          .from('TopicFavorite')
-          .select('promptCategoryId')
-          .eq('profileId', user.id),
-        supabase
-          .from('TopicQueueItem')
-          .select('promptCategoryId')
-          .eq('profileId', user.id),
+      // Build the query based on role
+      let favoritesQuery = supabase
+        .from('TopicFavorite')
+        .select('promptCategoryId')
+        .eq('profileId', user.id)
+        .eq('role', currentRole);
+
+      let queueQuery = supabase
+        .from('TopicQueueItem')
+        .select('promptCategoryId')
+        .eq('profileId', user.id)
+        .eq('role', currentRole);
+
+      // Add relationship conditions based on role
+      if (currentRole === 'EXECUTOR') {
+        if (sharerId) {
+          favoritesQuery = favoritesQuery.eq('sharerId', sharerId);
+          queueQuery = queueQuery.eq('sharerId', sharerId);
+        }
+      } else {
+        // For SHARER role
+        if (relationshipId) {
+          favoritesQuery = favoritesQuery.eq('sharerId', relationshipId);
+          queueQuery = queueQuery.eq('sharerId', relationshipId);
+        }
+      }
+
+      // Execute both queries
+      const [{ data: favorites }, { data: queueItems }] = await Promise.all([
+        favoritesQuery,
+        queueQuery
       ]);
 
-      const favoriteIds = favoriteData?.map(f => f.promptCategoryId) || [];
-      const queueIds = queuedData?.map(q => q.promptCategoryId) || [];
+      // Create Sets for efficient lookup
+      const favoritedIds = new Set(favorites?.map((f: { promptCategoryId: string }) => f.promptCategoryId) || []);
+      const queuedIds = new Set(queueItems?.map((q: { promptCategoryId: string }) => q.promptCategoryId) || []);
 
-      setPromptCategories(prev => prev.map(category => ({
-        ...category,
-        isFavorite: favoriteIds.includes(category.id),
-        isInQueue: queueIds.includes(category.id)
-      })));
+      // Update prompt categories with favorite and queue status
+      setPromptCategories(prevCategories => 
+        prevCategories.map(category => ({
+          ...category,
+          isFavorite: favoritedIds.has(category.id),
+          isInQueue: queuedIds.has(category.id)
+        }))
+      );
     };
 
-    loadUserPreferences();
-  }, [supabase, initialPromptCategories]);
+    fetchUserPreferences();
+  }, [supabase, currentRole, relationshipId, sharerId]);
 
-  const handleFavoriteClick = async (e: React.MouseEvent, category: PromptCategory) => {
-    e.stopPropagation();
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return;
+  const toggleFavorite = async (categoryId: string) => {
+    try {
+      setLoading(prev => ({ ...prev, [`favorite-${categoryId}`]: true }));
+      const { data: { user } } = await supabase.auth.getUser();
 
-    const newValue = !category.isFavorite;
-
-    // Immediately update local state
-    setPromptCategories(prev => prev.map(cat => 
-      cat.id === category.id ? { ...cat, isFavorite: newValue } : cat
-    ));
-
-    if (newValue) {
-      // Add to favorites
-      const { error } = await supabase
-        .from('TopicFavorite')
-        .insert({ profileId: user.id, promptCategoryId: category.id });
-
-      if (error) {
-        console.error('Error adding to favorites:', error);
-        // Revert on error
-        setPromptCategories(prev => prev.map(cat => 
-          cat.id === category.id ? { ...cat, isFavorite: !newValue } : cat
-        ));
+      if (!user) {
+        toast.error('You must be logged in to favorite topics');
+        return;
       }
-    } else {
-      // Remove from favorites
-      const { error } = await supabase
-        .from('TopicFavorite')
-        .delete()
-        .eq('profileId', user.id)
-        .eq('promptCategoryId', category.id);
 
-      if (error) {
-        console.error('Error removing from favorites:', error);
-        // Revert on error
-        setPromptCategories(prev => prev.map(cat => 
-          cat.id === category.id ? { ...cat, isFavorite: !newValue } : cat
-        ));
+      const category = promptCategories.find(c => c.id === categoryId);
+      if (!category) return;
+
+      if (category.isFavorite) {
+        // Delete the favorite
+        const { error: deleteError } = await supabase
+          .from('TopicFavorite')
+          .delete()
+          .eq('profileId', user.id)
+          .eq('promptCategoryId', categoryId)
+          .eq('role', currentRole)
+          .eq('sharerId', sharerId);
+
+        if (deleteError) throw deleteError;
+      } else {
+        // Insert new favorite
+        const insertData = {
+          profileId: user.id,
+          promptCategoryId: categoryId,
+          role: currentRole,
+          sharerId: sharerId
+        };
+
+        const { error: insertError } = await supabase
+          .from('TopicFavorite')
+          .insert([insertData]);
+
+        if (insertError) throw insertError;
       }
+
+      // Update local state
+      setPromptCategories(prev =>
+        prev.map(c =>
+          c.id === categoryId
+            ? { ...c, isFavorite: !c.isFavorite }
+            : c
+        )
+      );
+
+      toast.success(
+        category.isFavorite
+          ? 'Removed from favorites'
+          : 'Added to favorites'
+      );
+    } catch (error: any) {
+      console.error('Error toggling favorite:', error);
+      toast.error('Failed to update favorites');
+    } finally {
+      setLoading(prev => ({ ...prev, [`favorite-${categoryId}`]: false }));
     }
   };
 
-  const handleQueueClick = async (e: React.MouseEvent, category: PromptCategory) => {
-    e.stopPropagation();
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return;
+  const toggleQueue = async (categoryId: string) => {
+    try {
+      setLoading(prev => ({ ...prev, [`queue-${categoryId}`]: true }));
+      const { data: { user } } = await supabase.auth.getUser();
 
-    const newValue = !category.isInQueue;
-
-    // Immediately update local state
-    setPromptCategories(prev => prev.map(cat => 
-      cat.id === category.id ? { ...cat, isInQueue: newValue } : cat
-    ));
-
-    if (newValue) {
-      // Add to queue
-      const { error } = await supabase
-        .from('TopicQueueItem')
-        .insert({ profileId: user.id, promptCategoryId: category.id });
-
-      if (error) {
-        console.error('Error adding to queue:', error);
-        // Revert on error
-        setPromptCategories(prev => prev.map(cat => 
-          cat.id === category.id ? { ...cat, isInQueue: !newValue } : cat
-        ));
+      if (!user) {
+        toast.error('You must be logged in to queue topics');
+        return;
       }
-    } else {
-      // Remove from queue
-      const { error } = await supabase
-        .from('TopicQueueItem')
-        .delete()
-        .eq('profileId', user.id)
-        .eq('promptCategoryId', category.id);
 
-      if (error) {
-        console.error('Error removing from queue:', error);
-        // Revert on error
-        setPromptCategories(prev => prev.map(cat => 
-          cat.id === category.id ? { ...cat, isInQueue: !newValue } : cat
-        ));
+      const category = promptCategories.find(c => c.id === categoryId);
+      if (!category) return;
+
+      if (category.isInQueue) {
+        // Delete the queue item
+        const { error: deleteError } = await supabase
+          .from('TopicQueueItem')
+          .delete()
+          .eq('profileId', user.id)
+          .eq('promptCategoryId', categoryId)
+          .eq('role', currentRole)
+          .eq('sharerId', sharerId);
+
+        if (deleteError) throw deleteError;
+      } else {
+        // Insert new queue item
+        const insertData = {
+          profileId: user.id,
+          promptCategoryId: categoryId,
+          role: currentRole,
+          sharerId: sharerId
+        };
+
+        const { error: insertError } = await supabase
+          .from('TopicQueueItem')
+          .insert([insertData]);
+
+        if (insertError) throw insertError;
       }
+
+      // Update local state
+      setPromptCategories(prev =>
+        prev.map(c =>
+          c.id === categoryId
+            ? { ...c, isInQueue: !c.isInQueue }
+            : c
+        )
+      );
+
+      toast.success(
+        category.isInQueue
+          ? 'Removed from queue'
+          : 'Added to queue'
+      );
+    } catch (error: any) {
+      console.error('Error toggling queue:', error);
+      toast.error('Failed to update queue');
+    } finally {
+      setLoading(prev => ({ ...prev, [`queue-${categoryId}`]: false }));
     }
   };
 
@@ -242,7 +426,7 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
   };
 
   const sortedPromptCategories = useMemo(() => {
-    let filtered = [...promptCategories];
+    let filtered = [...(promptCategories || [])];
 
     if (searchQuery) {
       filtered = filtered.filter(category =>
@@ -367,60 +551,13 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
               </SelectContent>
             </Select>
 
-            <div className="flex flex-wrap gap-2">
-              {[
-                { id: 'favorites', label: 'Favorites' },
-                { id: 'queue', label: 'Queue' },
-                { id: 'with_responses', label: 'Has Responses' }
-              ].map((option) => (
-                <Button
-                  key={option.id}
-                  variant="outline"
-                  onClick={() => handleViewFilterChange(option.id)}
-                  className={cn(
-                    'border-0 rounded-lg',
-                    viewFilters.includes(option.id) 
-                      ? 'bg-[#8fbc55] text-[#1B4332] font-medium' 
-                      : 'bg-gray-200/50 text-gray-600 hover:bg-[#8fbc55] hover:text-[#1B4332]'
-                  )}
-                >
-                  {option.label}
-                </Button>
-              ))}
-            </div>
-
-            <Button
-              variant="outline"
-              onClick={handleResetFilters}
-              className="border-0 rounded-lg bg-gray-200/50 text-gray-600 hover:bg-[#8fbc55] hover:text-[#1B4332]"
-            >
-              All Topics
-            </Button>
-
-            <div className="flex items-center gap-2 ml-2 border-l border-gray-200 pl-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setViewMode('table')}
-                className={cn(
-                  'p-2 h-9 w-9',
-                  viewMode === 'table' ? 'bg-[#8fbc55] text-[#1B4332]' : 'text-gray-500'
-                )}
-              >
-                <TableIcon className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setViewMode('grid')}
-                className={cn(
-                  'p-2 h-9 w-9',
-                  viewMode === 'grid' ? 'bg-[#8fbc55] text-[#1B4332]' : 'text-gray-500'
-                )}
-              >
-                <LayoutGrid className="h-5 w-5" />
-              </Button>
-            </div>
+            <FilterButtons 
+              viewFilters={viewFilters}
+              handleViewFilterChange={handleViewFilterChange}
+              handleResetFilters={handleResetFilters}
+              viewMode={viewMode}
+              setViewMode={setViewMode}
+            />
           </div>
         </div>
       </div>
@@ -496,83 +633,29 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="w-[20%] md:w-[10%]" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-center gap-1 md:gap-2">
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <ActionButton
+                        onClick={() => toggleFavorite(category.id)}
+                        isActive={Boolean(category.isFavorite)}
+                        icon={Star}
+                        tooltip={category.isFavorite ? "Remove from favorites" : "Add to favorites"}
+                        isLoading={Boolean(loading[`favorite-${category.id}`])}
+                      />
+                      <ActionButton
+                        onClick={() => toggleQueue(category.id)}
+                        isActive={Boolean(category.isInQueue)}
+                        icon={ListPlus}
+                        tooltip={category.isInQueue ? "Remove from queue" : "Add to queue"}
+                        isLoading={Boolean(loading[`queue-${category.id}`])}
+                      />
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={(e) => handleFavoriteClick(e, category)}
-                              className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
-                            >
-                              <svg 
-                                className={cn(
-                                  "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
-                                  category.isFavorite 
-                                    ? "fill-[#1B4332] text-[#1B4332]" 
-                                    : "text-gray-400 hover:text-[#8fbc55] hover:fill-[#8fbc55]"
-                                )}
-                                viewBox="0 0 24 24" 
-                                fill="none" 
-                                stroke="currentColor" 
-                                strokeWidth="2" 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round"
-                              >
-                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                              </svg>
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{category.isFavorite ? "Remove from favorites" : "Add to favorites"}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => handleQueueClick(e, category)}
-                              className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
-                            >
-                              <svg 
-                                className={cn(
-                                  "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
-                                  category.isInQueue 
-                                    ? "text-[#1B4332]" 
-                                    : "text-gray-400 hover:text-[#8fbc55]"
-                                )}
-                                viewBox="0 0 24 24" 
-                                fill="none" 
-                                stroke="currentColor" 
-                                strokeWidth="3" 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round"
-                              >
-                                <line x1="12" y1="5" x2="12" y2="19" />
-                                <line x1="5" y1="12" x2="19" y2="12" />
-                              </svg>
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{category.isInQueue ? "Remove from queue" : "Add to queue"}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
+                              onClick={() => {
                                 setSelectedCategory(category);
                                 setIsPromptListOpen(true);
                               }}
@@ -586,23 +669,16 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
-
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/role-sharer/topics/${category.id}`);
-                              }}
+                              onClick={() => router.push(`/role-${currentRole.toLowerCase()}/topics/${category.id}`)}
                               className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-[#8fbc55] rounded-full"
                             >
-                              <ArrowRight className={cn(
-                                "h-5 w-5 md:h-6 md:w-6 transition-colors stroke-[3]",
-                                "text-[#1B4332]"
-                              )} />
+                              <ArrowRight className="h-5 w-5 md:h-6 md:w-6 text-[#1B4332] stroke-[3]" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -627,8 +703,8 @@ export default function TopicsTableAll({ promptCategories: initialPromptCategori
                   setSelectedCategory(category);
                   setIsPromptListOpen(true);
                 }}
-                onFavoriteClick={(e) => handleFavoriteClick(e, category)}
-                onQueueClick={(e) => handleQueueClick(e, category)}
+                onFavoriteClick={(e) => toggleFavorite(category.id)}
+                onQueueClick={(e) => toggleQueue(category.id)}
               />
             </div>
           ))}

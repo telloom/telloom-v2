@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import useSWR from 'swr';
 import { NotificationList } from '@/components/notification-list';
 import { Notification } from '@/types/notification';
@@ -16,13 +15,7 @@ const fetcher = async (url: string) => {
   return res.json();
 };
 
-interface Props {
-  params: {
-    id: string;
-  };
-}
-
-export default function SharerExecutorNotificationsPage({ params }: Props) {
+export default function ExecutorNotificationsPage() {
   const router = useRouter();
   const { data, error, mutate } = useSWR<{ notifications: Notification[] }>(
     '/api/notifications',
@@ -40,10 +33,17 @@ export default function SharerExecutorNotificationsPage({ params }: Props) {
       });
 
       // Handle navigation based on notification type
-      if (notification.type === 'EXECUTOR_INVITATION') {
+      if (notification.type === 'INVITATION' && notification.data?.role === 'EXECUTOR') {
         router.push(`/invitation/accept/${notification.data.invitationToken}`);
+      } else if (notification.type === 'CONNECTION_CHANGE') {
+        // If it's a notification about a specific sharer
+        if (notification.data?.sharerId) {
+          router.push(`/role-executor/${notification.data.sharerId}/connections`);
+        } else {
+          router.push('/role-executor');
+        }
       } else {
-        // For other executor notifications, stay on the current page
+        // For other notifications, stay on the current page
         mutate();
       }
     } catch (error) {
@@ -63,9 +63,11 @@ export default function SharerExecutorNotificationsPage({ params }: Props) {
     }
   };
 
-  // Filter notifications to only show those related to this sharer
+  // Filter notifications to only show executor-related ones
   const filteredNotifications = data?.notifications.filter(
-    (notification) => notification.data.sharerId === params.id
+    (notification) => 
+      (notification.type === 'INVITATION' && notification.data?.role === 'EXECUTOR') ||
+      (notification.type === 'CONNECTION_CHANGE' && notification.data?.role === 'EXECUTOR')
   ) || [];
 
   if (error) {
@@ -79,7 +81,7 @@ export default function SharerExecutorNotificationsPage({ params }: Props) {
   return (
     <div className="container max-w-4xl mx-auto px-4 py-6">
       <div className="mb-8">
-        <BackButton href={`/role-executor/${params.id}`} label="Back to Sharer" />
+        <BackButton href="/role-executor" label="Back to Sharers" />
         <h1 className="text-2xl font-bold mt-4">Notifications</h1>
       </div>
 

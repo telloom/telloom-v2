@@ -63,7 +63,10 @@ export default function TopicCard({ promptCategory, onClick, onFavoriteClick, on
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={onFavoriteClick}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onFavoriteClick(e);
+                      }}
                       className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
                     >
                       <svg 
@@ -96,7 +99,10 @@ export default function TopicCard({ promptCategory, onClick, onFavoriteClick, on
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={onQueueClick}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onQueueClick(e);
+                      }}
                       className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
                     >
                       <svg 

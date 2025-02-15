@@ -379,4 +379,28 @@ export enum Role {
     PersonTag?: PersonTag;
   }
   
+  export type UserRole = 'SHARER' | 'EXECUTOR' | 'LISTENER';
+  
+  export interface TopicFavorite {
+    id: string;
+    profileId: string;
+    promptCategoryId: string;
+    role: 'SHARER' | 'EXECUTOR';
+    sharerId?: string;
+    executorId?: string;
+    createdAt: string;
+    updatedAt: string;
+  }
+  
+  export interface TopicQueueItem {
+    id: string;
+    profileId: string;
+    promptCategoryId: string;
+    role: 'SHARER' | 'EXECUTOR';
+    sharerId?: string;
+    executorId?: string;
+    createdAt: string;
+    updatedAt: string;
+  }
+  
   // Include other interfaces as needed, such as Invitation, ResponsePermission, VideoTranscript, etc.

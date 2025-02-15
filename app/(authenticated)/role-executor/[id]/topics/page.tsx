@@ -1,5 +1,5 @@
 import { createClient } from '@/utils/supabase/server';
-import { redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import TopicsTableAll from '@/components/TopicsTableAll';
 import BackButton from '@/components/BackButton';
 import { PromptCategory } from '@/types/models';
@@ -40,48 +40,54 @@ type DBPromptCategory = {
   }>;
 };
 
-export default async function TopicsPage() {
-  const supabase = await createClient();
-  console.log('[TopicsPage] Checking authentication...');
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
-  if (userError || !user) {
-    console.error('[TopicsPage] Authentication error:', userError);
-    redirect('/login');
-  }
+export default async function ExecutorTopicsPage({ params }: { params: { id: string } }) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const sharerId = await Promise.resolve(params.id);
 
-  console.log('[TopicsPage] Verifying SHARER role...');
-  // Verify user has SHARER role
-  const { data: roles, error: rolesError } = await supabase
-    .from('ProfileRole')
-    .select('role')
-    .eq('profileId', user.id);
-
-  if (rolesError) {
-    console.error('[TopicsPage] Error fetching roles:', rolesError);
-  }
-
-  console.log('[TopicsPage] User roles:', roles);
-
-  if (!roles?.some(r => r.role === 'SHARER')) {
-    console.log('[TopicsPage] User does not have SHARER role, redirecting...');
-    redirect('/select-role');
-  }
-
-  // Get the sharer's profile ID
-  const { data: sharerProfile, error: sharerError } = await supabase
-    .from('ProfileSharer')
-    .select('id')
-    .eq('profileId', user.id)
+  // First verify the executor relationship
+  const { data: executorRelationship, error: relationshipError } = await supabase
+    .from('ProfileExecutor')
+    .select(`
+      id,
+      sharerId,
+      sharer:ProfileSharer!sharerId (
+        id,
+        profile:Profile!profileId (
+          id,
+          firstName,
+          lastName,
+          email
+        )
+      )
+    `)
+    .eq('executorId', user.id)
+    .eq('sharerId', sharerId)
     .single();
 
-  if (sharerError || !sharerProfile) {
-    console.error('[TopicsPage] Error fetching sharer profile:', sharerError);
-    redirect('/select-role');
+  if (relationshipError || !executorRelationship) {
+    notFound();
   }
 
+  // Fetch executor's favorites and queue items
+  const [{ data: favorites }, { data: queueItems }] = await Promise.all([
+    supabase
+      .from('TopicFavorite')
+      .select('promptCategoryId')
+      .eq('role', 'EXECUTOR')
+      .eq('executorId', executorRelationship.id),
+    supabase
+      .from('TopicQueueItem')
+      .select('promptCategoryId')
+      .eq('role', 'EXECUTOR')
+      .eq('executorId', executorRelationship.id)
+  ]);
+
+  // Create Sets for efficient lookup
+  const favoritedIds = new Set(favorites?.map(f => f.promptCategoryId) || []);
+  const queuedIds = new Set(queueItems?.map(q => q.promptCategoryId) || []);
+
   try {
-    console.log('[TopicsPage] Fetching prompt categories...');
     const { data: promptCategories, error: fetchError } = await supabase
       .from('PromptCategory')
       .select(`
@@ -120,11 +126,9 @@ export default async function TopicsPage() {
       .order('category');
 
     if (fetchError) {
-      console.error('[TopicsPage] Fetch error:', fetchError);
+      console.error('Fetch error:', fetchError);
       throw fetchError;
     }
-
-    console.log('[TopicsPage] Raw prompt categories:', promptCategories);
 
     // Transform the data to match the expected format
     const transformedCategories = (promptCategories as DBPromptCategory[]).map(category => ({
@@ -132,30 +136,39 @@ export default async function TopicsPage() {
       category: category.category || '',
       description: category.description || '',
       theme: category.theme,
+      isFavorite: favoritedIds.has(category.id),
+      isInQueue: queuedIds.has(category.id),
       prompts: category.Prompt.map(prompt => ({
         id: prompt.id,
         promptText: prompt.promptText,
         promptType: prompt.promptType || 'default',
         isContextEstablishing: prompt.isContextEstablishing || false,
         promptCategoryId: prompt.promptCategoryId || category.id,
-        PromptResponse: prompt.PromptResponse.map(response => ({
-          id: response.id,
-          profileSharerId: response.profileSharerId,
-          summary: response.summary,
-          createdAt: response.createdAt,
-          Video: response.Video,
-          PromptResponseAttachment: response.PromptResponseAttachment
-        }))
+        PromptResponse: prompt.PromptResponse
+          .filter(response => response.profileSharerId === executorRelationship.sharerId)
+          .map(response => ({
+            id: response.id,
+            profileSharerId: response.profileSharerId,
+            summary: response.summary,
+            createdAt: response.createdAt,
+            Video: response.Video,
+            PromptResponseAttachment: response.PromptResponseAttachment
+          }))
       }))
     })) satisfies PromptCategory[];
 
-    console.log('[TopicsPage] Transformed categories:', transformedCategories);
+    const sharer = executorRelationship.sharer.profile;
 
     return (
       <div className="container mx-auto px-4 py-8">
-        <BackButton href="/role-sharer" />
+        <BackButton href={`/role-executor/${sharerId}`} />
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">All Topics</h1>
+          <div>
+            <h1 className="text-3xl font-bold">All Topics</h1>
+            <p className="text-muted-foreground mt-2">
+              Managing content for {sharer.firstName} {sharer.lastName}
+            </p>
+          </div>
         </div>
 
         {(!transformedCategories || transformedCategories.length === 0) ? (
@@ -167,9 +180,9 @@ export default async function TopicsPage() {
         ) : (
           <TopicsTableAll 
             initialPromptCategories={transformedCategories}
-            currentRole="SHARER"
-            relationshipId={sharerProfile.id}
-            sharerId={sharerProfile.id}
+            currentRole="EXECUTOR"
+            relationshipId={executorRelationship.id}
+            sharerId={sharerId}
           />
         )}
       </div>
@@ -185,4 +198,4 @@ export default async function TopicsPage() {
       </div>
     );
   }
-}
+} 

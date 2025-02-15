@@ -11,13 +11,15 @@ import { Button } from '@/components/ui/button';
 import InvitationsList from '@/components/sharer/connections/InvitationsList';
 import ActiveConnections from '@/components/sharer/connections/ActiveConnections';
 import PendingFollowRequests from '@/components/sharer/connections/PendingFollowRequests';
+import PastFollowRequests from '@/components/sharer/connections/PastFollowRequests';
 import InviteModal from '@/components/invite/InviteModal';
 import { useState, useEffect } from 'react';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, ChevronDown, ChevronUp } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
 export default function SharerConnectionsPage() {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [showPastRequests, setShowPastRequests] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('active');
@@ -76,6 +78,31 @@ export default function SharerConnectionsPage() {
                 <PendingFollowRequests />
               </TabsContent>
             </Tabs>
+          </div>
+        </div>
+
+        {/* Past Follow Requests Section */}
+        <div className="mt-4 border border-transparent">
+          <div className="p-4 sm:p-6">
+            <button
+              onClick={() => setShowPastRequests(!showPastRequests)}
+              className="w-full flex items-center justify-between text-sm text-muted-foreground/70 hover:text-muted-foreground transition-colors group"
+            >
+              <span className="flex items-center gap-2">
+                <div className="h-px w-4 bg-muted-foreground/30 group-hover:bg-muted-foreground/50 transition-colors" />
+                Past Follow Requests
+              </span>
+              {showPastRequests ? (
+                <ChevronUp className="h-3 w-3" />
+              ) : (
+                <ChevronDown className="h-3 w-3" />
+              )}
+            </button>
+            {showPastRequests && (
+              <div className="mt-4 pt-4 border-t border-dashed border-muted/50">
+                <PastFollowRequests />
+              </div>
+            )}
           </div>
         </div>
       </div>
