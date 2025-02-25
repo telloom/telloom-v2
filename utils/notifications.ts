@@ -70,7 +70,10 @@ export async function createFollowRequestNotification(
       userId: sharerId,
       type: 'FOLLOW_REQUEST',
       message,
-      data: { listener: listenerData }
+      data: { 
+        listener: listenerData,
+        role: 'SHARER'
+      }
     })
     
     console.log('[Notifications] Follow request notification created successfully:', notification);
@@ -91,14 +94,17 @@ export async function createInvitationNotification(
     userId: inviterId,
     type: 'INVITATION',
     message,
-    data: inviteeData
+    data: { 
+      ...inviteeData,
+      role: 'SHARER'
+    }
   });
 }
 
 export async function createConnectionChangeNotification(
   userId: string,
   changeType: 'ACCEPTED' | 'DECLINED' | 'REVOKED',
-  connectionData: { firstName: string; lastName: string; email: string }
+  connectionData: { firstName: string; lastName: string; email: string; role?: string }
 ) {
   const message = (() => {
     switch (changeType) {
@@ -115,6 +121,10 @@ export async function createConnectionChangeNotification(
     userId,
     type: 'CONNECTION_CHANGE',
     message,
-    data: { ...connectionData, changeType }
+    data: { 
+      ...connectionData, 
+      changeType,
+      role: connectionData.role || 'SHARER'
+    }
   });
 } 

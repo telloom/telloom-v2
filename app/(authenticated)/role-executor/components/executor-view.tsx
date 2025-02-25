@@ -45,8 +45,8 @@ export default function ExecutorView({ executorRelationships, pendingInvitations
     <div className="space-y-8">
       {pendingInvitations && pendingInvitations.length > 0 && (
         <Card className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
-          <div className="p-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+          <div className="p-6">
+            <h2 className="text-lg font-semibold flex items-center gap-2 mb-6">
               <Clock className="h-5 w-5" />
               Pending Invitations
             </h2>
@@ -54,7 +54,7 @@ export default function ExecutorView({ executorRelationships, pendingInvitations
               {pendingInvitations.map((invitation) => (
                 <div 
                   key={invitation.id}
-                  className="p-4 rounded-lg border hover:border-[#1B4332] transition-colors"
+                  className="p-6 rounded-lg border hover:border-[#1B4332] transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
@@ -92,7 +92,7 @@ export default function ExecutorView({ executorRelationships, pendingInvitations
       )}
 
       <div>
-        <h1 className="text-2xl font-bold mb-6">Your Sharers</h1>
+        <h1 className="text-2xl font-bold mb-8">Your Sharers</h1>
         
         {executorRelationships && executorRelationships.length > 0 ? (
           <Tabs defaultValue="grid">
@@ -114,8 +114,8 @@ export default function ExecutorView({ executorRelationships, pendingInvitations
                 {executorRelationships.map((relationship) => (
                   <Link key={relationship.id} href={`/role-executor/${relationship.sharerId}`}>
                     <Card className="overflow-hidden hover:shadow-md transition-all border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55]">
-                      <div className="p-6 flex flex-col items-center text-center">
-                        <Avatar className="h-24 w-24 mb-4">
+                      <div className="p-8 flex flex-col items-center text-center">
+                        <Avatar className="h-24 w-24 mb-6">
                           {relationship.sharer.profile.avatarUrl ? (
                             <AvatarImage
                               src={relationship.sharer.profile.avatarUrl}
@@ -127,7 +127,7 @@ export default function ExecutorView({ executorRelationships, pendingInvitations
                             </AvatarFallback>
                           )}
                         </Avatar>
-                        <h2 className="text-xl font-semibold mb-1">
+                        <h2 className="text-xl font-semibold mb-2">
                           {relationship.sharer.profile.firstName} {relationship.sharer.profile.lastName}
                         </h2>
                         <p className="text-sm text-muted-foreground mb-4">
@@ -148,7 +148,7 @@ export default function ExecutorView({ executorRelationships, pendingInvitations
                 <div className="divide-y">
                   {executorRelationships.map((relationship) => (
                     <Link key={relationship.id} href={`/role-executor/${relationship.sharerId}`}>
-                      <div className="p-4 hover:bg-gray-50">
+                      <div className="p-6 hover:bg-gray-50">
                         <div className="flex items-center gap-4">
                           <Avatar className="h-12 w-12">
                             {relationship.sharer.profile.avatarUrl ? (
@@ -182,7 +182,7 @@ export default function ExecutorView({ executorRelationships, pendingInvitations
             </TabsContent>
           </Tabs>
         ) : (
-          <Card className="p-6 text-center border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
+          <Card className="p-8 text-center border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
             <p className="text-muted-foreground">
               You are not currently managing any sharers.
             </p>

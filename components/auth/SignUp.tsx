@@ -11,10 +11,10 @@ import { Input } from '@/components/ui/input';
 import { ClientFormWrapper } from '@/components/client-wrapper';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import Image from 'next/image';
 import { signup } from '@/app/(auth)/signup/actions';
 import { z } from 'zod';
-import { useRouter } from 'next/navigation';  // <-- Added import for router
+import { useRouter } from 'next/navigation';
+import Logo from '@/components/Logo';
 
 // Base validation schemas for individual fields
 const emailSchema = z.string().email('Invalid email address');
@@ -189,25 +189,21 @@ export default function SignUp() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-6">
-          <Image
-            src="/images/Telloom Logo V1-Horizontal Green.png"
-            alt="Telloom Logo"
-            width={160}
-            height={40}
-            className="mx-auto mb-3"
-          />
-          <h1 className="text-xl font-bold tracking-tight">Create your account</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Sign up to get started with Telloom
+      <div className="w-full min-w-[300px] sm:min-w-[350px] md:min-w-[400px] max-w-3xl">
+        <div className="text-center mb-4">
+          <div className="mb-4">
+            <Logo />
+          </div>
+          <h1 className="text-xl font-bold tracking-tight mb-1">Create an account</h1>
+          <p className="text-muted-foreground text-sm">
+            Enter your information to get started
           </p>
         </div>
 
-        <div className="bg-card border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] p-5 rounded-lg">
+        <div className="bg-card border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] p-5 rounded-lg w-full">
           <ClientFormWrapper>
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <div className="space-y-1.5">
+            <form onSubmit={handleSubmit} className="space-y-2.5">
+              <div className="space-y-1">
                 <label htmlFor="email" className="text-sm font-medium leading-none">
                   Email
                 </label>
@@ -220,16 +216,16 @@ export default function SignUp() {
                   onChange={handleInputChange}
                   onBlur={handleBlur}
                   required
-                  className="h-9 border-input rounded-full"
+                  className="h-8 border-input rounded-full text-sm"
                   disabled={loading}
                   aria-label="Email address"
                 />
                 {touchedFields.email && errors.email && (
-                  <p className="text-xs text-red-500 mt-0.5">{errors.email}</p>
+                  <p className="text-xs text-red-500">{errors.email}</p>
                 )}
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label htmlFor="password" className="text-sm font-medium leading-none">
                   Password
                 </label>
@@ -242,16 +238,16 @@ export default function SignUp() {
                   onChange={handleInputChange}
                   onBlur={handleBlur}
                   required
-                  className="h-9 border-input rounded-full"
+                  className="h-8 border-input rounded-full text-sm"
                   disabled={loading}
                   aria-label="Password"
                 />
                 {touchedFields.password && errors.password && (
-                  <p className="text-xs text-red-500 mt-0.5">{errors.password}</p>
+                  <p className="text-xs text-red-500">{errors.password}</p>
                 )}
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label htmlFor="confirmPassword" className="text-sm font-medium leading-none">
                   Confirm Password
                 </label>
@@ -264,17 +260,17 @@ export default function SignUp() {
                   onChange={handleInputChange}
                   onBlur={handleBlur}
                   required
-                  className="h-9 border-input rounded-full"
+                  className="h-8 border-input rounded-full text-sm"
                   disabled={loading}
                   aria-label="Confirm password"
                 />
                 {touchedFields.confirmPassword && errors.confirmPassword && (
-                  <p className="text-xs text-red-500 mt-0.5">{errors.confirmPassword}</p>
+                  <p className="text-xs text-red-500">{errors.confirmPassword}</p>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="space-y-1">
                   <label htmlFor="firstName" className="text-sm font-medium leading-none">
                     First Name
                   </label>
@@ -287,16 +283,16 @@ export default function SignUp() {
                     onChange={handleInputChange}
                     onBlur={handleBlur}
                     required
-                    className="h-9 border-input rounded-full"
+                    className="h-8 border-input rounded-full text-sm"
                     disabled={loading}
                     aria-label="First name"
                   />
                   {touchedFields.firstName && errors.firstName && (
-                    <p className="text-xs text-red-500 mt-0.5">{errors.firstName}</p>
+                    <p className="text-xs text-red-500">{errors.firstName}</p>
                   )}
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label htmlFor="lastName" className="text-sm font-medium leading-none">
                     Last Name
                   </label>
@@ -309,17 +305,17 @@ export default function SignUp() {
                     onChange={handleInputChange}
                     onBlur={handleBlur}
                     required
-                    className="h-9 border-input rounded-full"
+                    className="h-8 border-input rounded-full text-sm"
                     disabled={loading}
                     aria-label="Last name"
                   />
                   {touchedFields.lastName && errors.lastName && (
-                    <p className="text-xs text-red-500 mt-0.5">{errors.lastName}</p>
+                    <p className="text-xs text-red-500">{errors.lastName}</p>
                   )}
                 </div>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label htmlFor="phone" className="text-sm font-medium leading-none">
                   Phone
                 </label>
@@ -332,26 +328,26 @@ export default function SignUp() {
                   onChange={handleInputChange}
                   onBlur={handleBlur}
                   required
-                  className="h-9 border-input rounded-full"
+                  className="h-8 border-input rounded-full text-sm"
                   disabled={loading}
                   aria-label="Phone number"
                 />
                 {touchedFields.phone && errors.phone && (
-                  <p className="text-xs text-red-500 mt-0.5">{errors.phone}</p>
+                  <p className="text-xs text-red-500">{errors.phone}</p>
                 )}
               </div>
 
-              <div className="pt-2">
+              <div>
                 <Button
                   type="submit"
-                  className="w-full h-9 bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-colors rounded-full"
+                  className="w-full h-8 bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-colors rounded-full text-sm"
                   disabled={!isFormValid || loading}
                   aria-label={loading ? 'Signing up...' : 'Sign Up'}
                 >
                   {loading ? 'Signing up...' : 'Sign Up'}
                 </Button>
 
-                <div className="text-center text-sm mt-3">
+                <div className="text-center mt-2">
                   <p className="text-muted-foreground text-xs">
                     Already have an account?{' '}
                     <Link href="/login" className="text-[#1B4332] hover:text-[#8fbc55] transition-colors font-medium">

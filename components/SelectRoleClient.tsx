@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import Image from 'next/image';
+import Link from 'next/link';
 
 type Role = 'LISTENER' | 'SHARER' | 'EXECUTOR';
 
@@ -98,13 +99,20 @@ export default function SelectRoleClient() {
     <div className="w-full text-center">
       {isLoading ? (
         <>
-          <Image
-            src="/images/Telloom Logo V1-Horizontal Green.png"
-            alt="Telloom Logo"
-            width={160}
-            height={40}
-            className="mx-auto mb-6"
-          />
+          <Link href="/" className="mb-8 block">
+            <Image
+              src="/images/Telloom Logo V1-Horizontal Green.png"
+              alt="Telloom Logo"
+              width={120}
+              height={27}
+              priority={true}
+              style={{
+                width: '120px',
+                height: 'auto',
+                maxWidth: '100%'
+              }}
+            />
+          </Link>
           <div className="flex justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1B4332] border-t-transparent" />
           </div>

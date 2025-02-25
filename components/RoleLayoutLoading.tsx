@@ -8,9 +8,14 @@ export default function RoleLayoutLoading() {
           <Image
             src="/images/Telloom Logo V1-Horizontal Green.png"
             alt="Telloom Logo"
-            width={160}
-            height={40}
-            className="mx-auto mb-6"
+            width={120}
+            height={27}
+            priority={true}
+            style={{
+              width: '120px',
+              height: 'auto',
+              maxWidth: '100%'
+            }}
           />
           <div className="flex justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1B4332] border-t-transparent" />

@@ -3,32 +3,29 @@
 
 import { createBrowserClient } from '@supabase/ssr';
 
-let supabaseClient: ReturnType<typeof createBrowserClient> | null = null;
+let client: ReturnType<typeof createBrowserClient> | null = null;
 
 export function createClient() {
-  if (supabaseClient) return supabaseClient;
+  if (client) return client;
 
-  supabaseClient = createBrowserClient(
+  client = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       auth: {
+        debug: false, // Disable debug logging
         persistSession: true,
-        autoRefreshToken: true,
         detectSessionInUrl: true,
-        flowType: 'pkce',
-        debug: process.env.NODE_ENV === 'development'
-      },
-      db: {
-        schema: 'public'
       },
       global: {
-        fetch: fetch.bind(globalThis)
-      }
+        headers: {
+          'x-application-name': 'telloom',
+        },
+      },
     }
   );
 
-  return supabaseClient;
+  return client;
 }
 
 // Export singleton instance

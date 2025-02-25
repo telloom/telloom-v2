@@ -47,6 +47,150 @@ Telloom is a web application that connects generations by preserving and sharing
   - kebab-case for directory and file names (e.g., `components/auth-wizard`)
   - UPPER_SNAKE_CASE for constants (e.g., `MAX_LIMIT`)
 
+### Casing Standards
+
+#### File & Directory Names
+- **Component Files**: Use PascalCase for the file name to match the component name
+  ```
+  components/
+  ├── UserProfile.tsx        ✓ Correct
+  ├── userProfile.tsx        ✗ Incorrect
+  └── user-profile.tsx       ✗ Incorrect
+  ```
+
+- **Directory Names**: Use kebab-case for all directories
+  ```
+  src/
+  ├── components/
+  │   ├── auth-wizard/       ✓ Correct
+  │   ├── authWizard/       ✗ Incorrect
+  │   └── AuthWizard/       ✗ Incorrect
+  ```
+
+- **Special Directories**: Next.js special directories should follow Next.js conventions
+  ```
+  app/
+  ├── (authenticated)/      ✓ Correct (group directory)
+  ├── [id]/                ✓ Correct (dynamic route)
+  └── @modal/              ✓ Correct (parallel route)
+  ```
+
+#### Component Names
+- **React Components**: Always PascalCase
+  ```typescript
+  // ✓ Correct
+  export default function UserProfile() {}
+  export const ButtonGroup = () => {}
+
+  // ✗ Incorrect
+  export default function userProfile() {}
+  export const buttonGroup = () => {}
+  ```
+
+#### Variables & Functions
+- **Variables**: camelCase
+  ```typescript
+  // ✓ Correct
+  const userAge = 25;
+  const isLoading = true;
+  
+  // ✗ Incorrect
+  const UserAge = 25;
+  const is_loading = true;
+  ```
+
+- **Functions**: camelCase
+  ```typescript
+  // ✓ Correct
+  function calculateTotal() {}
+  const handleSubmit = () => {}
+  
+  // ✗ Incorrect
+  function CalculateTotal() {}
+  const Handle_Submit = () => {}
+  ```
+
+#### Constants
+- **Constants**: UPPER_SNAKE_CASE for true constants, camelCase for configuration objects
+  ```typescript
+  // ✓ Correct
+  const MAX_RETRY_ATTEMPTS = 3;
+  const API_ENDPOINT = '/api/v1';
+  const defaultConfig = {
+    timeout: 5000,
+    retryCount: 3
+  };
+  
+  // ✗ Incorrect
+  const maxRetryAttempts = 3;
+  const apiEndpoint = '/api/v1';
+  const DEFAULT_CONFIG = {
+    timeout: 5000,
+    retryCount: 3
+  };
+  ```
+
+#### Types & Interfaces
+- **Types & Interfaces**: PascalCase
+  ```typescript
+  // ✓ Correct
+  interface UserProfile {}
+  type AuthState = {}
+  
+  // ✗ Incorrect
+  interface userProfile {}
+  type authState = {}
+  ```
+
+#### Component Props
+- **Props**: camelCase for prop names, PascalCase for prop types
+  ```typescript
+  // ✓ Correct
+  interface ButtonProps {
+    isDisabled: boolean;
+    onClick: () => void;
+  }
+  
+  // ✗ Incorrect
+  interface ButtonProps {
+    IsDisabled: boolean;
+    on_click: () => void;
+  }
+  ```
+
+#### CSS Classes & Tailwind
+- **Custom CSS Classes**: kebab-case
+  ```css
+  /* ✓ Correct */
+  .user-profile {}
+  .nav-link-active {}
+  
+  /* ✗ Incorrect */
+  .userProfile {}
+  .NavLinkActive {}
+  ```
+
+- **Tailwind Classes**: Follow Tailwind's conventions
+  ```typescript
+  // ✓ Correct
+  className="text-sm md:text-base hover:bg-gray-100"
+  
+  // ✗ Incorrect
+  className="TEXT_SM MD_TEXT_BASE HOVER_BG_GRAY_100"
+  ```
+
+#### Import Aliases
+- **Import Aliases**: kebab-case for directories, match exact casing for files
+  ```typescript
+  // ✓ Correct
+  import { Button } from '@/components/ui/Button';
+  import { useAuth } from '@/lib/auth-utils';
+  
+  // ✗ Incorrect
+  import { Button } from '@/Components/UI/button';
+  import { useAuth } from '@/Lib/authUtils';
+  ```
+
 ### File Structure
 
 - Organize files with exported components, subcomponents, helpers, static content, and types
@@ -74,6 +218,87 @@ const Button = ({ children }) => (
   </button>
 );
 ```
+
+## Spacing Guidelines
+
+### Global Content Wrapper
+- Use the `container` class with `max-w-7xl` for main content areas
+- Always include horizontal padding with `px-4` or `px-6`
+- Include vertical padding with `py-6` or `py-8` for sections
+- Center containers with `mx-auto`
+
+### Spacing Scale
+Follow a consistent 4px/8px spacing scale using Tailwind's spacing utilities:
+- 4px (1): Minimal spacing (between tight elements)
+- 8px (2): Small spacing (between related items)
+- 16px (4): Medium spacing (between distinct elements)
+- 24px (6): Large spacing (between sections)
+- 32px (8): Extra large spacing (major sections)
+
+### Component Spacing
+- Cards/Modules:
+  ```typescript
+  // ✓ Correct - Consistent internal padding
+  <Card className="p-6 md:p-8">
+  
+  // ✗ Incorrect - Inconsistent or missing padding
+  <Card className="pt-4 pb-2 px-3">
+  ```
+
+- Lists and Grids:
+  ```typescript
+  // ✓ Correct - Consistent gaps
+  <div className="grid gap-6 md:grid-cols-2">
+  
+  // ✗ Incorrect - Inconsistent spacing
+  <div className="grid gap-3 md:gap-5">
+  ```
+
+### Responsive Spacing
+- Use smaller spacing on mobile:
+  ```typescript
+  // ✓ Correct - Responsive padding
+  className="p-4 md:p-6 lg:p-8"
+  
+  // ✗ Incorrect - Fixed padding
+  className="p-8"
+  ```
+
+- Scale margins at breakpoints:
+  ```typescript
+  // ✓ Correct - Responsive margins
+  className="mb-4 md:mb-6 lg:mb-8"
+  
+  // ✗ Incorrect - No responsive scaling
+  className="mb-8"
+  ```
+
+### Visual Hierarchy
+- Use consistent spacing between related elements:
+  ```typescript
+  // ✓ Correct - Consistent hierarchy
+  <div className="space-y-2">  {/* tight grouping */}
+    <Label>Name</Label>
+    <Input />
+  </div>
+  <div className="space-y-4">  {/* related fields */}
+    <FormField />
+    <FormField />
+  </div>
+  <div className="space-y-8">  {/* distinct sections */}
+    <Section />
+    <Section />
+  </div>
+  ```
+
+### Best Practices
+- Always wrap main content in a container with edge padding
+- Use consistent spacing within similar components
+- Scale spacing at responsive breakpoints
+- Use space-y-{size} for consistent vertical spacing
+- Add larger spacing between major sections
+- Ensure text and interactive elements have adequate padding
+- Test layouts across different screen sizes
 
 ## Backend and Authentication
 

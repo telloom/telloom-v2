@@ -24,7 +24,7 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
   const router = useRouter();
   const [slidesPerView, setSlidesPerView] = useState(3);
   const [randomSuggestedTopics, setRandomSuggestedTopics] = useState<PromptCategory[]>([]);
-  const [promptCategories, setPromptCategories] = useState(initialPromptCategories);
+  const [promptCategories, setPromptCategories] = useState<PromptCategory[]>(initialPromptCategories || []);
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -42,6 +42,8 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
   }, [width]);
 
   useEffect(() => {
+    if (!promptCategories?.length) return;
+
     // Get all topics that have no responses
     const unrespondedTopics = promptCategories.filter((category) => {
       if (!category.prompts) return false;
@@ -51,7 +53,7 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
     // Shuffle array and take 9 items
     const shuffled = [...unrespondedTopics].sort(() => Math.random() - 0.5);
     setRandomSuggestedTopics(shuffled.slice(0, 9));
-  }, []);  // Only run once on mount, don't re-shuffle when categories update
+  }, [promptCategories]);  // Run when promptCategories changes
 
   // Function to update a category's favorite/queue status
   const updateCategoryStatus = (categoryId: string, updates: { isFavorite?: boolean; isInQueue?: boolean }) => {
@@ -280,13 +282,13 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
     </section>
   );
 
-  const favoriteCategories = promptCategories.filter((category) => category.isFavorite);
-  const queuedCategories = promptCategories.filter((category) => category.isInQueue);
+  const favoriteCategories = promptCategories?.filter((category) => category?.isFavorite) || [];
+  const queuedCategories = promptCategories?.filter((category) => category?.isInQueue) || [];
 
-  const topicsWithResponses = promptCategories.filter((category) => {
-    if (!category.prompts) return false;
+  const topicsWithResponses = promptCategories?.filter((category) => {
+    if (!category?.prompts) return false;
     return category.prompts.some(prompt => Array.isArray(prompt.PromptResponse) && prompt.PromptResponse.length > 0);
-  });
+  }) || [];
 
   return (
     <div className="space-y-12">

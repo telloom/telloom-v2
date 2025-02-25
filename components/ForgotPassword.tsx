@@ -62,13 +62,20 @@ export default function ForgotPassword() {
   return (
     <Card className="w-[350px]">
       <CardHeader className="flex flex-col items-center">
-        <Image
-          src="/images/Telloom Logo V1-Horizontal Green.png"
-          alt="Telloom Logo"
-          width={200}
-          height={50}
-          className="mb-4"
-        />
+        <Link href="/" className="mb-8 block">
+          <Image
+            src="/images/Telloom Logo V1-Horizontal Green.png"
+            alt="Telloom Logo"
+            width={120}
+            height={27}
+            priority={true}
+            style={{
+              width: '120px',
+              height: 'auto',
+              maxWidth: '100%'
+            }}
+          />
+        </Link>
         <CardTitle>Forgot Password</CardTitle>
         <CardDescription>Enter your email to reset your password</CardDescription>
       </CardHeader>

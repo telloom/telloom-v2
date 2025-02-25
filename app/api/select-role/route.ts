@@ -56,8 +56,8 @@ export async function POST(request: Request) {
     });
 
     // Set the activeRole cookie
-    const cookieStore = cookies();
-    cookieStore.set('activeRole', role, {
+    const cookieStore = await cookies();
+    await cookieStore.set('activeRole', role, {
       path: '/',
       maxAge: 60 * 60 * 24 * 30, // 30 days
       sameSite: 'lax',

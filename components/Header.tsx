@@ -28,6 +28,7 @@ import { createClient } from '@/utils/supabase/client';
 import InviteModal from './invite/InviteModal';
 import NotificationsBadge from '@/components/notifications/NotificationsBadge';
 import useSWR from 'swr';
+import { toast } from 'sonner';
 
 function useCurrentRole() {
   const pathname = usePathname();
@@ -130,42 +131,12 @@ export default function Header() {
   };
 
   const getNotificationsLink = () => {
-    if (!currentRole) return '/select-role';
-
-    switch (currentRole) {
-      case 'SHARER':
-        return '/role-sharer/notifications';
-      case 'LISTENER':
-        return '/role-listener/notifications';
-      case 'EXECUTOR':
-        return '/role-executor/notifications';
-      default:
-        return '/select-role';
-    }
-  };
-
-  const getNotificationLink = (notification: any) => {
-    if (!currentRole) return '/select-role';
-
-    const rolePath = `role-${currentRole.toLowerCase()}`;
-
-    switch (notification.type) {
-      case 'FOLLOW_REQUEST':
-        return `/${rolePath}/connections?tab=requests`;
-      case 'INVITATION':
-        return `/${rolePath}/connections?tab=pending`;
-      case 'CONNECTION_CHANGE':
-        return `/${rolePath}/connections?tab=active`;
-      case 'TOPIC_RESPONSE':
-      case 'TOPIC_COMMENT':
-        return `/${rolePath}/topics`;
-      default:
-        return getNotificationsLink();
-    }
+    // Always return the centralized notifications page
+    return '/notifications';
   };
 
   // Fetch notifications
-  const { data: notificationsData } = useSWR('/api/notifications', (url) => 
+  const { data: notificationsData, mutate: mutateNotifications } = useSWR('/api/notifications', (url) => 
     fetch(url).then(res => res.json())
   );
 
@@ -179,11 +150,15 @@ export default function Header() {
             <Image
               src="/images/Telloom Logo V1-Horizontal Green.png"
               alt="Telloom Logo"
-              width={120}
-              height={27}
-              style={{ width: 'auto', height: 'auto' }}
-              priority
-              className="w-[120px]"
+              width={180}
+              height={52}
+              priority={true}
+              quality={100}
+              style={{
+                width: '120px',
+                height: 'auto',
+                maxWidth: '100%'
+              }}
             />
           </Link>
         </div>
@@ -223,28 +198,46 @@ export default function Header() {
                       {recentNotifications.map((notification) => (
                         <DropdownMenuItem
                           key={notification.id}
-                          asChild
                           className="py-3 px-4 cursor-pointer"
+                          onClick={async () => {
+                            try {
+                              // Mark as read
+                              const res = await fetch(`/api/notifications/${notification.id}/mark-read`, {
+                                method: 'POST',
+                              });
+
+                              if (!res.ok) {
+                                throw new Error('Failed to mark notification as read');
+                              }
+
+                              // Update notifications data
+                              await mutateNotifications();
+
+                              // Navigate to the centralized notifications page
+                              router.push('/notifications');
+                            } catch (error) {
+                              console.error('Error marking notification as read:', error);
+                              toast.error('Failed to mark notification as read');
+                            }
+                          }}
                         >
-                          <Link href={getNotificationLink(notification)}>
-                            <div className="flex items-start gap-2">
-                              {!notification.isRead && (
-                                <CircleDot className="h-2 w-2 mt-1.5 shrink-0 text-[#8fbc55]" />
-                              )}
-                              <div className={`${!notification.isRead ? 'font-medium' : ''}`}>
-                                {notification.message}
-                                <div className="text-xs text-muted-foreground mt-1">
-                                  {new Date(notification.createdAt).toLocaleString()}
-                                </div>
+                          <div className="flex items-start gap-2">
+                            {!notification.isRead && (
+                              <CircleDot className="h-2 w-2 mt-1.5 shrink-0 text-[#8fbc55]" />
+                            )}
+                            <div className={`${!notification.isRead ? 'font-medium' : ''}`}>
+                              {notification.message}
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {new Date(notification.createdAt).toLocaleString()}
                               </div>
                             </div>
-                          </Link>
+                          </div>
                         </DropdownMenuItem>
                       ))}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild className="py-2 px-4">
                         <Link 
-                          href={getNotificationsLink()} 
+                          href="/notifications"
                           className="w-full text-center text-sm text-[#1B4332] hover:text-[#8fbc55]"
                         >
                           View all notifications

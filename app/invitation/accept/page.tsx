@@ -5,7 +5,6 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
 import AcceptInvitationForm from '@/components/invite/AcceptInvitationForm';
 
 interface AcceptInvitationPageProps {
@@ -15,7 +14,6 @@ interface AcceptInvitationPageProps {
 export default async function AcceptInvitationPage({
   searchParams,
 }: AcceptInvitationPageProps) {
-  const cookieStore = cookies();
   const supabase = createClient();
 
   // Check if we have a token
@@ -59,7 +57,7 @@ export default async function AcceptInvitationPage({
         
         <div className="mb-6">
           <p className="text-gray-600">
-            You've been invited by{' '}
+            You&apos;ve been invited by{' '}
             <span className="font-semibold">
               {invitation.sharer.profile.firstName} {invitation.sharer.profile.lastName}
             </span>{' '}

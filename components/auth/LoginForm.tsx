@@ -12,8 +12,8 @@ import { Input } from '@/components/ui/input';
 import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import Image from 'next/image';
 import { ClientFormWrapper } from '@/components/client-wrapper';
+import Logo from '@/components/Logo';
 
 export function LoginForm() {
   const [email, setEmail] = useState('');
@@ -62,23 +62,19 @@ export function LoginForm() {
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
       <div className="w-full min-w-[300px] sm:min-w-[350px] md:min-w-[400px] max-w-3xl">
         <div className="text-center mb-6">
-          <Image
-            src="/images/Telloom Logo V1-Horizontal Green.png"
-            alt="Telloom Logo"
-            width={160}
-            height={40}
-            className="mx-auto mb-3"
-          />
-          <h1 className="text-xl font-bold tracking-tight">Welcome back</h1>
-          <p className="text-muted-foreground text-sm mt-1">
+          <div className="mb-6">
+            <Logo />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight mb-1">Welcome back</h1>
+          <p className="text-muted-foreground text-sm">
             Sign in to your account to continue
           </p>
         </div>
 
-        <div className="bg-card border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] p-8 rounded-lg w-full min-w-[300px] sm:min-w-[350px] md:min-w-[400px]">
+        <div className="bg-card border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] p-6 rounded-lg w-full">
           <ClientFormWrapper>
-            <form onSubmit={handleSubmit} className="space-y-4 w-full">
-              <div className="space-y-2 w-full">
+            <form onSubmit={handleSubmit} className="space-y-3 w-full">
+              <div className="space-y-1.5 w-full">
                 <label
                   htmlFor="email"
                   className="text-sm font-medium leading-none"
@@ -93,13 +89,13 @@ export function LoginForm() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoComplete="email"
-                  className="h-12 border-input rounded-full w-full"
+                  className="h-10 border-input rounded-full w-full"
                   disabled={isLoading}
                   aria-label="Email address"
                 />
               </div>
 
-              <div className="space-y-2 w-full">
+              <div className="space-y-1.5 w-full">
                 <label
                   htmlFor="password"
                   className="text-sm font-medium leading-none"
@@ -114,13 +110,13 @@ export function LoginForm() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="current-password"
-                  className="h-12 border-input rounded-full w-full"
+                  className="h-10 border-input rounded-full w-full"
                   disabled={isLoading}
                   aria-label="Password"
                 />
               </div>
 
-              <div className="pt-2">
+              <div className="pt-1">
                 <Button
                   type="submit"
                   className="w-full h-9 bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-colors rounded-full"
@@ -130,7 +126,7 @@ export function LoginForm() {
                   {isLoading ? 'Signing in...' : 'Sign In'}
                 </Button>
 
-                <div className="text-center text-sm mt-3 space-y-2">
+                <div className="text-center text-sm mt-3 space-y-1">
                   <p className="text-muted-foreground text-xs">
                     Don&apos;t have an account?{' '}
                     <Link href="/signup" className="text-[#1B4332] hover:text-[#8fbc55] transition-colors font-medium">

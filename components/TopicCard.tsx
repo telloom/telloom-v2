@@ -16,20 +16,28 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { ArrowRight, CheckCircle2, ListOrdered } from 'lucide-react';
-import PromptListPopup from './PromptListPopup';
+import { PromptListPopup } from '@/components/PromptListPopup';
 
 interface TopicCardProps {
   promptCategory: PromptCategory;
-  onClick: () => void;
-  onFavoriteClick: (e: React.MouseEvent) => void;
-  onQueueClick: (e: React.MouseEvent) => void;
+  onClick?: () => void;
+  onFavoriteClick?: (e: React.MouseEvent) => void;
+  onQueueClick?: (e: React.MouseEvent) => void;
 }
 
-export default function TopicCard({ promptCategory, onClick, onFavoriteClick, onQueueClick }: TopicCardProps) {
+export default function TopicCard({ 
+  promptCategory,
+  onClick,
+  onFavoriteClick,
+  onQueueClick
+}: TopicCardProps) {
   const router = useRouter();
   const [isPromptListOpen, setIsPromptListOpen] = useState(false);
-  const completedCount = promptCategory.prompts.filter(p => Array.isArray(p.PromptResponse) && p.PromptResponse.length > 0).length;
-  const totalCount = promptCategory.prompts.length;
+  
+  // Safely handle potentially undefined prompts array
+  const prompts = promptCategory.prompts || [];
+  const completedCount = prompts.filter(p => Array.isArray(p.PromptResponse) && p.PromptResponse.length > 0).length;
+  const totalCount = prompts.length;
 
   return (
     <>
@@ -65,7 +73,7 @@ export default function TopicCard({ promptCategory, onClick, onFavoriteClick, on
                       size="icon"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onFavoriteClick(e);
+                        onFavoriteClick && onFavoriteClick(e);
                       }}
                       className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
                     >
@@ -101,7 +109,7 @@ export default function TopicCard({ promptCategory, onClick, onFavoriteClick, on
                       size="icon"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onQueueClick(e);
+                        onQueueClick && onQueueClick(e);
                       }}
                       className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
                     >

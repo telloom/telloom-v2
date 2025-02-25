@@ -1,9 +1,9 @@
 import { createClient } from '@/utils/supabase/server';
-import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Bell, Users, Video } from 'lucide-react';
+import { Users, Video } from 'lucide-react';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import BackButton from '@/components/BackButton';
 
 interface Props {
   params: {
@@ -11,90 +11,73 @@ interface Props {
   };
 }
 
-export default async function SharerExecutorPage({ params }: Props) {
+interface Profile {
+  firstName: string | null;
+  lastName: string | null;
+}
+
+interface SharerData {
+  id: string;
+  profile: Profile;
+}
+
+export default async function RoleExecutorPage({ params }: Props) {
+  const resolvedParams = await Promise.resolve(params);
+  const sharerId = resolvedParams.id;
+  
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-  // Verify executor relationship and get sharer details
-  const { data: executorRelationship, error: relationshipError } = await supabase
-    .from('ProfileExecutor')
-    .select(`
-      id,
-      sharerId,
-      sharer:ProfileSharer!sharerId (
-        id,
-        profile:Profile!profileId (
-          id,
-          firstName,
-          lastName,
-          email,
-          avatarUrl
-        )
-      )
-    `)
-    .eq('executorId', user.id)
-    .eq('sharerId', params.id)
-    .single();
-
-  if (relationshipError || !executorRelationship) {
+  if (userError || !user) {
     notFound();
   }
 
-  const sharer = executorRelationship.sharer.profile;
+  // Get sharer details
+  const { data: sharer, error: sharerError } = await supabase
+    .from('ProfileSharer')
+    .select(`
+      id,
+      profile:Profile!inner (
+        firstName,
+        lastName
+      )
+    `)
+    .eq('id', sharerId)
+    .single() as { data: SharerData | null; error: any };
+
+  if (sharerError || !sharer) {
+    notFound();
+  }
 
   return (
-    <div className="container max-w-4xl mx-auto px-4 py-6">
+    <div className="container max-w-7xl mx-auto px-4 py-6">
       <div className="mb-8">
-        <Link 
-          href="/role-executor"
-          className="text-sm text-muted-foreground hover:text-foreground"
-        >
-          ← Back to Sharers
-        </Link>
-        <h1 className="text-2xl font-bold mt-2">
-          Managing {sharer.firstName} {sharer.lastName}
+        <BackButton href="/role-executor" label="Back to Sharers" />
+        <h1 className="text-2xl font-semibold mt-4">
+          {sharer.profile.firstName} {sharer.profile.lastName}&apos;s Executor Dashboard
         </h1>
-        <p className="text-muted-foreground">{sharer.email}</p>
       </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <Link href={`/role-executor/${params.id}/connections`}>
-          <Card className="p-6 hover:shadow-md transition-shadow border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55]">
-            <div className="flex items-center gap-3">
-              <Users className="h-5 w-5" />
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Link href={`/role-executor/${sharerId}/connections`}>
+          <Card className="p-6 hover:shadow-lg transition-shadow border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55]">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <Users className="h-8 w-8 text-[#1B4332]" />
               <div>
-                <h2 className="font-semibold">Manage Connections</h2>
-                <p className="text-sm text-muted-foreground">
-                  View and manage listeners and invitations
-                </p>
+                <h2 className="text-lg font-semibold">Manage Connections</h2>
+                <p className="text-sm text-gray-600">Manage listeners and invitations on behalf of {sharer.profile.firstName}</p>
               </div>
             </div>
           </Card>
         </Link>
 
-        <Link href={`/role-executor/${params.id}/notifications`}>
-          <Card className="p-6 hover:shadow-md transition-shadow border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55]">
-            <div className="flex items-center gap-3">
-              <Bell className="h-5 w-5" />
+        <Link href={`/role-executor/${sharerId}/topics`}>
+          <Card className="p-6 hover:shadow-lg transition-shadow border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55]">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <Video className="h-8 w-8 text-[#1B4332]" />
               <div>
-                <h2 className="font-semibold">Notifications</h2>
-                <p className="text-sm text-muted-foreground">
-                  View notifications for this sharer
-                </p>
-              </div>
-            </div>
-          </Card>
-        </Link>
-
-        <Link href={`/role-executor/${params.id}/topics`}>
-          <Card className="p-6 hover:shadow-md transition-shadow border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55]">
-            <div className="flex items-center gap-3">
-              <Video className="h-5 w-5" />
-              <div>
-                <h2 className="font-semibold">Manage Content</h2>
-                <p className="text-sm text-muted-foreground">
-                  View and manage topics and responses
-                </p>
+                <h2 className="text-lg font-semibold">Manage Content</h2>
+                <p className="text-sm text-gray-600">Manage and create video content on behalf of {sharer.profile.firstName}</p>
               </div>
             </div>
           </Card>
