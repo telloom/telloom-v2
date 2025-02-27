@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   if (!token_hash || !type) {
     console.error('[AUTH CONFIRM] Missing token_hash or type in confirm route');
-    return NextResponse.redirect(new URL('/error', request.url));
+    return NextResponse.redirect(new URL('/(auth)/error', request.url));
   }
 
   console.log(`[AUTH CONFIRM] Processing ${type} confirmation with token_hash: ${token_hash.substring(0, 10)}...`);
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     if (verifyError) {
       console.error('[AUTH CONFIRM] Error verifying OTP:', verifyError);
-      return NextResponse.redirect(new URL('/error', request.url));
+      return NextResponse.redirect(new URL('/(auth)/error', request.url));
     }
 
     // Get the user to confirm the session was created
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     
     if (userError || !user) {
       console.error('[AUTH CONFIRM] Error getting user after verification:', userError);
-      return NextResponse.redirect(new URL('/error', request.url));
+      return NextResponse.redirect(new URL('/(auth)/error', request.url));
     }
 
     console.log('[AUTH CONFIRM] Email verified successfully for user:', user.id);
@@ -73,6 +73,6 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (error) {
     console.error('[AUTH CONFIRM] Unexpected error in confirm route:', error);
-    return NextResponse.redirect(new URL('/error', request.url));
+    return NextResponse.redirect(new URL('/(auth)/error', request.url));
   }
 }
