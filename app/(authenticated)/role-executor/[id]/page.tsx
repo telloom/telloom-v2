@@ -4,6 +4,8 @@ import { Users, Video } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import BackButton from '@/components/BackButton';
+import UserAvatar from '@/components/UserAvatar';
+import { getSignedAvatarUrl } from '@/utils/avatar';
 
 interface Props {
   params: {
@@ -14,6 +16,7 @@ interface Props {
 interface Profile {
   firstName: string | null;
   lastName: string | null;
+  avatarUrl: string | null;
 }
 
 interface SharerData {
@@ -39,7 +42,8 @@ export default async function RoleExecutorPage({ params }: Props) {
       id,
       profile:Profile!inner (
         firstName,
-        lastName
+        lastName,
+        avatarUrl
       )
     `)
     .eq('id', sharerId)
@@ -49,13 +53,27 @@ export default async function RoleExecutorPage({ params }: Props) {
     notFound();
   }
 
+  // Get signed avatar URL if available
+  let avatarUrl = null;
+  if (sharer.profile.avatarUrl) {
+    avatarUrl = await getSignedAvatarUrl(sharer.profile.avatarUrl);
+  }
+
   return (
     <div className="container max-w-7xl mx-auto px-4 py-6">
       <div className="mb-8">
         <BackButton href="/role-executor" label="Back to Sharers" />
-        <h1 className="text-2xl font-semibold mt-4">
-          {sharer.profile.firstName} {sharer.profile.lastName}&apos;s Executor Dashboard
-        </h1>
+        <div className="flex items-center gap-4 mt-4">
+          <UserAvatar 
+            avatarImageUrl={avatarUrl}
+            firstName={sharer.profile.firstName || ''}
+            lastName={sharer.profile.lastName || ''}
+            size="h-12 w-12"
+          />
+          <h1 className="text-2xl font-semibold">
+            {sharer.profile.firstName} {sharer.profile.lastName}&apos;s Executor Dashboard
+          </h1>
+        </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

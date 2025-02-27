@@ -65,15 +65,15 @@ export default function ResetPasswordPage() {
     <form onSubmit={handleSubmit(onSubmit)}>
       <div>
         <label>New Password:</label>
-        <Input type="password" {...register('password')} />
+        <Input type="password" {...register('password')} className="rounded-full" />
         {errors.password && <p>{errors.password.message as string}</p>}
       </div>
       <div>
         <label>Confirm Password:</label>
-        <Input type="password" {...register('confirmPassword')} />
+        <Input type="password" {...register('confirmPassword')} className="rounded-full" />
         {errors.confirmPassword && <p>{errors.confirmPassword.message as string}</p>}
       </div>
-      <Button type="submit">Reset Password</Button>
+      <Button type="submit" className="rounded-full">Reset Password</Button>
     </form>
   );
 }

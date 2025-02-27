@@ -4,19 +4,21 @@
 
 import React from 'react';
 import { Avatar as AvatarComponent, AvatarImage, AvatarFallback } from './ui/avatar';
+import { cn } from '@/lib/utils';
 
 interface UserAvatarProps {
   avatarImageUrl: string | null;
   firstName?: string;
   lastName?: string;
   size?: string;
+  className?: string;
 }
 
-export default function UserAvatar({ avatarImageUrl, firstName, lastName, size }: UserAvatarProps) {
+export default function UserAvatar({ avatarImageUrl, firstName, lastName, size, className }: UserAvatarProps) {
   const sizeClass = size ?? 'h-8 w-8';
 
   return (
-    <AvatarComponent className={sizeClass}>
+    <AvatarComponent className={cn(sizeClass, className)}>
       {avatarImageUrl ? (
         <AvatarImage src={avatarImageUrl} alt={`${firstName}'s avatar`} />
       ) : (

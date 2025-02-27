@@ -91,11 +91,12 @@ export default function ForgotPassword() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                className="rounded-full"
               />
             </div>
           </div>
           <CardFooter className="flex flex-col items-center gap-4">
-            <Button className="w-full" type="submit" disabled={loading}>
+            <Button className="w-full rounded-full" type="submit" disabled={loading}>
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {loading ? 'Sending...' : 'Reset Password'}
             </Button>

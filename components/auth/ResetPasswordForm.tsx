@@ -551,7 +551,7 @@ export default function ResetPasswordForm({ preventRedirect = false }: ResetPass
         <p>Please click the button below to go to the login page.</p>
         <Button 
           onClick={handleGoToLogin} 
-          className="mt-4"
+          className="mt-4 rounded-full"
         >
           Go to Login
         </Button>
@@ -565,7 +565,7 @@ export default function ResetPasswordForm({ preventRedirect = false }: ResetPass
       <div className="space-y-4 text-center">
         <h2 className="text-2xl font-bold">Invalid Reset Link</h2>
         <p>This password reset link is invalid or has expired.</p>
-        <Button onClick={() => router.push('/forgot-password')} className="mt-4">
+        <Button onClick={() => router.push('/forgot-password')} className="mt-4 rounded-full">
           Request a new reset link
         </Button>
       </div>
@@ -591,7 +591,7 @@ export default function ResetPasswordForm({ preventRedirect = false }: ResetPass
               <Button 
                 variant="outline" 
                 onClick={handleRequestNewLink}
-                className="w-full"
+                className="w-full rounded-full"
               >
                 Request a new reset link
               </Button>
@@ -606,7 +606,7 @@ export default function ResetPasswordForm({ preventRedirect = false }: ResetPass
           <p className="mt-2 text-sm">You will be redirected to the login page shortly.</p>
           <Button
             onClick={handleGoToLogin}
-            className="mt-4 w-full"
+            className="mt-4 w-full rounded-full"
           >
             Go to Login
           </Button>
@@ -625,6 +625,7 @@ export default function ResetPasswordForm({ preventRedirect = false }: ResetPass
                       type="password"
                       placeholder="Enter your new password"
                       {...field}
+                      className="rounded-full"
                       disabled={isSubmitting || !hasValidToken}
                     />
                   </FormControl>
@@ -643,6 +644,7 @@ export default function ResetPasswordForm({ preventRedirect = false }: ResetPass
                       type="password"
                       placeholder="Confirm your new password"
                       {...field}
+                      className="rounded-full"
                       disabled={isSubmitting || !hasValidToken}
                     />
                   </FormControl>
@@ -652,7 +654,7 @@ export default function ResetPasswordForm({ preventRedirect = false }: ResetPass
             />
             <Button
               type="submit"
-              className="w-full"
+              className="w-full rounded-full"
               disabled={isSubmitting || !hasValidToken}
             >
               {isSubmitting ? (
@@ -676,7 +678,7 @@ export default function ResetPasswordForm({ preventRedirect = false }: ResetPass
           <Button 
             variant="outline" 
             onClick={handleRequestNewLink}
-            className="w-full"
+            className="w-full rounded-full"
           >
             Request a new reset link
           </Button>

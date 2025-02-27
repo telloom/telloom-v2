@@ -6,6 +6,9 @@ import { UserCircle, Clock, LayoutGrid, List } from 'lucide-react';
 import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AcceptExecutorInvitation from '@/components/executor/AcceptExecutorInvitation';
+import { useEffect, useState } from 'react';
+import { getSignedAvatarUrl } from '@/utils/avatar';
+import UserAvatar from '@/components/UserAvatar';
 
 interface Profile {
   id: string;
@@ -41,6 +44,41 @@ interface ExecutorViewProps {
 }
 
 export default function ExecutorView({ executorRelationships, pendingInvitations }: ExecutorViewProps) {
+  const [signedAvatarUrls, setSignedAvatarUrls] = useState<Record<string, string | null>>({});
+
+  // Fetch signed URLs for all avatars
+  useEffect(() => {
+    const fetchSignedUrls = async () => {
+      const urls: Record<string, string | null> = {};
+      
+      // Process sharer avatars from relationships
+      for (const relationship of executorRelationships) {
+        const avatarUrl = relationship.sharer.profile.avatarUrl;
+        if (avatarUrl && !urls[avatarUrl]) {
+          urls[avatarUrl] = await getSignedAvatarUrl(avatarUrl);
+        }
+      }
+      
+      // Process sharer avatars from invitations
+      for (const invitation of pendingInvitations) {
+        const avatarUrl = invitation.sharer.profile.avatarUrl;
+        if (avatarUrl && !urls[avatarUrl]) {
+          urls[avatarUrl] = await getSignedAvatarUrl(avatarUrl);
+        }
+      }
+      
+      setSignedAvatarUrls(urls);
+    };
+    
+    fetchSignedUrls();
+  }, [executorRelationships, pendingInvitations]);
+
+  // Helper function to get the signed URL for an avatar
+  const getAvatarUrl = (originalUrl: string | null): string | null => {
+    if (!originalUrl) return null;
+    return signedAvatarUrls[originalUrl] || originalUrl;
+  };
+
   return (
     <div className="space-y-8">
       {pendingInvitations && pendingInvitations.length > 0 && (
@@ -58,18 +96,12 @@ export default function ExecutorView({ executorRelationships, pendingInvitations
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                      <Avatar className="h-10 w-10">
-                        {invitation.sharer.profile.avatarUrl ? (
-                          <AvatarImage
-                            src={invitation.sharer.profile.avatarUrl}
-                            alt={`${invitation.sharer.profile.firstName}'s avatar`}
-                          />
-                        ) : (
-                          <AvatarFallback>
-                            <UserCircle className="h-5 w-5" />
-                          </AvatarFallback>
-                        )}
-                      </Avatar>
+                      <UserAvatar 
+                        avatarImageUrl={getAvatarUrl(invitation.sharer.profile.avatarUrl)}
+                        firstName={invitation.sharer.profile.firstName}
+                        lastName={invitation.sharer.profile.lastName}
+                        size="h-10 w-10"
+                      />
                       <div>
                         <h3 className="font-medium">
                           {invitation.sharer.profile.firstName} {invitation.sharer.profile.lastName}
@@ -115,18 +147,13 @@ export default function ExecutorView({ executorRelationships, pendingInvitations
                   <Link key={relationship.id} href={`/role-executor/${relationship.sharerId}`}>
                     <Card className="overflow-hidden hover:shadow-md transition-all border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55]">
                       <div className="p-8 flex flex-col items-center text-center">
-                        <Avatar className="h-24 w-24 mb-6">
-                          {relationship.sharer.profile.avatarUrl ? (
-                            <AvatarImage
-                              src={relationship.sharer.profile.avatarUrl}
-                              alt={`${relationship.sharer.profile.firstName}'s avatar`}
-                            />
-                          ) : (
-                            <AvatarFallback className="bg-[#1B4332] text-white">
-                              <UserCircle className="h-12 w-12" />
-                            </AvatarFallback>
-                          )}
-                        </Avatar>
+                        <UserAvatar 
+                          avatarImageUrl={getAvatarUrl(relationship.sharer.profile.avatarUrl)}
+                          firstName={relationship.sharer.profile.firstName}
+                          lastName={relationship.sharer.profile.lastName}
+                          size="h-24 w-24"
+                          className="mb-6"
+                        />
                         <h2 className="text-xl font-semibold mb-2">
                           {relationship.sharer.profile.firstName} {relationship.sharer.profile.lastName}
                         </h2>
@@ -150,18 +177,12 @@ export default function ExecutorView({ executorRelationships, pendingInvitations
                     <Link key={relationship.id} href={`/role-executor/${relationship.sharerId}`}>
                       <div className="p-6 hover:bg-gray-50">
                         <div className="flex items-center gap-4">
-                          <Avatar className="h-12 w-12">
-                            {relationship.sharer.profile.avatarUrl ? (
-                              <AvatarImage
-                                src={relationship.sharer.profile.avatarUrl}
-                                alt={`${relationship.sharer.profile.firstName}'s avatar`}
-                              />
-                            ) : (
-                              <AvatarFallback>
-                                <UserCircle className="h-8 w-8" />
-                              </AvatarFallback>
-                            )}
-                          </Avatar>
+                          <UserAvatar 
+                            avatarImageUrl={getAvatarUrl(relationship.sharer.profile.avatarUrl)}
+                            firstName={relationship.sharer.profile.firstName}
+                            lastName={relationship.sharer.profile.lastName}
+                            size="h-12 w-12"
+                          />
                           <div className="flex-1">
                             <h2 className="font-semibold">
                               {relationship.sharer.profile.firstName} {relationship.sharer.profile.lastName}

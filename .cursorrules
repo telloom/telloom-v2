@@ -490,3 +490,136 @@ Remember to approach each task with analytical rigor, break down problems into s
 - Include proper ARIA labels
 - Ensure keyboard navigation works
 - Use semantic HTML elements
+
+## Dynamic Route Parameters in Next.js Server Components
+
+When working with dynamic route parameters in Next.js server components (e.g., [id] folders), follow these rules to properly handle the params object:
+
+### 1. Make Layout Components Async
+
+```typescript
+export default async function DynamicLayout(props: Props) {
+  const resolvedParams = await Promise.resolve(props.params);
+  // ... use resolvedParams
+}
+```
+
+### 2. Resolve Params Before Use
+
+```typescript
+// ✅ CORRECT: Await params before accessing properties
+const resolvedParams = await Promise.resolve(params);
+const id = resolvedParams.id;
+
+// ❌ INCORRECT: Directly accessing params properties
+const id = params.id; // Will cause warning
+```
+
+### 3. Pass Resolved Params to Children
+
+```typescript
+// ✅ CORRECT: Pass resolved params
+<ChildComponent params={resolvedParams} />
+
+// ❌ INCORRECT: Pass raw params
+<ChildComponent params={params} />
+```
+
+### 4. Type Params Properly
+
+```typescript
+interface Props {
+  params: {
+    id: string;
+    // Add other dynamic segments as needed
+  };
+}
+```
+
+### 5. Handle Params in Content Components
+
+```typescript
+async function PageContent({ params }: Props) {
+  // Always resolve params first
+  const resolvedParams = await Promise.resolve(params);
+  const id = resolvedParams.id;
+  
+  // Use resolved value in queries/logic
+  const { data } = await supabase
+    .from('Table')
+    .eq('id', id)
+    .single();
+}
+```
+
+## Common Patterns for Dynamic Routes
+
+### 1. Layout Pattern
+
+```typescript
+export default async function Layout({ params, children }: Props) {
+  const resolvedParams = await Promise.resolve(params);
+  
+  return (
+    <Suspense fallback={<Loading />}>
+      <LayoutContent params={resolvedParams}>
+        {children}
+      </LayoutContent>
+    </Suspense>
+  );
+}
+```
+
+### 2. Page Pattern
+
+```typescript
+export default async function Page({ params }: Props) {
+  const resolvedParams = await Promise.resolve(params);
+  const id = resolvedParams.id;
+  
+  return (
+    <Suspense fallback={<Loading />}>
+      <PageContent id={id} />
+    </Suspense>
+  );
+}
+```
+
+## Best Practices
+
+1. Always use async/await with params
+2. Resolve params at the earliest possible point
+3. Pass resolved values down instead of raw params
+4. Use consistent naming (resolvedParams) for clarity
+5. Add proper TypeScript interfaces for params
+6. Include error boundaries and loading states
+7. Log resolved params for debugging
+
+## Debugging Tips
+
+```typescript
+// Add debug logs to track params resolution
+console.log('[DEBUG] Starting execution with params:', { resolvedParams });
+
+// Use try/catch when resolving params
+try {
+  const resolvedParams = await Promise.resolve(params);
+} catch (error) {
+  console.error('Error resolving params:', error);
+  notFound();
+}
+```
+
+## Common Issues and Solutions
+
+- **Issue 1: Params Promise Warning**  
+  Solution: Always await Promise.resolve(params)
+
+- **Issue 2: Undefined Properties**  
+  Solution: Add proper TypeScript interfaces and null checks
+
+- **Issue 3: Race Conditions**  
+  Solution: Resolve params before any dependent operations
+
+- **Issue 4: Client/Server Mismatch**  
+  Solution: Use proper 'use client' directives and keep params handling server-side
