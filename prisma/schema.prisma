@@ -127,7 +127,7 @@ model Profile {
   addressStreet                            String?
   addressUnit                              String?
   addressCity                              String?
-  addressState                             String?
+  addressState                             us_state?
   addressZipcode                           String?
   executorFirstName                        String?
   executorLastName                         String?
@@ -140,6 +140,7 @@ model Profile {
   FollowRequest                            FollowRequest[]
   Invitation_Invitation_inviterIdToProfile Invitation[]                    @relation("Invitation_inviterIdToProfile")
   Notification                             Notification[]
+  USState                                  USState?                        @relation(fields: [addressState], references: [abbreviation], onDelete: NoAction, onUpdate: NoAction, map: "fk_profile_addressstate")
   ProfileExecutor                          ProfileExecutor[]
   ProfileListener                          ProfileListener[]
   ProfileRole                              ProfileRole[]
@@ -601,6 +602,13 @@ model Notification {
   @@index([userId], map: "notification_user_id_idx")
 }
 
+model USState {
+  abbreviation us_state  @id
+  fullname     String
+  timezone     String
+  Profile      Profile[]
+}
+
 enum InvitationStatus {
   PENDING
   ACCEPTED
@@ -689,4 +697,57 @@ enum follow_request_status {
   APPROVED
   DENIED
   REVOKED
+}
+
+enum us_state {
+  AL
+  AK
+  AZ
+  AR
+  CA
+  CO
+  CT
+  DE
+  FL
+  GA
+  HI
+  ID
+  IL
+  IN
+  IA
+  KS
+  KY
+  LA
+  ME
+  MD
+  MA
+  MI
+  MN
+  MS
+  MO
+  MT
+  NE
+  NV
+  NH
+  NJ
+  NM
+  NY
+  NC
+  ND
+  OH
+  OK
+  OR
+  PA
+  RI
+  SC
+  SD
+  TN
+  TX
+  UT
+  VT
+  VA
+  WA
+  WV
+  WI
+  WY
 }

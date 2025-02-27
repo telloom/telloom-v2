@@ -5,10 +5,10 @@
 
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import type { Subscription, AuthChangeEvent } from '@supabase/supabase-js';
+import type { Subscription, AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { debounce } from 'lodash';
 
 export default function SupabaseListener() {
@@ -20,20 +20,22 @@ export default function SupabaseListener() {
   const supabaseRef = useRef(createClient());
 
   // Skip auth checks on auth pages and invitation pages
-  const isAuthPage = pathname?.includes('/login') || 
-                    pathname?.includes('/signup') || 
-                    pathname?.includes('/invitation') ||
-                    pathname?.includes('/check-email') ||
-                    pathname?.includes('/forgot-password');
+  const isAuthPage =
+    pathname?.includes('/login') ||
+    pathname?.includes('/signup') ||
+    pathname?.includes('/invitation') ||
+    pathname?.includes('/check-email') ||
+    pathname?.includes('/forgot-password');
 
-  // Verify user authentication state
-  const verifyUser = async () => {
+  // Wrap verifyUser in useCallback so it can be added as a dependency
+  const verifyUser = useCallback(async () => {
     if (!isMounted.current || isAuthPage) return null;
-    
+
     try {
       // Get session first to ensure we have valid auth state
-      const { data: { session }, error: sessionError } = await supabaseRef.current.auth.getSession();
-      
+      const { data: { session }, error: sessionError } =
+        await supabaseRef.current.auth.getSession();
+
       if (sessionError) {
         console.error('Error getting session:', sessionError);
         return null;
@@ -48,51 +50,87 @@ export default function SupabaseListener() {
       console.error('Error verifying user:', error);
       return null;
     }
-  };
+  }, [isAuthPage]);
 
-  // Debounced auth change handler to prevent multiple rapid calls
-  const debouncedHandleAuthChange = debounce(async () => {
-    if (isHandlingAuthChange.current || !isMounted.current || isAuthPage) return;
-    isHandlingAuthChange.current = true;
+  // Wrap debouncedHandleAuthChange in useMemo so it is stable
+  const debouncedHandleAuthChange = useMemo(
+    () =>
+      debounce(async () => {
+        if (isHandlingAuthChange.current || !isMounted.current || isAuthPage)
+          return;
+        isHandlingAuthChange.current = true;
 
-    try {
-      const user = await verifyUser();
-      if (!user && !isAuthPage) {
-        router.push('/login');
-      } else if (user) {
-        router.refresh();
-      }
-    } finally {
-      isHandlingAuthChange.current = false;
-    }
-  }, 300);
+        try {
+          const user = await verifyUser();
+          // Check if we are in a reset-password flow by looking for our global flag or history state flag
+          const inResetFlow =
+            typeof window !== 'undefined' &&
+            (window.__isResettingPassword === true ||
+              window.history.state?.__preventRedirect);
+
+          if (!user && !isAuthPage && !inResetFlow) {
+            router.push('/login');
+          } else if (user) {
+            router.refresh();
+          }
+        } finally {
+          isHandlingAuthChange.current = false;
+        }
+      }, 300),
+    [isAuthPage, router, verifyUser]
+  );
 
   useEffect(() => {
     if (isAuthPage) return; // Skip effect on auth pages
-    
+
     isMounted.current = true;
 
     const initializeAuth = async () => {
       try {
         // Initial auth check
         const user = await verifyUser();
-        if (!user && !isAuthPage) {
+        const inResetFlow =
+          typeof window !== 'undefined' &&
+          (window.__isResettingPassword === true ||
+            window.history.state?.__preventRedirect);
+        if (!user && !isAuthPage && !inResetFlow) {
           router.push('/login');
           return;
         }
 
         // Set up auth listener
-        const { data: { subscription } } = supabaseRef.current.auth.onAuthStateChange(async (event: AuthChangeEvent, session) => {
-          if (!isMounted.current || isAuthPage) return;
-          
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-            if (session?.user) {
-              router.refresh();
+        const { data: { subscription } } =
+          supabaseRef.current.auth.onAuthStateChange(
+            async (event: AuthChangeEvent, session: Session | null) => {
+              if (!isMounted.current || isAuthPage) return;
+
+              // Check if in reset-password flow before acting on the event
+              const inReset =
+                typeof window !== 'undefined' &&
+                (window.__isResettingPassword === true ||
+                  window.history.state?.__preventRedirect);
+
+              if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                if (session?.user) {
+                  if (!inReset) {
+                    router.refresh();
+                  } else {
+                    console.log(
+                      '[SUPABASE LISTENER] Reset password flow active, ignoring SIGNED_IN/TOKEN_REFRESHED event.'
+                    );
+                  }
+                }
+              } else if (event === 'SIGNED_OUT' && !isAuthPage) {
+                if (!inReset) {
+                  router.push('/login');
+                } else {
+                  console.log(
+                    '[SUPABASE LISTENER] Reset password flow active, ignoring SIGNED_OUT event.'
+                  );
+                }
+              }
             }
-          } else if (event === 'SIGNED_OUT' && !isAuthPage) {
-            router.push('/login');
-          }
-        });
+          );
 
         authListenerRef.current = subscription;
       } catch (error) {
@@ -113,7 +151,7 @@ export default function SupabaseListener() {
         authListenerRef.current = null;
       }
     };
-  }, [pathname, isAuthPage, router]); // Add router to dependencies
+  }, [pathname, isAuthPage, router, debouncedHandleAuthChange, verifyUser]);
 
   return null;
 }

@@ -11,21 +11,38 @@ export async function GET(request: NextRequest) {
   const next = requestUrl.searchParams.get('next') || '/select-role';
 
   if (!token_hash || !type) {
-    console.error('Missing token_hash or type in confirm route');
+    console.error('[AUTH CONFIRM] Missing token_hash or type in confirm route');
     return NextResponse.redirect(new URL('/error', request.url));
   }
+
+  console.log(`[AUTH CONFIRM] Processing ${type} confirmation with token_hash: ${token_hash.substring(0, 10)}...`);
 
   try {
     const supabase = await createClient();
 
-    // First, exchange the code for a session
+    // For password recovery, we need to handle it differently
+    if (type === 'recovery') {
+      console.log('[AUTH CONFIRM] Handling password recovery flow');
+      
+      // For password recovery, we should redirect to the reset-password page with the token_hash
+      // This allows the user to set a new password
+      const resetPasswordUrl = new URL('/reset-password', request.url);
+      resetPasswordUrl.searchParams.set('token_hash', token_hash);
+      resetPasswordUrl.searchParams.set('type', type);
+      
+      console.log(`[AUTH CONFIRM] Redirecting to reset password page: ${resetPasswordUrl.pathname}${resetPasswordUrl.search}`);
+      return NextResponse.redirect(resetPasswordUrl);
+    }
+
+    // For other types (signup, invite, etc.), verify the OTP
+    console.log(`[AUTH CONFIRM] Verifying OTP for ${type}`);
     const { error: verifyError } = await supabase.auth.verifyOtp({
       type,
       token_hash,
     });
 
     if (verifyError) {
-      console.error('Error verifying OTP:', verifyError);
+      console.error('[AUTH CONFIRM] Error verifying OTP:', verifyError);
       return NextResponse.redirect(new URL('/error', request.url));
     }
 
@@ -33,11 +50,11 @@ export async function GET(request: NextRequest) {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user) {
-      console.error('Error getting user after verification:', userError);
+      console.error('[AUTH CONFIRM] Error getting user after verification:', userError);
       return NextResponse.redirect(new URL('/error', request.url));
     }
 
-    console.log('Email verified successfully for user:', user.id);
+    console.log('[AUTH CONFIRM] Email verified successfully for user:', user.id);
 
     // After successful confirmation, redirect with success message
     const redirectUrl = new URL(next, request.url);
@@ -55,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error('Unexpected error in confirm route:', error);
+    console.error('[AUTH CONFIRM] Unexpected error in confirm route:', error);
     return NextResponse.redirect(new URL('/error', request.url));
   }
 }

@@ -9,14 +9,9 @@ import { useEffect } from 'react';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, X, UserCircle } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { useListenerConnectionsStore } from '@/stores/connections/listenerConnectionsStore';
-
-const getInitials = (firstName: string = '', lastName: string = '') => {
-  const firstInitial = firstName.charAt(0);
-  const lastInitial = lastName.charAt(0);
-  return (firstInitial + lastInitial).toUpperCase();
-};
+import { getInitials } from '@/lib/utils';
 
 export default function Following() {
   const { sharers, isLoading, error, fetchSharings, unfollowSharer } = useListenerConnectionsStore();
@@ -72,11 +67,11 @@ export default function Following() {
                     {sharer.profile.avatarUrl ? (
                       <AvatarImage
                         src={sharer.profile.avatarUrl}
-                        alt={`${sharer.profile.firstName}'s avatar`}
+                        alt={`${sharer.profile.firstName || ''}'s avatar`}
                       />
                     ) : (
                       <AvatarFallback>
-                        {getInitials(sharer.profile.firstName, sharer.profile.lastName)}
+                        {getInitials(sharer.profile.firstName || '', sharer.profile.lastName || '')}
                       </AvatarFallback>
                     )}
                   </Avatar>
@@ -126,11 +121,11 @@ export default function Following() {
                   {sharer.profile.avatarUrl ? (
                     <AvatarImage
                       src={sharer.profile.avatarUrl}
-                      alt={`${sharer.profile.firstName}'s avatar`}
+                      alt={`${sharer.profile.firstName || ''}'s avatar`}
                     />
                   ) : (
                     <AvatarFallback>
-                      {getInitials(sharer.profile.firstName, sharer.profile.lastName)}
+                      {getInitials(sharer.profile.firstName || '', sharer.profile.lastName || '')}
                     </AvatarFallback>
                   )}
                 </Avatar>

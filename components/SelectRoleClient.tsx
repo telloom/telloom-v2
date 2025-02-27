@@ -22,19 +22,19 @@ const ROLES: RoleInfo[] = [
   {
     role: 'LISTENER',
     title: 'Listener',
-    description: 'Listen to and preserve stories from your loved ones',
+    description: 'Celebrate, remember, and learn from your loved ones and previous generations.',
     icon: Headphones,
   },
   {
     role: 'SHARER',
     title: 'Sharer',
-    description: 'Share your life stories with future generations',
+    description: 'Record and share your life stories, facts, and wisdom for future generations.',
     icon: Share2,
   },
   {
     role: 'EXECUTOR',
     title: 'Executor',
-    description: 'Manage digital legacy for others',
+    description: 'Manage a Sharer\'s content and listeners, preserving their legacy.',
     icon: UserCog,
   },
 ];
@@ -99,7 +99,7 @@ export default function SelectRoleClient() {
     <div className="w-full text-center">
       {isLoading ? (
         <>
-          <Link href="/" className="mb-8 block">
+          <Link href="/" className="mb-8 flex justify-center">
             <Image
               src="/images/Telloom Logo V1-Horizontal Green.png"
               alt="Telloom Logo"
