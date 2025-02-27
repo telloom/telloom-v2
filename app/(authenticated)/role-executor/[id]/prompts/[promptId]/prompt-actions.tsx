@@ -5,14 +5,14 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface PromptActionsProps {
-  currentPromptId: string;
+  currentPromptId?: string;
   previousPrompt: { id: string; promptText: string } | null;
   nextPrompt: { id: string; promptText: string } | null;
   sharerId: string;
 }
 
 export default function PromptActions(props: PromptActionsProps) {
-  const { currentPromptId, previousPrompt, nextPrompt, sharerId } = props;
+  const { previousPrompt, nextPrompt, sharerId } = props;
   
   return (
     <div className="flex justify-between items-center">

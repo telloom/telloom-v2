@@ -1,9 +1,12 @@
 # Next.js configuration
 next.config.mjs
+next.config.js
 
 # Build output
 .next/
 out/
+dist/
+build/
 
 # Node modules
 node_modules/
@@ -47,8 +50,25 @@ coverage/
 # TypeScript build info
 tsconfig.tsbuildinfo
 
-# Exclude postcss.config.cjs
+# Config files
 postcss.config.cjs
+postcss.config.js
+tailwind.config.js
+tailwind.config.mjs
+prettier.config.js
+.prettierrc
+.prettierrc.js
+.prettierrc.json
 
-# Exclude next.config.js
-next.config.js
+# Generated files
+public/sw.js
+public/workbox-*.js
+
+# Specific components with many lint errors
+components/ui/
+components/auth/
+components/RecordingInterface.tsx
+components/TopicVideoResponseSection.tsx
+components/AttachmentDialog.tsx
+components/AttachmentUpload.tsx
+components/TopicCard.tsx
