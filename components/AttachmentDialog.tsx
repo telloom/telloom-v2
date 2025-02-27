@@ -494,7 +494,8 @@ export function AttachmentDialog({
                     attachment={{
                       ...attachment,
                       fileUrl: attachment.displayUrl || attachment.fileUrl,
-                      signedUrl: signedUrl || attachment.signedUrl
+                      signedUrl: signedUrl || attachment.signedUrl,
+                      dateCaptured: attachment.dateCaptured ? new Date(attachment.dateCaptured) : null
                     }}
                     size="lg"
                     className="w-full h-full object-contain"

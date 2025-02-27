@@ -28,7 +28,9 @@ export default async function ExecutorTopicsPage({
       id,
       sharerId,
       sharer:ProfileSharer!sharerId (
-        profile:Profile!profileId (
+        id,
+        profileId,
+        Profile:profileId (
           firstName,
           lastName
         )
@@ -42,45 +44,25 @@ export default async function ExecutorTopicsPage({
     redirect('/role-executor');
   }
 
-  const sharerName = `${executorRelationship.sharer.profile.firstName} ${executorRelationship.sharer.profile.lastName}`;
+  // Access the profile data correctly
+  const sharerProfile = executorRelationship.sharer.Profile;
+  const sharerName = `${sharerProfile.firstName || ''} ${sharerProfile.lastName || ''}`.trim();
 
   // Fetch prompt categories with responses
   const { data: promptCategories } = await supabase
     .from('PromptCategory')
     .select(`
-      id,
-      category,
-      description,
-      theme,
-      prompts:Prompt (
+      *,
+      Prompt!inner (
         id,
         promptText,
-        promptType,
-        isContextEstablishing,
-        promptCategoryId,
         PromptResponse (
           id,
-          profileSharerId,
-          summary,
-          createdAt,
-          Video (
-            id,
-            muxPlaybackId,
-            muxAssetId
-          ),
-          PromptResponseAttachment (
-            id,
-            fileUrl,
-            fileType,
-            fileName,
-            description,
-            dateCaptured,
-            yearCaptured
-          )
+          profileSharerId
         )
       )
     `)
-    .order('category');
+    .order('sortOrder', { ascending: true });
 
   // Fetch favorites and queue items
   const [{ data: favorites }, { data: queueItems }] = await Promise.all([

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import VideoResponseSection from './video-response-section';
 import BackButton from '@/components/BackButton';
 import PromptActions from './prompt-actions';
-import { GetPromptDataResult } from '@/types/models';
+import { GetPromptDataResult, Prompt } from '@/types/models';
 
 interface Props {
   params: {
@@ -92,10 +92,11 @@ async function getPromptData(promptId: string, sharerId: string): Promise<GetPro
 
 export default async function SharerExecutorPromptPage({ params }: Props) {
   try {
-    const supabase = createClient();
+    // Resolve params before using them
     const resolvedParams = await Promise.resolve(params);
-    const sharerId = resolvedParams.id;
-    const promptId = resolvedParams.promptId;
+    const { id: sharerId, promptId } = resolvedParams;
+
+    const supabase = createClient();
 
     // Verify executor relationship
     const { data: executorRelationship, error: relationshipError } = await supabase

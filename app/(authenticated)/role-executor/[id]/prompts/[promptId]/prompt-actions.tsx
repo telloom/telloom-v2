@@ -8,10 +8,11 @@ interface PromptActionsProps {
   previousPrompt: { id: string; promptText: string } | null;
   nextPrompt: { id: string; promptText: string } | null;
   sharerId: string;
+  currentPromptId?: string;
 }
 
 export default function PromptActions(props: PromptActionsProps) {
-  const { previousPrompt, nextPrompt, sharerId } = props;
+  const { previousPrompt, nextPrompt, sharerId, currentPromptId } = props;
   
   return (
     <div className="flex justify-between items-center">

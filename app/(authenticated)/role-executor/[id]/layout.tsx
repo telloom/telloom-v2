@@ -9,6 +9,7 @@ interface Props {
   params: {
     id: string;
   };
+  modal?: React.ReactNode; // Add the modal prop required by LayoutProps
 }
 
 // List of special routes that should bypass UUID validation
@@ -89,7 +90,8 @@ async function RoleExecutorSharerLayoutContent({
 export default async function RoleExecutorSharerLayout(props: Props) {
   return (
     <Suspense fallback={<RoleLayoutLoading />}>
-      <RoleExecutorSharerLayoutContent {...props} />
+      {/* Await the content component instead of using it directly */}
+      {await RoleExecutorSharerLayoutContent(props)}
     </Suspense>
   );
 } 

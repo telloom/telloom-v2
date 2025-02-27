@@ -8,6 +8,7 @@ import TopicsTableAll from '@/components/TopicsTableAll';
 import TopicsList from '@/components/TopicsList';
 import { LayoutGrid, List } from 'lucide-react';
 import BackButton from '@/components/BackButton';
+import { PromptCategory } from '@/types/models';
 
 interface Props {
   params: {
@@ -29,60 +30,74 @@ export default async function SharerExecutorPromptsPage({ params }: Props) {
     const resolvedParams = await Promise.resolve(params);
     const sharerId = resolvedParams.id;
 
-    // Fetch sharer details
-    const { data: sharer, error } = await supabase
+    // Get sharer details
+    const { data: sharerData, error: sharerError } = await supabase
       .from('ProfileSharer')
       .select(`
         id,
-        Profile!inner (
+        Profile (
           firstName,
           lastName
         )
       `)
       .eq('id', sharerId)
-      .single() as { data: ProfileData | null; error: any };
+      .single();
 
-    if (error || !sharer?.Profile) {
-      console.error('Error fetching sharer details:', error);
+    if (sharerError || !sharerData) {
+      console.error('Error fetching sharer:', sharerError);
       notFound();
     }
 
-    const sharerName = `${sharer.Profile.firstName || ''} ${sharer.Profile.lastName || ''}`.trim();
+    // Get prompt categories
+    const { data: promptCategories, error: categoriesError } = await supabase
+      .from('PromptCategory')
+      .select('*')
+      .order('sortOrder', { ascending: true });
+
+    if (categoriesError) {
+      console.error('Error fetching prompt categories:', categoriesError);
+      return null;
+    }
+
+    // Construct sharer name
+    const sharerName = `${sharerData.Profile.firstName || ''} ${sharerData.Profile.lastName || ''}`.trim();
 
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <BackButton href={`/role-executor/${sharerId}`} label="Back to Sharer" />
-          <h1 className="text-2xl font-bold mt-4">
-            Video Prompts for {sharerName}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Record and manage video responses on behalf of {sharerName}
+      <div className="space-y-6">
+        <BackButton href={`/role-executor/${sharerId}`} label="Back to Sharer" />
+        
+        <div>
+          <h1 className="text-2xl font-bold mb-2">Video Prompts for {sharerName}</h1>
+          <p className="text-muted-foreground">
+            Manage video responses on behalf of {sharerName}.
           </p>
         </div>
-
-        <Card className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
-          <Suspense fallback={<div>Loading...</div>}>
-            <Tabs defaultValue="grid" className="p-6">
-              <div className="flex justify-end mb-6">
-                <TabsList className="grid w-[200px] grid-cols-2">
+        
+        <Card>
+          <Suspense fallback={<div>Loading topics...</div>}>
+            <Tabs defaultValue="grid">
+              <div className="flex justify-between items-center p-4 border-b">
+                <h2 className="text-xl font-semibold">Topics</h2>
+                <TabsList>
                   <TabsTrigger value="grid" className="flex items-center gap-2">
-                    <LayoutGrid className="h-4 w-4" />
-                    Grid
+                    <LayoutGrid className="h-4 w-4" /> Grid View
                   </TabsTrigger>
                   <TabsTrigger value="list" className="flex items-center gap-2">
-                    <List className="h-4 w-4" />
-                    List
+                    <List className="h-4 w-4" /> List View
                   </TabsTrigger>
                 </TabsList>
               </div>
-
-              <TabsContent value="grid">
-                <TopicsList sharerId={sharerId} role="EXECUTOR" />
+              
+              <TabsContent value="grid" className="p-4">
+                <TopicsList promptCategories={promptCategories || []} />
               </TabsContent>
-
-              <TabsContent value="list">
-                <TopicsTableAll sharerId={sharerId} role="EXECUTOR" />
+              
+              <TabsContent value="list" className="p-0">
+                <TopicsTableAll 
+                  initialPromptCategories={promptCategories || []} 
+                  currentRole="EXECUTOR"
+                  sharerId={sharerId}
+                />
               </TabsContent>
             </Tabs>
           </Suspense>

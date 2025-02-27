@@ -1,5 +1,6 @@
 import { VideoResponseSectionProps } from '@/types/models';
 import { TopicVideoResponseSection } from '@/components/TopicVideoResponseSection';
+import { toUIAttachment } from '@/types/component-interfaces';
 
 export default function VideoResponseSection({ promptId, promptText, promptCategory, response }: VideoResponseSectionProps) {
   // Map the props from VideoResponseSectionProps to TopicVideoResponseSectionProps
@@ -8,16 +9,32 @@ export default function VideoResponseSection({ promptId, promptText, promptCateg
       topicId={promptId}
       topicName={promptText}
       userId={response?.profileSharerId || null}
-      video={response?.video}
-      attachments={response?.PromptResponseAttachment?.map(attachment => ({
+      video={response?.video ? {
+        id: response.video.id,
+        muxPlaybackId: response.video.muxPlaybackId,
+        muxAssetId: response.video.muxAssetId,
+        dateRecorded: response.video.dateRecorded,
+        TopicVideoTranscript: response.video.VideoTranscript?.map(t => ({
+          id: t.id,
+          transcript: t.transcript
+        })),
+        summary: response?.summary || undefined
+      } : undefined}
+      attachments={response?.PromptResponseAttachment?.map(attachment => toUIAttachment({
         id: attachment.id,
+        promptResponseId: attachment.promptResponseId,
+        profileSharerId: attachment.profileSharerId,
         fileUrl: attachment.fileUrl,
         fileType: attachment.fileType,
         fileName: attachment.fileName,
-        description: attachment.description || null,
-        dateCaptured: attachment.dateCaptured || null,
-        yearCaptured: attachment.yearCaptured || null,
-        PersonTags: attachment.PromptResponseAttachmentPersonTag?.map(tag => tag.PersonTag).filter(Boolean) || []
+        uploadedAt: new Date(attachment.uploadedAt),
+        fileSize: attachment.fileSize,
+        title: attachment.title,
+        description: attachment.description,
+        estimatedYear: attachment.estimatedYear,
+        dateCaptured: attachment.dateCaptured ? new Date(attachment.dateCaptured) : null,
+        yearCaptured: attachment.yearCaptured,
+        PromptResponseAttachmentPersonTag: attachment.PromptResponseAttachmentPersonTag
       }))}
     />
   );

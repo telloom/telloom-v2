@@ -624,10 +624,6 @@ export function TopicVideoResponseSection({
                 <div className="rounded-lg overflow-hidden">
                   <MuxPlayer
                     playbackId={video.muxPlaybackId}
-                    metadata={{
-                      video_title: topicName,
-                      player_name: 'Telloom Player',
-                    }}
                     streamType="on-demand"
                   />
                 </div>
