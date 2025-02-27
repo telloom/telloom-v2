@@ -20,10 +20,6 @@ export function createClient() {
         detectSessionInUrl: false,
         flowType: 'pkce', // Use PKCE flow for better security
         autoRefreshToken: true,
-        // Don't redirect on auth events - we'll handle redirects manually
-        onAuthStateChange: (event, session) => {
-          console.log('Auth state changed:', event, session ? 'Has session' : 'No session');
-        }
       },
       global: {
         headers: {
@@ -64,10 +60,6 @@ export function createResetPasswordClient() {
         detectSessionInUrl: false, // Completely disable URL detection
         flowType: 'pkce',
         autoRefreshToken: false, // Disable auto refresh for reset password
-        // Explicitly disable all redirects
-        redirectTo: undefined,
-        // Disable automatic login redirects
-        autoRefreshToken: false,
         // Disable all automatic redirects
         navigateToInitialRedirect: false,
         navigateToNonExistentRedirect: false,

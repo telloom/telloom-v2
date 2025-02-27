@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface PromptActionsProps {
-  currentPromptId?: string;
   previousPrompt: { id: string; promptText: string } | null;
   nextPrompt: { id: string; promptText: string } | null;
   sharerId: string;
