@@ -11,41 +11,38 @@ interface PromptActionsProps {
   sharerId: string;
 }
 
-export default function PromptActions({
-  currentPromptId,
-  previousPrompt,
-  nextPrompt,
-  sharerId
-}: PromptActionsProps) {
+export default function PromptActions(props: PromptActionsProps) {
+  const { currentPromptId, previousPrompt, nextPrompt, sharerId } = props;
+  
   return (
     <div className="flex justify-between items-center">
-      {previousPrompt ? (
-        <Link href={`/role-executor/${sharerId}/prompts/${previousPrompt.id}`}>
-          <Button
-            variant="outline"
-            className="flex items-center gap-2 border-2 border-[#1B4332] shadow-[4px_4px_0_0_#8fbc55] hover:shadow-[6px_6px_0_0_#8fbc55] transition-all"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Previous Prompt
-          </Button>
-        </Link>
-      ) : (
-        <div /> {/* Empty div for spacing */}
-      )}
-
-      {nextPrompt ? (
-        <Link href={`/role-executor/${sharerId}/prompts/${nextPrompt.id}`}>
-          <Button
-            variant="outline"
-            className="flex items-center gap-2 border-2 border-[#1B4332] shadow-[4px_4px_0_0_#8fbc55] hover:shadow-[6px_6px_0_0_#8fbc55] transition-all"
-          >
-            Next Prompt
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </Link>
-      ) : (
-        <div /> {/* Empty div for spacing */}
-      )}
+      <div>
+        {previousPrompt && (
+          <Link href={`/role-executor/${sharerId}/prompts/${previousPrompt.id}`}>
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 border-2 border-[#1B4332] shadow-[4px_4px_0_0_#8fbc55] hover:shadow-[6px_6px_0_0_#8fbc55] transition-all"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous Prompt
+            </Button>
+          </Link>
+        )}
+      </div>
+      
+      <div>
+        {nextPrompt && (
+          <Link href={`/role-executor/${sharerId}/prompts/${nextPrompt.id}`}>
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 border-2 border-[#1B4332] shadow-[4px_4px_0_0_#8fbc55] hover:shadow-[6px_6px_0_0_#8fbc55] transition-all"
+            >
+              Next Prompt
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </Link>
+        )}
+      </div>
     </div>
   );
 } 
