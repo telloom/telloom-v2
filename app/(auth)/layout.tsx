@@ -1,6 +1,4 @@
 // app/(auth)/layout.tsx
-"use server";
-
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
