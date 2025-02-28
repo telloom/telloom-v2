@@ -1,11 +1,11 @@
 // app/(auth)/error/page.tsx
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function ErrorPage() {
+function ErrorContent() {
   const searchParams = useSearchParams();
   const errorMessage = searchParams?.get('error');
 
@@ -20,5 +20,19 @@ export default function ErrorPage() {
         </Link>
       </div>
     </div>
+  );
+}
+
+export default function ErrorPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="space-y-4 w-full max-w-md text-center">
+          <h1 className="text-2xl font-bold">Loading...</h1>
+        </div>
+      </div>
+    }>
+      <ErrorContent />
+    </Suspense>
   );
 }
