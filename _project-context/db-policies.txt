@@ -1,0 +1,1721 @@
+[
+  {
+    "schema_name": "public",
+    "table_name": "Entitlement",
+    "policy_name": "Admins can do anything on Entitlement",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Entitlement",
+    "policy_name": "Allow SELECT on entitlements to all users",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "FollowRequest",
+    "policy_name": "Delete follow requests",
+    "command_type": "DELETE",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.uid() = \"requestorId\") OR (auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"FollowRequest\".\"sharerId\"))) OR (auth.uid() IN ( SELECT \"ProfileExecutor\".\"executorId\"\n   FROM \"ProfileExecutor\"\n  WHERE (\"ProfileExecutor\".\"sharerId\" = \"FollowRequest\".\"sharerId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "FollowRequest",
+    "policy_name": "Executors can manage follow requests",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileExecutor\" pe\n  WHERE ((pe.\"executorId\" = auth.uid()) AND (pe.\"sharerId\" = \"FollowRequest\".\"sharerId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "FollowRequest",
+    "policy_name": "Update follow requests",
+    "command_type": "UPDATE",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"FollowRequest\".\"sharerId\"))) OR (auth.uid() IN ( SELECT \"ProfileExecutor\".\"executorId\"\n   FROM \"ProfileExecutor\"\n  WHERE (\"ProfileExecutor\".\"sharerId\" = \"FollowRequest\".\"sharerId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "FollowRequest",
+    "policy_name": "View follow requests",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.uid() = \"requestorId\") OR (auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"FollowRequest\".\"sharerId\"))) OR (auth.uid() IN ( SELECT \"ProfileExecutor\".\"executorId\"\n   FROM \"ProfileExecutor\"\n  WHERE (\"ProfileExecutor\".\"sharerId\" = \"FollowRequest\".\"sharerId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "FollowRequest",
+    "policy_name": "create_follow_requests",
+    "command_type": "INSERT",
+    "policy_roles": "{authenticated}",
+    "using_expression": null,
+    "with_check_expression": "((auth.uid() = \"requestorId\") AND (EXISTS ( SELECT 1\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"FollowRequest\".\"sharerId\"))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "FollowRequest",
+    "policy_name": "update_follow_requests",
+    "command_type": "UPDATE",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\"\n  WHERE ((\"ProfileSharer\".id = \"FollowRequest\".\"sharerId\") AND (\"ProfileSharer\".\"profileId\" = auth.uid()))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "FollowRequest",
+    "policy_name": "view_follow_requests",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "((auth.uid() = \"requestorId\") OR (EXISTS ( SELECT 1\n   FROM \"ProfileSharer\"\n  WHERE ((\"ProfileSharer\".id = \"FollowRequest\".\"sharerId\") AND (\"ProfileSharer\".\"profileId\" = auth.uid())))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Invitation",
+    "policy_name": "Admins can do anything on Invitation",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Invitation",
+    "policy_name": "Allow inserting invitations without profile",
+    "command_type": "INSERT",
+    "policy_roles": "{authenticated}",
+    "using_expression": null,
+    "with_check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Invitation",
+    "policy_name": "Allow selecting own invitations",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"Invitation\".\"sharerId\")))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Invitation",
+    "policy_name": "Enable all for authenticated users",
+    "command_type": "ALL",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"Invitation\".\"sharerId\")))",
+    "with_check_expression": "(auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"Invitation\".\"sharerId\")))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Invitation",
+    "policy_name": "Executors can manage invitations",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileExecutor\" pe\n  WHERE ((pe.\"executorId\" = auth.uid()) AND (pe.\"sharerId\" = \"Invitation\".\"sharerId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Invitation",
+    "policy_name": "Invitees can access invitations sent to them",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(\"inviteeEmail\" = ( SELECT \"Profile\".email\n   FROM \"Profile\"\n  WHERE (\"Profile\".id = auth.uid())))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Invitation",
+    "policy_name": "Inviters can access invitations they sent",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(\"inviterId\" = auth.uid())",
+    "with_check_expression": "(\"inviterId\" = auth.uid())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Invitation",
+    "policy_name": "Users can create invitations",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "((auth.uid() = \"inviterId\") AND (EXISTS ( SELECT 1\n   FROM \"ProfileSharer\"\n  WHERE ((\"ProfileSharer\".\"profileId\" = auth.uid()) AND (\"ProfileSharer\".id = \"Invitation\".\"sharerId\")))) AND (role = ANY (ARRAY['LISTENER'::\"Role\", 'EXECUTOR'::\"Role\"])))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Invitation",
+    "policy_name": "Users can update own invitations",
+    "command_type": "UPDATE",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.uid() = \"inviterId\") OR (auth.uid() IN ( SELECT \"Profile\".id\n   FROM \"Profile\"\n  WHERE (\"Profile\".email = \"Invitation\".\"inviteeEmail\"))))",
+    "with_check_expression": "((auth.uid() = \"inviterId\") OR (auth.uid() IN ( SELECT \"Profile\".id\n   FROM \"Profile\"\n  WHERE (\"Profile\".email = \"Invitation\".\"inviteeEmail\"))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Invitation",
+    "policy_name": "Users can view invitations",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.uid() = \"inviterId\") OR (auth.uid() IN ( SELECT \"Profile\".id\n   FROM \"Profile\"\n  WHERE (\"Profile\".email = \"Invitation\".\"inviteeEmail\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Invitation",
+    "policy_name": "Users can view own invitations",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.uid() = \"inviterId\") OR (auth.uid() IN ( SELECT \"Profile\".id\n   FROM \"Profile\"\n  WHERE (\"Profile\".email = \"Invitation\".\"inviteeEmail\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Notification",
+    "policy_name": "delete_own_notifications",
+    "command_type": "DELETE",
+    "policy_roles": "{public}",
+    "using_expression": "(\"userId\" = auth.uid())",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Notification",
+    "policy_name": "insert_own_notifications",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "(\"userId\" = auth.uid())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Notification",
+    "policy_name": "select_own_notifications",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(\"userId\" = auth.uid())",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Notification",
+    "policy_name": "service_role_create_notifications",
+    "command_type": "INSERT",
+    "policy_roles": "{service_role}",
+    "using_expression": null,
+    "with_check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Notification",
+    "policy_name": "update_own_notifications",
+    "command_type": "UPDATE",
+    "policy_roles": "{public}",
+    "using_expression": "(\"userId\" = auth.uid())",
+    "with_check_expression": "(\"userId\" = auth.uid())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Object",
+    "policy_name": "Admins can do anything on Object",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Object",
+    "policy_name": "Listeners can view objects from accessible prompt responses",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"PromptResponse\" pr\n  WHERE ((pr.id = \"Object\".\"promptResponseId\") AND (pr.\"privacyLevel\" = 'Public'::text) AND (EXISTS ( SELECT 1\n           FROM \"ProfileListener\" pl\n          WHERE ((pl.\"listenerId\" = auth.uid()) AND (pl.\"sharerId\" = pr.\"profileSharerId\") AND (pl.\"hasAccess\" = true)))))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Object",
+    "policy_name": "Sharers can access their own objects",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "((\"userId\" = auth.uid()) OR ((\"promptResponseId\" IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM (\"PromptResponse\" pr\n     JOIN \"ProfileSharer\" ps ON ((pr.\"profileSharerId\" = ps.id)))\n  WHERE ((pr.id = \"Object\".\"promptResponseId\") AND (ps.\"profileId\" = auth.uid()))))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Object",
+    "policy_name": "Sharers can delete their own objects",
+    "command_type": "DELETE",
+    "policy_roles": "{public}",
+    "using_expression": "((\"userId\" = auth.uid()) OR ((\"promptResponseId\" IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM (\"PromptResponse\" pr\n     JOIN \"ProfileSharer\" ps ON ((pr.\"profileSharerId\" = ps.id)))\n  WHERE ((pr.id = \"Object\".\"promptResponseId\") AND (ps.\"profileId\" = auth.uid()))))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Object",
+    "policy_name": "Sharers can insert objects",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "((EXISTS ( SELECT 1\n   FROM \"ProfileRole\"\n  WHERE ((\"ProfileRole\".\"profileId\" = auth.uid()) AND (\"ProfileRole\".role = 'SHARER'::\"Role\")))) AND ((\"userId\" = auth.uid()) OR ((\"promptResponseId\" IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM (\"PromptResponse\" pr\n     JOIN \"ProfileSharer\" ps ON ((pr.\"profileSharerId\" = ps.id)))\n  WHERE ((pr.id = \"Object\".\"promptResponseId\") AND (ps.\"profileId\" = auth.uid())))))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Object",
+    "policy_name": "Sharers can update their own objects",
+    "command_type": "UPDATE",
+    "policy_roles": "{public}",
+    "using_expression": "((\"userId\" = auth.uid()) OR ((\"promptResponseId\" IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM (\"PromptResponse\" pr\n     JOIN \"ProfileSharer\" ps ON ((pr.\"profileSharerId\" = ps.id)))\n  WHERE ((pr.id = \"Object\".\"promptResponseId\") AND (ps.\"profileId\" = auth.uid()))))))",
+    "with_check_expression": "((\"userId\" = auth.uid()) OR ((\"promptResponseId\" IS NOT NULL) AND (EXISTS ( SELECT 1\n   FROM (\"PromptResponse\" pr\n     JOIN \"ProfileSharer\" ps ON ((pr.\"profileSharerId\" = ps.id)))\n  WHERE ((pr.id = \"Object\".\"promptResponseId\") AND (ps.\"profileId\" = auth.uid()))))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ObjectCategory",
+    "policy_name": "Admins can do anything on ObjectCategory",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ObjectCategory",
+    "policy_name": "Allow SELECT on object categories to all users",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Offering",
+    "policy_name": "Admins can do anything on Offering",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Offering",
+    "policy_name": "Allow SELECT on offerings to all users",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Package",
+    "policy_name": "Admins can do anything on Package",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Package",
+    "policy_name": "Allow SELECT on packages to all users",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PersonTag",
+    "policy_name": "Executors can manage person tags",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM (\"ProfileExecutor\" pe\n     JOIN \"ProfileSharer\" ps ON ((ps.id = pe.\"sharerId\")))\n  WHERE ((pe.\"executorId\" = auth.uid()) AND (ps.\"profileId\" = \"PersonTag\".\"profileSharerId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PersonTag",
+    "policy_name": "person_tag_delete",
+    "command_type": "DELETE",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\"\n  WHERE ((\"ProfileSharer\".id = \"PersonTag\".\"profileSharerId\") AND (\"ProfileSharer\".\"profileId\" = auth.uid()))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PersonTag",
+    "policy_name": "person_tag_insert",
+    "command_type": "INSERT",
+    "policy_roles": "{authenticated}",
+    "using_expression": null,
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\"\n  WHERE ((\"ProfileSharer\".id = \"PersonTag\".\"profileSharerId\") AND (\"ProfileSharer\".\"profileId\" = auth.uid()))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PersonTag",
+    "policy_name": "person_tag_select",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\"\n  WHERE ((\"ProfileSharer\".id = \"PersonTag\".\"profileSharerId\") AND (\"ProfileSharer\".\"profileId\" = auth.uid()))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PersonTag",
+    "policy_name": "person_tag_update",
+    "command_type": "UPDATE",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\"\n  WHERE ((\"ProfileSharer\".id = \"PersonTag\".\"profileSharerId\") AND (\"ProfileSharer\".\"profileId\" = auth.uid()))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\"\n  WHERE ((\"ProfileSharer\".id = \"PersonTag\".\"profileSharerId\") AND (\"ProfileSharer\".\"profileId\" = auth.uid()))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Product",
+    "policy_name": "Admins can do anything on Product",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Product",
+    "policy_name": "Allow SELECT on products to all users",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Profile",
+    "policy_name": "Admins can do anything",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin(auth.uid())",
+    "with_check_expression": "is_admin(auth.uid())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Profile",
+    "policy_name": "Admins can do anything on Profile",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Profile",
+    "policy_name": "Allow individual users to SELECT their own profile",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(id = auth.uid())",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Profile",
+    "policy_name": "Allow individual users to UPDATE their own profile",
+    "command_type": "UPDATE",
+    "policy_roles": "{public}",
+    "using_expression": "(id = auth.uid())",
+    "with_check_expression": "(id = auth.uid())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Profile",
+    "policy_name": "Users can insert own profile",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "(auth.uid() = id)"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Profile",
+    "policy_name": "Users can update own profile",
+    "command_type": "UPDATE",
+    "policy_roles": "{public}",
+    "using_expression": "(auth.uid() = id)",
+    "with_check_expression": "(auth.uid() = id)"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Profile",
+    "policy_name": "Users can view own profile",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(auth.uid() = id)",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Profile",
+    "policy_name": "Users can view profiles",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "((id = auth.uid()) OR (EXISTS ( SELECT 1\n   FROM \"ProfileRole\" pr\n  WHERE ((pr.\"profileId\" = \"Profile\".id) AND (pr.role = 'SHARER'::\"Role\")))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Profile",
+    "policy_name": "Users can view sharer profiles",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "((EXISTS ( SELECT 1\n   FROM \"ProfileRole\" pr\n  WHERE ((pr.\"profileId\" = \"Profile\".id) AND (pr.role = 'SHARER'::\"Role\")))) AND ((id <> auth.uid()) AND ((EXISTS ( SELECT 1\n   FROM (\"FollowRequest\" fr\n     JOIN \"ProfileSharer\" ps ON ((ps.\"profileId\" = \"Profile\".id)))\n  WHERE ((fr.\"requestorId\" = auth.uid()) AND (fr.\"sharerId\" = ps.id) AND (fr.status = 'PENDING'::follow_request_status)))) OR (EXISTS ( SELECT 1\n   FROM (\"ProfileListener\" pl\n     JOIN \"ProfileSharer\" ps ON ((ps.\"profileId\" = \"Profile\".id)))\n  WHERE ((pl.\"listenerId\" = auth.uid()) AND (pl.\"sharerId\" = ps.id) AND (pl.\"hasAccess\" = true)))) OR (EXISTS ( SELECT 1\n   FROM (\"ProfileExecutor\" pe\n     JOIN \"ProfileSharer\" ps ON ((ps.\"profileId\" = \"Profile\".id)))\n  WHERE ((pe.\"executorId\" = auth.uid()) AND (pe.\"sharerId\" = ps.id)))) OR (NOT (EXISTS ( SELECT 1\n   FROM (\"FollowRequest\" fr\n     JOIN \"ProfileSharer\" ps ON ((ps.\"profileId\" = \"Profile\".id)))\n  WHERE ((fr.\"requestorId\" = auth.uid()) AND (fr.\"sharerId\" = ps.id))))))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Profile",
+    "policy_name": "Users can view their own profile and SHARER profiles",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.uid() = id) OR (EXISTS ( SELECT 1\n   FROM \"ProfileRole\"\n  WHERE ((\"ProfileRole\".\"profileId\" = \"Profile\".id) AND (\"ProfileRole\".role = 'SHARER'::\"Role\")))) OR (EXISTS ( SELECT 1\n   FROM \"ProfileListener\"\n  WHERE ((\"ProfileListener\".\"listenerId\" = auth.uid()) AND (\"ProfileListener\".\"sharerId\" IN ( SELECT \"ProfileSharer\".id\n           FROM \"ProfileSharer\"\n          WHERE (\"ProfileSharer\".\"profileId\" = \"Profile\".id)))))) OR (EXISTS ( SELECT 1\n   FROM \"ProfileExecutor\"\n  WHERE ((\"ProfileExecutor\".\"executorId\" = auth.uid()) AND (\"ProfileExecutor\".\"sharerId\" IN ( SELECT \"ProfileSharer\".id\n           FROM \"ProfileSharer\"\n          WHERE (\"ProfileSharer\".\"profileId\" = \"Profile\".id)))))) OR (EXISTS ( SELECT 1\n   FROM \"ProfileRole\" pr\n  WHERE ((pr.\"profileId\" = \"Profile\".id) AND (pr.role = 'SHARER'::\"Role\")))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Profile",
+    "policy_name": "view_requestor_profiles",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "((auth.uid() = id) OR (EXISTS ( SELECT 1\n   FROM (\"FollowRequest\" fr\n     JOIN \"ProfileSharer\" ps ON ((fr.\"sharerId\" = ps.id)))\n  WHERE ((fr.\"requestorId\" = \"Profile\".id) AND (ps.\"profileId\" = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM \"FollowRequest\" fr\n  WHERE ((fr.\"requestorId\" = auth.uid()) AND (\"Profile\".id IN ( SELECT \"ProfileSharer\".\"profileId\"\n           FROM \"ProfileSharer\"\n          WHERE (\"ProfileSharer\".id = fr.\"sharerId\")))))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileExecutor",
+    "policy_name": "Admins can do anything on ProfileExecutor",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileExecutor",
+    "policy_name": "Executors can access their own executor records",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(\"executorId\" = auth.uid())",
+    "with_check_expression": "(\"executorId\" = auth.uid())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileExecutor",
+    "policy_name": "Sharers can view their assigned executor",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(\"sharerId\" = ( SELECT \"ProfileSharer\".id\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".\"profileId\" = auth.uid())))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileExecutor",
+    "policy_name": "Users can manage executor relationships",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"ProfileExecutor\".\"sharerId\")))",
+    "with_check_expression": "(auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"ProfileExecutor\".\"sharerId\")))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileExecutor",
+    "policy_name": "Users can view executor relationships",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"ProfileExecutor\".\"sharerId\"))) OR (auth.uid() = \"executorId\"))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileListener",
+    "policy_name": "Admins can do anything on ProfileListener",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileListener",
+    "policy_name": "Executors can manage listener relationships",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileExecutor\" pe\n  WHERE ((pe.\"executorId\" = auth.uid()) AND (pe.\"sharerId\" = \"ProfileListener\".\"sharerId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileListener",
+    "policy_name": "Listeners can access their own follow records",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(\"listenerId\" = auth.uid())",
+    "with_check_expression": "(\"listenerId\" = auth.uid())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileListener",
+    "policy_name": "Sharers can create listener relationships",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "(auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"ProfileListener\".\"sharerId\")))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileListener",
+    "policy_name": "Sharers can view their followers",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(\"sharerId\" = ( SELECT \"ProfileSharer\".id\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".\"profileId\" = auth.uid())))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileListener",
+    "policy_name": "Users can manage listener relationships",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"ProfileListener\".\"sharerId\")))",
+    "with_check_expression": "(auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"ProfileListener\".\"sharerId\")))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileListener",
+    "policy_name": "Users can view listener relationships",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"ProfileListener\".\"sharerId\"))) OR (auth.uid() = \"listenerId\"))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileRole",
+    "policy_name": "Admins can do anything",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin(auth.uid())",
+    "with_check_expression": "is_admin(auth.uid())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileRole",
+    "policy_name": "Admins can do anything on ProfileRole",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileRole",
+    "policy_name": "Users can delete own roles",
+    "command_type": "DELETE",
+    "policy_roles": "{public}",
+    "using_expression": "(auth.uid() = \"profileId\")",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileRole",
+    "policy_name": "Users can insert own roles",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "(auth.uid() = \"profileId\")"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileRole",
+    "policy_name": "Users can update own roles",
+    "command_type": "UPDATE",
+    "policy_roles": "{public}",
+    "using_expression": "(auth.uid() = \"profileId\")",
+    "with_check_expression": "(auth.uid() = \"profileId\")"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileRole",
+    "policy_name": "Users can view own roles",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(auth.uid() = \"profileId\")",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileRole",
+    "policy_name": "Users can view their own profile roles",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(\"profileId\" = auth.uid())",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileRole",
+    "policy_name": "allow_sharer_role_visibility",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(role = 'SHARER'::\"Role\")",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileRole",
+    "policy_name": "prevent_self_admin_elevation",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "((role <> 'ADMIN'::\"Role\") OR (( SELECT auth.uid() AS uid) <> \"profileId\"))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileSharer",
+    "policy_name": "Admins can do anything",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin(auth.uid())",
+    "with_check_expression": "is_admin(auth.uid())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileSharer",
+    "policy_name": "Admins can do anything on ProfileSharer",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileSharer",
+    "policy_name": "Enable read access for authenticated users",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(auth.role() = 'authenticated'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileSharer",
+    "policy_name": "Sharers can access their own ProfileSharer",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(\"profileId\" = auth.uid())",
+    "with_check_expression": "(\"profileId\" = auth.uid())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileSharer",
+    "policy_name": "Users can delete own sharer profile",
+    "command_type": "DELETE",
+    "policy_roles": "{public}",
+    "using_expression": "(auth.uid() = \"profileId\")",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileSharer",
+    "policy_name": "Users can insert own sharer profile",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "(auth.uid() = \"profileId\")"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileSharer",
+    "policy_name": "Users can update own sharer profile",
+    "command_type": "UPDATE",
+    "policy_roles": "{public}",
+    "using_expression": "(auth.uid() = \"profileId\")",
+    "with_check_expression": "(auth.uid() = \"profileId\")"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ProfileSharer",
+    "policy_name": "Users can view own sharer profile",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(auth.uid() = \"profileId\")",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Prompt",
+    "policy_name": "Admins can do anything on Prompt",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Prompt",
+    "policy_name": "Allow SELECT on prompts to all users",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Prompt",
+    "policy_name": "Anyone can view prompts",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptCategory",
+    "policy_name": "Admins can do anything on PromptCategory",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptCategory",
+    "policy_name": "Allow SELECT on prompt categories to all users",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptCategory",
+    "policy_name": "Anyone can view prompt categories",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "true",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponse",
+    "policy_name": "Admins can do anything on PromptResponse",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponse",
+    "policy_name": "Executors can manage prompt responses",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM (\"ProfileExecutor\" pe\n     JOIN \"ProfileSharer\" ps ON ((ps.id = pe.\"sharerId\")))\n  WHERE ((pe.\"executorId\" = auth.uid()) AND (ps.\"profileId\" = \"PromptResponse\".\"profileSharerId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponse",
+    "policy_name": "Listeners can view prompt responses from sharers they follow",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "((EXISTS ( SELECT 1\n   FROM \"ProfileListener\" pl\n  WHERE ((pl.\"listenerId\" = auth.uid()) AND (pl.\"sharerId\" = \"PromptResponse\".\"profileSharerId\") AND (pl.\"hasAccess\" = true)))) AND (\"privacyLevel\" = 'Public'::text))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponse",
+    "policy_name": "Service role can manage all prompt responses",
+    "command_type": "ALL",
+    "policy_roles": "{service_role}",
+    "using_expression": "true",
+    "with_check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponse",
+    "policy_name": "Sharers can access their own prompt responses",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(\"profileSharerId\" = ( SELECT \"ProfileSharer\".id\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".\"profileId\" = auth.uid())))",
+    "with_check_expression": "(\"profileSharerId\" = ( SELECT \"ProfileSharer\".id\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".\"profileId\" = auth.uid())))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponse",
+    "policy_name": "Users can manage own prompt responses",
+    "command_type": "ALL",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\" ps\n  WHERE ((ps.id = \"PromptResponse\".\"profileSharerId\") AND (ps.\"profileId\" = auth.uid()))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\" ps\n  WHERE ((ps.id = \"PromptResponse\".\"profileSharerId\") AND (ps.\"profileId\" = auth.uid()))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponse",
+    "policy_name": "Users can manage prompt responses",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"PromptResponse\".\"profileSharerId\"))) OR (EXISTS ( SELECT 1\n   FROM \"ProfileExecutor\"\n  WHERE ((\"ProfileExecutor\".\"executorId\" = auth.uid()) AND (\"ProfileExecutor\".\"sharerId\" = \"PromptResponse\".\"profileSharerId\")))))",
+    "with_check_expression": "((auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"PromptResponse\".\"profileSharerId\"))) OR (EXISTS ( SELECT 1\n   FROM \"ProfileExecutor\"\n  WHERE ((\"ProfileExecutor\".\"executorId\" = auth.uid()) AND (\"ProfileExecutor\".\"sharerId\" = \"PromptResponse\".\"profileSharerId\")))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponse",
+    "policy_name": "Users can view own prompt responses",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\" ps\n  WHERE ((ps.id = \"PromptResponse\".\"profileSharerId\") AND (ps.\"profileId\" = auth.uid()))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponse",
+    "policy_name": "Users can view prompt responses",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"PromptResponse\".\"profileSharerId\"))) OR (EXISTS ( SELECT 1\n   FROM \"ProfileExecutor\"\n  WHERE ((\"ProfileExecutor\".\"executorId\" = auth.uid()) AND (\"ProfileExecutor\".\"sharerId\" = \"PromptResponse\".\"profileSharerId\")))) OR (EXISTS ( SELECT 1\n   FROM \"ProfileListener\"\n  WHERE ((\"ProfileListener\".\"listenerId\" = auth.uid()) AND (\"ProfileListener\".\"sharerId\" = \"PromptResponse\".\"profileSharerId\") AND (\"ProfileListener\".\"hasAccess\" = true)))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponseAttachment",
+    "policy_name": "Admins can do anything on PromptResponseAttachment",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponseAttachment",
+    "policy_name": "Allow promptResponseAttachment inserts for owners",
+    "command_type": "INSERT",
+    "policy_roles": "{authenticated}",
+    "using_expression": null,
+    "with_check_expression": "(\"profileSharerId\" = auth.uid())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponseAttachment",
+    "policy_name": "Executors can manage prompt response attachments",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM (\"ProfileExecutor\" pe\n     JOIN \"ProfileSharer\" ps ON ((ps.id = pe.\"sharerId\")))\n  WHERE ((pe.\"executorId\" = auth.uid()) AND (ps.\"profileId\" = \"PromptResponseAttachment\".\"profileSharerId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponseAttachment",
+    "policy_name": "Listeners can view attachments from accessible prompt responses",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"PromptResponse\" pr\n  WHERE ((pr.id = \"PromptResponseAttachment\".\"promptResponseId\") AND (pr.\"privacyLevel\" = 'Public'::text) AND (EXISTS ( SELECT 1\n           FROM \"ProfileListener\" pl\n          WHERE ((pl.\"listenerId\" = auth.uid()) AND (pl.\"sharerId\" = pr.\"profileSharerId\") AND (pl.\"hasAccess\" = true)))))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponseAttachment",
+    "policy_name": "Sharers can access their own attachments",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(\"profileSharerId\" = ( SELECT \"ProfileSharer\".id\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".\"profileId\" = auth.uid())))",
+    "with_check_expression": "(\"profileSharerId\" = ( SELECT \"ProfileSharer\".id\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".\"profileId\" = auth.uid())))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponseAttachmentPersonTag",
+    "policy_name": "Executors can manage prompt response attachment person tags",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM ((\"PromptResponseAttachment\" pra\n     JOIN \"ProfileExecutor\" pe ON ((pe.\"executorId\" = auth.uid())))\n     JOIN \"ProfileSharer\" ps ON ((ps.id = pe.\"sharerId\")))\n  WHERE ((pra.id = \"PromptResponseAttachmentPersonTag\".\"promptResponseAttachmentId\") AND (ps.\"profileId\" = pra.\"profileSharerId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponseFavorite",
+    "policy_name": "Admins can do anything on PromptResponseFavorite",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponseFavorite",
+    "policy_name": "Users can access their own favorites",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(\"profileId\" = auth.uid())",
+    "with_check_expression": "(\"profileId\" = auth.uid())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponseRecentlyWatched",
+    "policy_name": "Admins can do anything on PromptResponseRecentlyWatched",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "PromptResponseRecentlyWatched",
+    "policy_name": "Users can access their own recently watched records",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(\"profileId\" = auth.uid())",
+    "with_check_expression": "(\"profileId\" = auth.uid())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Purchase",
+    "policy_name": "Admins can do anything on Purchase",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Purchase",
+    "policy_name": "Users can access their own purchases",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(\"userId\" = auth.uid())",
+    "with_check_expression": "(\"userId\" = auth.uid())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ResponsePermission",
+    "policy_name": "Admins can do anything on ResponsePermission",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ResponsePermission",
+    "policy_name": "Sharers can delete permissions for their responses",
+    "command_type": "DELETE",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM (\"PromptResponse\" pr\n     JOIN \"ProfileSharer\" ps ON ((pr.\"profileSharerId\" = ps.id)))\n  WHERE ((pr.id = \"ResponsePermission\".\"responseId\") AND (ps.\"profileId\" = auth.uid()))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ResponsePermission",
+    "policy_name": "Sharers can insert permissions for their responses",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM (\"PromptResponse\" pr\n     JOIN \"ProfileSharer\" ps ON ((pr.\"profileSharerId\" = ps.id)))\n  WHERE ((pr.id = \"ResponsePermission\".\"responseId\") AND (ps.\"profileId\" = auth.uid()))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ResponsePermission",
+    "policy_name": "Sharers can update permissions for their responses",
+    "command_type": "UPDATE",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM (\"PromptResponse\" pr\n     JOIN \"ProfileSharer\" ps ON ((pr.\"profileSharerId\" = ps.id)))\n  WHERE ((pr.id = \"ResponsePermission\".\"responseId\") AND (ps.\"profileId\" = auth.uid()))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM (\"PromptResponse\" pr\n     JOIN \"ProfileSharer\" ps ON ((pr.\"profileSharerId\" = ps.id)))\n  WHERE ((pr.id = \"ResponsePermission\".\"responseId\") AND (ps.\"profileId\" = auth.uid()))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ResponsePermission",
+    "policy_name": "Users can access their own response permissions",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(\"userId\" = auth.uid())",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Subscription",
+    "policy_name": "Admins can do anything on Subscription",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Subscription",
+    "policy_name": "Users can access their own subscriptions",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(\"userId\" = auth.uid())",
+    "with_check_expression": "(\"userId\" = auth.uid())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "SubscriptionEntitlement",
+    "policy_name": "Admins can do anything on SubscriptionEntitlement",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "SubscriptionEntitlement",
+    "policy_name": "Users can access their own subscription entitlements",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"Subscription\" s\n  WHERE ((s.id = \"SubscriptionEntitlement\".\"subscriptionId\") AND (s.\"userId\" = auth.uid()))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM \"Subscription\" s\n  WHERE ((s.id = \"SubscriptionEntitlement\".\"subscriptionId\") AND (s.\"userId\" = auth.uid()))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicFavorite",
+    "policy_name": "Executors can manage topic favorites",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM (\"ProfileExecutor\" pe\n     JOIN \"ProfileSharer\" ps ON ((ps.id = pe.\"sharerId\")))\n  WHERE ((pe.\"executorId\" = auth.uid()) AND (ps.\"profileId\" = \"TopicFavorite\".\"profileId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicFavorite",
+    "policy_name": "users_can_delete_own_favorites",
+    "command_type": "DELETE",
+    "policy_roles": "{authenticated}",
+    "using_expression": "((auth.uid())::text = (\"profileId\")::text)",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicFavorite",
+    "policy_name": "users_can_insert_own_favorites",
+    "command_type": "INSERT",
+    "policy_roles": "{authenticated}",
+    "using_expression": null,
+    "with_check_expression": "((auth.uid())::text = (\"profileId\")::text)"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicFavorite",
+    "policy_name": "users_can_read_own_favorites",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "((auth.uid())::text = (\"profileId\")::text)",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicFavorite",
+    "policy_name": "users_can_view_own_favorites",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(((role = 'SHARER'::text) AND (EXISTS ( SELECT 1\n   FROM \"ProfileSharer\"\n  WHERE ((\"ProfileSharer\".id = \"TopicFavorite\".\"sharerId\") AND (\"ProfileSharer\".\"profileId\" = auth.uid()))))) OR ((role = 'EXECUTOR'::text) AND (EXISTS ( SELECT 1\n   FROM \"ProfileExecutor\"\n  WHERE ((\"ProfileExecutor\".id = \"ProfileExecutor\".\"executorId\") AND (\"ProfileExecutor\".\"executorId\" = auth.uid()))))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicQueueItem",
+    "policy_name": "Executors can manage topic queue items",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM (\"ProfileExecutor\" pe\n     JOIN \"ProfileSharer\" ps ON ((ps.id = pe.\"sharerId\")))\n  WHERE ((pe.\"executorId\" = auth.uid()) AND (ps.\"profileId\" = \"TopicQueueItem\".\"profileId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicQueueItem",
+    "policy_name": "users_can_delete_own_queue_items",
+    "command_type": "DELETE",
+    "policy_roles": "{authenticated}",
+    "using_expression": "((auth.uid())::text = (\"profileId\")::text)",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicQueueItem",
+    "policy_name": "users_can_insert_own_queue_items",
+    "command_type": "INSERT",
+    "policy_roles": "{authenticated}",
+    "using_expression": null,
+    "with_check_expression": "((auth.uid())::text = (\"profileId\")::text)"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicQueueItem",
+    "policy_name": "users_can_read_own_queue_items",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "((auth.uid())::text = (\"profileId\")::text)",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideo",
+    "policy_name": "Admins can do anything on ThematicVideo",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideo",
+    "policy_name": "Admins can do anything on TopicVideo",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideo",
+    "policy_name": "Executors can manage topic videos",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM (\"ProfileExecutor\" pe\n     JOIN \"ProfileSharer\" ps ON ((ps.id = pe.\"sharerId\")))\n  WHERE ((pe.\"executorId\" = auth.uid()) AND (ps.\"profileId\" = \"TopicVideo\".\"profileSharerId\"))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM (\"ProfileExecutor\" pe\n     JOIN \"ProfileSharer\" ps ON ((ps.id = pe.\"sharerId\")))\n  WHERE ((pe.\"executorId\" = auth.uid()) AND (ps.\"profileId\" = \"TopicVideo\".\"profileSharerId\"))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideo",
+    "policy_name": "Service role can manage all topic videos",
+    "command_type": "ALL",
+    "policy_roles": "{service_role}",
+    "using_expression": "true",
+    "with_check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideo",
+    "policy_name": "Users can manage own topic videos",
+    "command_type": "ALL",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\" ps\n  WHERE ((ps.id = \"TopicVideo\".\"profileSharerId\") AND (ps.\"profileId\" = auth.uid()))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\" ps\n  WHERE ((ps.id = \"TopicVideo\".\"profileSharerId\") AND (ps.\"profileId\" = auth.uid()))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideo",
+    "policy_name": "Users can view own topic videos",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\" ps\n  WHERE ((ps.id = \"TopicVideo\".\"profileSharerId\") AND (ps.\"profileId\" = auth.uid()))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideo",
+    "policy_name": "topicvideo_delete_policy",
+    "command_type": "DELETE",
+    "policy_roles": "{public}",
+    "using_expression": "(is_admin() OR (EXISTS ( SELECT 1\n   FROM \"ProfileRole\" pr\n  WHERE ((pr.\"profileId\" = auth.uid()) AND (pr.role = 'ADMIN'::\"Role\")))) OR ((EXISTS ( SELECT 1\n   FROM \"ProfileRole\" pr\n  WHERE ((pr.\"profileId\" = auth.uid()) AND (pr.role = 'SHARER'::\"Role\")))) AND (\"profileSharerId\" = ( SELECT ps.id\n   FROM \"ProfileSharer\" ps\n  WHERE (ps.\"profileId\" = auth.uid())))) OR ((EXISTS ( SELECT 1\n   FROM \"ProfileRole\" pr\n  WHERE ((pr.\"profileId\" = auth.uid()) AND (pr.role = 'EXECUTOR'::\"Role\")))) AND (EXISTS ( SELECT 1\n   FROM \"ProfileExecutor\" pe\n  WHERE ((pe.\"executorId\" = auth.uid()) AND (pe.\"sharerId\" = \"TopicVideo\".\"profileSharerId\"))))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideo",
+    "policy_name": "topicvideo_insert_policy",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\" ps\n  WHERE ((ps.\"profileId\" = auth.uid()) AND (ps.id = \"TopicVideo\".\"profileSharerId\"))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideo",
+    "policy_name": "topicvideo_select_policy",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\" ps\n  WHERE ((ps.\"profileId\" = auth.uid()) AND (ps.id = \"TopicVideo\".\"profileSharerId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideo",
+    "policy_name": "topicvideo_update_policy",
+    "command_type": "UPDATE",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\" ps\n  WHERE ((ps.\"profileId\" = auth.uid()) AND (ps.id = \"TopicVideo\".\"profileSharerId\"))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\" ps\n  WHERE ((ps.\"profileId\" = auth.uid()) AND (ps.id = \"TopicVideo\".\"profileSharerId\"))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideoDownload",
+    "policy_name": "Executors can manage topic video downloads",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM ((\"TopicVideo\" tv\n     JOIN \"ProfileExecutor\" pe ON ((pe.\"executorId\" = auth.uid())))\n     JOIN \"ProfileSharer\" ps ON ((ps.id = pe.\"sharerId\")))\n  WHERE ((tv.\"muxAssetId\" = \"TopicVideoDownload\".\"muxAssetId\") AND (ps.\"profileId\" = tv.\"profileSharerId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideoTranscript",
+    "policy_name": "Allow admins full access on TopicVideoTranscript",
+    "command_type": "ALL",
+    "policy_roles": "{authenticated}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideoTranscript",
+    "policy_name": "Allow service role full access on TopicVideoTranscript",
+    "command_type": "ALL",
+    "policy_roles": "{service_role}",
+    "using_expression": "true",
+    "with_check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideoTranscript",
+    "policy_name": "Allow users to manage their own topic video transcripts",
+    "command_type": "ALL",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM (\"TopicVideo\" tv\n     JOIN \"ProfileSharer\" ps ON ((tv.\"profileSharerId\" = ps.id)))\n  WHERE ((tv.id = \"TopicVideoTranscript\".\"topicVideoId\") AND (ps.\"profileId\" = auth.uid()))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM (\"TopicVideo\" tv\n     JOIN \"ProfileSharer\" ps ON ((tv.\"profileSharerId\" = ps.id)))\n  WHERE ((tv.id = \"TopicVideoTranscript\".\"topicVideoId\") AND (ps.\"profileId\" = auth.uid()))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideoTranscript",
+    "policy_name": "Allow users to update their own topic video transcripts",
+    "command_type": "UPDATE",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM (\"TopicVideo\" tv\n     JOIN \"ProfileSharer\" ps ON ((tv.\"profileSharerId\" = ps.id)))\n  WHERE ((tv.id = \"TopicVideoTranscript\".\"topicVideoId\") AND (ps.\"profileId\" = auth.uid()))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM (\"TopicVideo\" tv\n     JOIN \"ProfileSharer\" ps ON ((tv.\"profileSharerId\" = ps.id)))\n  WHERE ((tv.id = \"TopicVideoTranscript\".\"topicVideoId\") AND (ps.\"profileId\" = auth.uid()))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideoTranscript",
+    "policy_name": "Allow users to view their own topic video transcripts",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM (\"TopicVideo\" tv\n     JOIN \"ProfileSharer\" ps ON ((tv.\"profileSharerId\" = ps.id)))\n  WHERE ((tv.id = \"TopicVideoTranscript\".\"topicVideoId\") AND (ps.\"profileId\" = auth.uid()))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "TopicVideoTranscript",
+    "policy_name": "Executors can manage topic video transcripts",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM ((\"TopicVideo\" tv\n     JOIN \"ProfileExecutor\" pe ON ((pe.\"executorId\" = auth.uid())))\n     JOIN \"ProfileSharer\" ps ON ((ps.id = pe.\"sharerId\")))\n  WHERE ((tv.id = \"TopicVideoTranscript\".\"topicVideoId\") AND (ps.\"profileId\" = tv.\"profileSharerId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Video",
+    "policy_name": "Admins can do anything on Video",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "is_admin()",
+    "with_check_expression": "is_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Video",
+    "policy_name": "Executors can manage videos",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM (\"ProfileExecutor\" pe\n     JOIN \"ProfileSharer\" ps ON ((ps.id = pe.\"sharerId\")))\n  WHERE ((pe.\"executorId\" = auth.uid()) AND (ps.\"profileId\" = \"Video\".\"profileSharerId\"))))",
+    "with_check_expression": "(EXISTS ( SELECT 1\n   FROM (\"ProfileExecutor\" pe\n     JOIN \"ProfileSharer\" ps ON ((ps.id = pe.\"sharerId\")))\n  WHERE ((pe.\"executorId\" = auth.uid()) AND (ps.\"profileId\" = \"Video\".\"profileSharerId\"))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Video",
+    "policy_name": "Listeners can view videos from sharers they follow",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileListener\" pl\n  WHERE ((pl.\"listenerId\" = auth.uid()) AND (pl.\"sharerId\" = \"Video\".\"profileSharerId\") AND (pl.\"hasAccess\" = true))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Video",
+    "policy_name": "Service role can manage all videos",
+    "command_type": "ALL",
+    "policy_roles": "{service_role}",
+    "using_expression": "true",
+    "with_check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Video",
+    "policy_name": "Sharers can access their own videos",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(\"profileSharerId\" = ( SELECT \"ProfileSharer\".id\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".\"profileId\" = auth.uid())))",
+    "with_check_expression": "(\"profileSharerId\" = ( SELECT \"ProfileSharer\".id\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".\"profileId\" = auth.uid())))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Video",
+    "policy_name": "Users can manage own videos",
+    "command_type": "ALL",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\" ps\n  WHERE ((ps.id = \"Video\".\"profileSharerId\") AND (ps.\"profileId\" = auth.uid()))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Video",
+    "policy_name": "Users can manage videos",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"Video\".\"profileSharerId\"))) OR (EXISTS ( SELECT 1\n   FROM \"ProfileExecutor\"\n  WHERE ((\"ProfileExecutor\".\"executorId\" = auth.uid()) AND (\"ProfileExecutor\".\"sharerId\" = \"Video\".\"profileSharerId\")))))",
+    "with_check_expression": "((auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"Video\".\"profileSharerId\"))) OR (EXISTS ( SELECT 1\n   FROM \"ProfileExecutor\"\n  WHERE ((\"ProfileExecutor\".\"executorId\" = auth.uid()) AND (\"ProfileExecutor\".\"sharerId\" = \"Video\".\"profileSharerId\")))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Video",
+    "policy_name": "Users can view own videos",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM \"ProfileSharer\" ps\n  WHERE ((ps.id = \"Video\".\"profileSharerId\") AND (ps.\"profileId\" = auth.uid()))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "Video",
+    "policy_name": "Users can view videos",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.uid() IN ( SELECT \"ProfileSharer\".\"profileId\"\n   FROM \"ProfileSharer\"\n  WHERE (\"ProfileSharer\".id = \"Video\".\"profileSharerId\"))) OR (EXISTS ( SELECT 1\n   FROM \"ProfileExecutor\"\n  WHERE ((\"ProfileExecutor\".\"executorId\" = auth.uid()) AND (\"ProfileExecutor\".\"sharerId\" = \"Video\".\"profileSharerId\")))) OR (EXISTS ( SELECT 1\n   FROM \"ProfileListener\"\n  WHERE ((\"ProfileListener\".\"listenerId\" = auth.uid()) AND (\"ProfileListener\".\"sharerId\" = \"Video\".\"profileSharerId\") AND (\"ProfileListener\".\"hasAccess\" = true)))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "VideoDownload",
+    "policy_name": "Executors can manage video downloads",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM ((\"Video\" v\n     JOIN \"ProfileExecutor\" pe ON ((pe.\"executorId\" = auth.uid())))\n     JOIN \"ProfileSharer\" ps ON ((ps.id = pe.\"sharerId\")))\n  WHERE ((v.\"muxAssetId\" = \"VideoDownload\".\"muxAssetId\") AND (ps.\"profileId\" = v.\"profileSharerId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "VideoDownload",
+    "policy_name": "Users can create their own downloads",
+    "command_type": "INSERT",
+    "policy_roles": "{authenticated}",
+    "using_expression": null,
+    "with_check_expression": "(auth.uid() = \"profileId\")"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "VideoDownload",
+    "policy_name": "Users can view their own downloads",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "(auth.uid() = \"profileId\")",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "VideoTranscript",
+    "policy_name": "Admins can do anything on VideoTranscript",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.role() = 'service_role'::text) OR is_admin())",
+    "with_check_expression": "((auth.role() = 'service_role'::text) OR is_admin())"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "VideoTranscript",
+    "policy_name": "Executors can manage video transcripts",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM ((\"Video\" v\n     JOIN \"ProfileExecutor\" pe ON ((pe.\"executorId\" = auth.uid())))\n     JOIN \"ProfileSharer\" ps ON ((ps.id = pe.\"sharerId\")))\n  WHERE ((v.id = \"VideoTranscript\".\"videoId\") AND (ps.\"profileId\" = v.\"profileSharerId\"))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "VideoTranscript",
+    "policy_name": "Listeners can view transcripts of accessible videos",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.role() = 'service_role'::text) OR (EXISTS ( SELECT 1\n   FROM \"Video\" v\n  WHERE ((v.id = \"VideoTranscript\".\"videoId\") AND (EXISTS ( SELECT 1\n           FROM \"ProfileListener\" pl\n          WHERE ((pl.\"listenerId\" = auth.uid()) AND (pl.\"sharerId\" = v.\"profileSharerId\") AND (pl.\"hasAccess\" = true))))))))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "VideoTranscript",
+    "policy_name": "Sharers can access their own video transcripts",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "((auth.role() = 'service_role'::text) OR (EXISTS ( SELECT 1\n   FROM (\"Video\" v\n     JOIN \"ProfileSharer\" ps ON ((v.\"profileSharerId\" = ps.id)))\n  WHERE ((v.id = \"VideoTranscript\".\"videoId\") AND (ps.\"profileId\" = auth.uid())))))",
+    "with_check_expression": "((auth.role() = 'service_role'::text) OR (EXISTS ( SELECT 1\n   FROM (\"Video\" v\n     JOIN \"ProfileSharer\" ps ON ((v.\"profileSharerId\" = ps.id)))\n  WHERE ((v.id = \"VideoTranscript\".\"videoId\") AND (ps.\"profileId\" = auth.uid())))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "_ListenerPromptViews",
+    "policy_name": "allow_delete_listenerpromptviews_admin",
+    "command_type": "DELETE",
+    "policy_roles": "{public}",
+    "using_expression": "(current_setting('jwt.claims.role'::text, true) = 'admin'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "_ListenerPromptViews",
+    "policy_name": "allow_insert_listenerpromptviews_admin",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "(current_setting('jwt.claims.role'::text, true) = 'admin'::text)"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "_ListenerPromptViews",
+    "policy_name": "allow_select_listenerpromptviews_authenticated",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(auth.uid() IS NOT NULL)",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "_ListenerPromptViews",
+    "policy_name": "allow_update_listenerpromptviews_admin",
+    "command_type": "UPDATE",
+    "policy_roles": "{public}",
+    "using_expression": "(current_setting('jwt.claims.role'::text, true) = 'admin'::text)",
+    "with_check_expression": "(current_setting('jwt.claims.role'::text, true) = 'admin'::text)"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "_ListenerVideoViews",
+    "policy_name": "allow_delete_listenervideoviews_admin",
+    "command_type": "DELETE",
+    "policy_roles": "{public}",
+    "using_expression": "(current_setting('jwt.claims.role'::text, true) = 'admin'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "_ListenerVideoViews",
+    "policy_name": "allow_insert_listenervideoviews_admin",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "(current_setting('jwt.claims.role'::text, true) = 'admin'::text)"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "_ListenerVideoViews",
+    "policy_name": "allow_select_listenervideoviews_authenticated",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(auth.uid() IS NOT NULL)",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "_ListenerVideoViews",
+    "policy_name": "allow_update_listenervideoviews_admin",
+    "command_type": "UPDATE",
+    "policy_roles": "{public}",
+    "using_expression": "(current_setting('jwt.claims.role'::text, true) = 'admin'::text)",
+    "with_check_expression": "(current_setting('jwt.claims.role'::text, true) = 'admin'::text)"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "_PromptResponseToThematicVideo",
+    "policy_name": "allow_delete_promptresponsetothematicvideo_admin",
+    "command_type": "DELETE",
+    "policy_roles": "{public}",
+    "using_expression": "(current_setting('jwt.claims.role'::text, true) = 'admin'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "_PromptResponseToThematicVideo",
+    "policy_name": "allow_insert_promptresponsetothematicvideo_admin",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "(current_setting('jwt.claims.role'::text, true) = 'admin'::text)"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "_PromptResponseToThematicVideo",
+    "policy_name": "allow_select_promptresponsetothematicvideo_authenticated",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(auth.uid() IS NOT NULL)",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "_PromptResponseToThematicVideo",
+    "policy_name": "allow_update_promptresponsetothematicvideo_admin",
+    "command_type": "UPDATE",
+    "policy_roles": "{public}",
+    "using_expression": "(current_setting('jwt.claims.role'::text, true) = 'admin'::text)",
+    "with_check_expression": "(current_setting('jwt.claims.role'::text, true) = 'admin'::text)"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "_prisma_migrations",
+    "policy_name": "allow_all_prisma_migrations_admin",
+    "command_type": "ALL",
+    "policy_roles": "{public}",
+    "using_expression": "(current_setting('jwt.claims.role'::text, true) = 'admin'::text)",
+    "with_check_expression": "(current_setting('jwt.claims.role'::text, true) = 'admin'::text)"
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Allow authenticated deletes",
+    "command_type": "DELETE",
+    "policy_roles": "{authenticated}",
+    "using_expression": "((bucket_id = 'attachments'::text) AND (auth.role() = 'authenticated'::text))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Allow authenticated reads",
+    "command_type": "SELECT",
+    "policy_roles": "{authenticated}",
+    "using_expression": "((bucket_id = 'attachments'::text) AND (auth.role() = 'authenticated'::text))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Allow authenticated updates",
+    "command_type": "UPDATE",
+    "policy_roles": "{authenticated}",
+    "using_expression": "((bucket_id = 'attachments'::text) AND (auth.role() = 'authenticated'::text))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Allow authenticated uploads",
+    "command_type": "INSERT",
+    "policy_roles": "{authenticated}",
+    "using_expression": null,
+    "with_check_expression": "((bucket_id = 'attachments'::text) AND (auth.role() = 'authenticated'::text))"
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Anyone can upload an avatar.",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "(bucket_id = 'avatars'::text)"
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Attachments are publicly accessible.",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(bucket_id = 'attachments'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Authenticated users can upload attachments.",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "((bucket_id = 'attachments'::text) AND (auth.role() = 'authenticated'::text))"
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Avatar images are publicly accessible.",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(bucket_id = 'avatars'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Users can delete their own attachments.",
+    "command_type": "DELETE",
+    "policy_roles": "{public}",
+    "using_expression": "((bucket_id = 'attachments'::text) AND (auth.uid() = owner))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Users can delete their own avatar",
+    "command_type": "DELETE",
+    "policy_roles": "{public}",
+    "using_expression": "((bucket_id = 'avatars'::text) AND ((auth.uid())::text = split_part(name, '/'::text, 1)))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Users can update their own attachments.",
+    "command_type": "UPDATE",
+    "policy_roles": "{public}",
+    "using_expression": "((bucket_id = 'attachments'::text) AND (auth.uid() = owner))",
+    "with_check_expression": "(bucket_id = 'attachments'::text)"
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Users can upload their own avatar",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "((bucket_id = 'avatars'::text) AND ((auth.uid())::text = split_part(name, '/'::text, 1)))"
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "authed read access",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "(bucket_id = 'avatars'::text)",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "authenticated read access to avatars",
+    "command_type": "SELECT",
+    "policy_roles": "{public}",
+    "using_expression": "((bucket_id = 'avatars'::text) AND (auth.role() = 'authenticated'::text))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "users can delete their own avatar",
+    "command_type": "DELETE",
+    "policy_roles": "{public}",
+    "using_expression": "((bucket_id = 'avatars'::text) AND (auth.uid() = (split_part(name, '/'::text, 1))::uuid))",
+    "with_check_expression": null
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "users can upload their own avatar",
+    "command_type": "INSERT",
+    "policy_roles": "{public}",
+    "using_expression": null,
+    "with_check_expression": "((bucket_id = 'avatars'::text) AND (auth.uid() = (split_part(name, '/'::text, 1))::uuid))"
+  }
+]

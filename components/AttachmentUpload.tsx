@@ -482,7 +482,10 @@ export default function AttachmentUpload({
                         id: 'preview',
                         fileUrl: previews[0],
                         fileType: files[0].type,
-                        fileName: files[0].name
+                        fileName: files[0].name,
+                        description: null,
+                        dateCaptured: null,
+                        yearCaptured: null
                       }}
                       size="lg"
                       className="w-full h-full"

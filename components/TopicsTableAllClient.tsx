@@ -53,8 +53,8 @@ interface Prompt {
 interface PromptCategory {
   id: string;
   category: string;
-  theme?: string;
-  description?: string;
+  theme: string | null;
+  description: string;
   prompts: Prompt[];
   isFavorite?: boolean;
   isInQueue?: boolean;

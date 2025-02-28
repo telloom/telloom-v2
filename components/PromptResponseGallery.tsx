@@ -270,6 +270,7 @@ export function PromptResponseGallery({ promptResponseId }: PromptResponseGaller
               <AttachmentThumbnail 
                 attachment={{
                   ...attachment,
+                  dateCaptured: attachment.dateCaptured ? new Date(attachment.dateCaptured) : null,
                   signedUrl: attachment.signedUrl
                 }}
                 size="lg"

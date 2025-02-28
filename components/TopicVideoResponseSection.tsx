@@ -624,7 +624,6 @@ export function TopicVideoResponseSection({
                 <div className="rounded-lg overflow-hidden">
                   <MuxPlayer
                     playbackId={video.muxPlaybackId}
-                    streamType="on-demand"
                   />
                 </div>
               </div>
@@ -1093,7 +1092,8 @@ export function TopicVideoResponseSection({
           fileName: imageAttachments[selectedImageIndex].fileName,
           fileType: imageAttachments[selectedImageIndex].fileType,
           description: imageAttachments[selectedImageIndex].description,
-          dateCaptured: imageAttachments[selectedImageIndex].dateCaptured || null,
+          dateCaptured: imageAttachments[selectedImageIndex].dateCaptured ? 
+            imageAttachments[selectedImageIndex].dateCaptured.toISOString() : null,
           yearCaptured: imageAttachments[selectedImageIndex].yearCaptured,
           displayUrl: imageAttachments[selectedImageIndex].signedUrl || '',
           PersonTags: imageAttachments[selectedImageIndex].PersonTags || []
