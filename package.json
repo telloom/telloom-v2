@@ -13,7 +13,8 @@
     "sync": "ts-node airtable-supabase-sync/sync.ts",
     "sync:dev": "ts-node-dev --respawn airtable-supabase-sync/sync.ts",
     "test:db": "ts-node --require dotenv/config db-test.ts",
-    "create-test-user": "ts-node scripts/create-test-user.ts"
+    "create-test-user": "ts-node scripts/create-test-user.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@babel/types": "^7.26.3",
