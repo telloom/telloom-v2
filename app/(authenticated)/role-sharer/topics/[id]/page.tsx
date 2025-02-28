@@ -1,5 +1,7 @@
 "use client";
 
+export const runtime = 'nodejs';
+
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";

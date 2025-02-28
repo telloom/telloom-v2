@@ -2,6 +2,8 @@
 
 'use client';
 
+export const runtime = 'nodejs';
+
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';

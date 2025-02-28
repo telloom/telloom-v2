@@ -8,7 +8,7 @@ import { Toaster } from 'sonner';
 
 const inter = Inter({ subsets: ['latin'] });
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
