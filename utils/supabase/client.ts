@@ -60,9 +60,6 @@ export function createResetPasswordClient() {
         detectSessionInUrl: false, // Completely disable URL detection
         flowType: 'pkce',
         autoRefreshToken: false, // Disable auto refresh for reset password
-        // Disable all automatic redirects
-        navigateToInitialRedirect: false,
-        navigateToNonExistentRedirect: false,
         // Log all auth state changes but don't take any action
         onAuthStateChange: (event, session) => {
           console.log('[RESET CLIENT DEBUG] Auth state changed:', event, session ? 'Has session' : 'No session', 'at:', new Date().toISOString());

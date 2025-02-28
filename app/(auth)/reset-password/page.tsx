@@ -12,11 +12,13 @@ export const metadata: Metadata = {
   description: 'Reset your password to access your Telloom account.',
 };
 
+interface ResetPasswordPageProps {
+  searchParams: { [key: string]: string | string[] | undefined };
+}
+
 export default async function ResetPasswordPage({
   searchParams,
-}: {
-  searchParams: { [key: string]: string | string[] | undefined };
-}) {
+}: ResetPasswordPageProps) {
   // In Next.js 15, searchParams is a Promise that needs to be awaited
   const resolvedParams = await Promise.resolve(searchParams);
   

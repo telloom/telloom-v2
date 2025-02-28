@@ -1,86 +1,83 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/utils/supabase/server';
+
+interface RouteContext {
+  params: {
+    uploadId: string;
+  };
+}
 
 export async function GET(
   request: Request,
-  { params }: { params: { uploadId: string } }
+  context: RouteContext
 ) {
-  if (process.env.NODE_ENV !== 'development') {
-    return NextResponse.json({ error: 'Debug endpoints only available in development' }, { status: 403 });
+  const resolvedParams = await Promise.resolve(context.params);
+  const uploadId = resolvedParams.uploadId;
+  
+  const supabase = createClient();
+  
+  // Get the current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
-  console.log('Initializing Supabase client with:', {
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    serviceRoleKeyLength: process.env.SUPABASE_SERVICE_ROLE_KEY?.length || 0
-  });
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false
-      }
+  
+  try {
+    // Get the video upload status
+    const { data, error } = await supabase
+      .from('VideoUpload')
+      .select('*')
+      .eq('id', uploadId)
+      .single();
+    
+    if (error) {
+      console.error('Error getting video upload:', error);
+      return NextResponse.json({ error: 'Failed to get video upload' }, { status: 500 });
     }
-  );
-
-  console.log('Querying video record...');
-  const { data, error } = await supabase
-    .from('Video')
-    .select('*')
-    .eq('muxUploadId', params.uploadId)
-    .single();
-
-  if (error) {
-    console.error('Error fetching video:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    
+    return NextResponse.json({ data });
+  } catch (error) {
+    console.error('Error in debug video route:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  console.log('Found video record:', data);
-  return NextResponse.json(data);
 }
 
 export async function POST(
   request: Request,
-  { params }: { params: { uploadId: string } }
+  context: RouteContext
 ) {
-  if (process.env.NODE_ENV !== 'development') {
-    return NextResponse.json({ error: 'Debug endpoints only available in development' }, { status: 403 });
+  const resolvedParams = await Promise.resolve(context.params);
+  const uploadId = resolvedParams.uploadId;
+  
+  const supabase = createClient();
+  
+  // Get the current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
-  console.log('Initializing Supabase client with:', {
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    serviceRoleKeyLength: process.env.SUPABASE_SERVICE_ROLE_KEY?.length || 0
-  });
-
-  const supabase = createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false
-      }
+  
+  try {
+    // Update the video upload status
+    const body = await request.json();
+    
+    const { data, error } = await supabase
+      .from('VideoUpload')
+      .update(body)
+      .eq('id', uploadId)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error updating video upload:', error);
+      return NextResponse.json({ error: 'Failed to update video upload' }, { status: 500 });
     }
-  );
-
-  const body = await request.json();
-  console.log('Updating video record with:', body);
-
-  const { data, error } = await supabase
-    .from('Video')
-    .update(body)
-    .eq('muxUploadId', params.uploadId)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error updating video:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    
+    return NextResponse.json({ data });
+  } catch (error) {
+    console.error('Error in debug video route:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  console.log('Updated video record:', data);
-  return NextResponse.json(data);
 } 

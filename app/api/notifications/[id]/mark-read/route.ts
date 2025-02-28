@@ -1,48 +1,44 @@
-import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
+
+interface RouteContext {
+  params: {
+    id: string;
+  };
+}
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  context: RouteContext
 ) {
+  const resolvedParams = await Promise.resolve(context.params);
+  const notificationId = resolvedParams.id;
+  
+  const supabase = createClient();
+  
+  // Get the current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  
   try {
-    const supabase = createClient();
-    
-    // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // Resolve params before using them
-    const resolvedParams = await Promise.resolve(params);
-    const notificationId = resolvedParams.id;
-
-    // Update the specific notification
-    const { error: updateError } = await supabase
+    // Mark the notification as read
+    const { error } = await supabase
       .from('Notification')
       .update({ isRead: true })
       .eq('id', notificationId)
-      .eq('userId', user.id);
-
-    if (updateError) {
-      console.error('Error marking notification as read:', updateError);
-      return NextResponse.json(
-        { error: 'Failed to mark notification as read' },
-        { status: 500 }
-      );
+      .eq('profileId', user.id);
+    
+    if (error) {
+      console.error('Error marking notification as read:', error);
+      return NextResponse.json({ error: 'Failed to mark notification as read' }, { status: 500 });
     }
-
+    
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Unexpected error in mark-read:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Error in mark-read route:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 

@@ -2,11 +2,20 @@ import { NextResponse } from 'next/server';
 import Mux from '@mux/mux-node';
 import { createAdminClient } from '@/utils/supabase/admin';
 
+interface RouteContext {
+  params: {
+    id: string;
+  };
+}
+
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  context: RouteContext
 ) {
-  console.log('Starting delete process for video:', params.id);
+  const resolvedParams = await Promise.resolve(context.params);
+  const videoId = resolvedParams.id;
+  
+  console.log('Starting delete process for video:', videoId);
 
   // Initialize Supabase admin client
   const supabase = createAdminClient();
@@ -22,7 +31,7 @@ export async function DELETE(
     const { data: video, error: getError } = await supabase
       .from('Video')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', videoId)
       .single();
 
     if (getError) {
@@ -63,7 +72,7 @@ export async function DELETE(
     const { error: deleteError } = await supabase
       .from('Video')
       .delete()
-      .eq('id', params.id);
+      .eq('id', videoId);
 
     if (deleteError) {
       console.error('Error deleting video:', deleteError);
@@ -98,9 +107,12 @@ export async function DELETE(
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: RouteContext
 ) {
-  console.log('Starting GET request for video:', params.id);
+  const resolvedParams = await Promise.resolve(context.params);
+  const videoId = resolvedParams.id;
+  
+  console.log('Starting GET request for video:', videoId);
 
   // Initialize Supabase admin client
   const supabase = createAdminClient();
@@ -110,7 +122,7 @@ export async function GET(
     const { data: video, error: getError } = await supabase
       .from('Video')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', videoId)
       .single();
 
     if (getError) {

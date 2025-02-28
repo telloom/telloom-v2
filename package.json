@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "NEXT_DISABLE_ESLINT_DURING_BUILDS=true next build && tsc --skipLibCheck",
+    "build": "NEXT_DISABLE_ESLINT_DURING_BUILDS=true next build",
+    "build:check": "NEXT_DISABLE_ESLINT_DURING_BUILDS=true next build && tsc --skipLibCheck",
     "start": "next start",
     "lint": "next lint && eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",

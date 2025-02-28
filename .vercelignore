@@ -1,0 +1,28 @@
+# Ignore TypeScript source files that are not needed for the build
+*.ts.bak
+*.tsx.bak
+
+# Ignore development and test files
+scripts/
+airtable-supabase-sync/
+db-test.ts
+check-db.ts
+
+# Ignore TypeScript configuration files
+tsconfig.tsbuildinfo
+
+# Ignore editor and IDE files
+.vscode/
+.idea/
+
+# Ignore git files
+.git/
+.gitignore
+
+# Ignore environment files
+.env.local
+.env.development
+.env.test
+
+# Ignore log files
+*.log 
