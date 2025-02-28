@@ -8,7 +8,7 @@ import { createClient } from '@/utils/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from 'lucide-react';
-import { VideoResponseSection } from './video-response-section';
+import { VideoResponseSection } from '@/components/prompt-response-section/video-response-section';
 import { GetPromptDataResult, GetPromptDataError, Prompt } from '@/types/models';
 
 async function getPromptData(promptId: string): Promise<GetPromptDataResult | GetPromptDataError> {

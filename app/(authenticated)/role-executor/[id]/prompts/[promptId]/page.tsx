@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import VideoResponseSection from './video-response-section';
+import { VideoResponseSection } from '@/components/prompt-response-section/video-response-section';
 import BackButton from '@/components/BackButton';
 import PromptActions from './prompt-actions';
 import { GetPromptDataResult, Prompt } from '@/types/models';

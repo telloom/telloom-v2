@@ -779,11 +779,6 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
     }
   };
 
-  // Add getContentStyle helper function after the state declarations
-  const getContentStyle = (isExpanded: boolean) => ({
-    overflow: !isExpanded ? 'hidden' : 'visible'
-  });
-
   if (!response?.video) {
     return (
       <Card className="p-8 flex flex-col items-center justify-center gap-6 bg-gray-50">
@@ -1081,10 +1076,9 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
               <div className="space-y-2">
                 <div
                   ref={transcriptContentRef}
-                  className={`relative bg-white rounded-lg p-4 whitespace-pre-wrap transition-all duration-200 text-base ${
+                  className={`relative bg-white rounded-lg p-4 whitespace-pre-wrap transition-all duration-200 text-base overflow-hidden ${
                     !isTranscriptExpanded && transcriptOverflows ? "max-h-[16em]" : ""
                   }`}
-                  style={getContentStyle(isTranscriptExpanded)}
                 >
                   {transcript || 'No transcript available'}
                   {!isTranscriptExpanded && transcriptOverflows && (
@@ -1283,10 +1277,9 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
               <div className="space-y-2">
                 <div
                   ref={summaryContentRef}
-                  className={`relative bg-white rounded-lg p-4 whitespace-pre-wrap transition-all duration-200 text-base ${
+                  className={`relative bg-white rounded-lg p-4 whitespace-pre-wrap transition-all duration-200 text-base overflow-hidden ${
                     !isSummaryExpanded && summaryOverflows ? "max-h-[16em]" : ""
                   }`}
-                  style={getContentStyle(isSummaryExpanded)}
                 >
                   {summary || 'No summary available'}
                   {!isSummaryExpanded && summaryOverflows && (
@@ -1360,10 +1353,9 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
               <div className="space-y-2">
                 <div
                   ref={notesContentRef}
-                  className={`relative bg-white rounded-lg p-4 whitespace-pre-wrap transition-all duration-200 text-base ${
+                  className={`relative bg-white rounded-lg p-4 whitespace-pre-wrap transition-all duration-200 text-base overflow-hidden ${
                     !isNotesExpanded && notesOverflows ? "max-h-[16em]" : ""
                   }`}
-                  style={getContentStyle(isNotesExpanded)}
                 >
                   {responseNotes || 'No notes available'}
                   {!isNotesExpanded && notesOverflows && (
