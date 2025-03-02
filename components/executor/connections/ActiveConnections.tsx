@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, X } from 'lucide-react';
-import { createClient } from '@/utils/supabase/client';
+import { Loader2, X, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { getSignedAvatarUrl } from '@/utils/avatar';
 
 interface Connection {
   id: string;
@@ -15,6 +16,7 @@ interface Connection {
     email: string;
     firstName: string | null;
     lastName: string | null;
+    avatarUrl: string | null;
   };
   sharedSince?: string;
   hasAccess?: boolean;
@@ -30,72 +32,42 @@ export default function ActiveConnections({ sharerId, role }: ActiveConnectionsP
   const [connections, setConnections] = useState<Connection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [signedAvatarUrls, setSignedAvatarUrls] = useState<Record<string, string | null>>({});
+
+  // Fetch signed URLs for avatars
+  useEffect(() => {
+    const fetchSignedUrls = async () => {
+      const urls: Record<string, string | null> = {};
+      
+      for (const connection of connections) {
+        if (connection.profile.avatarUrl && !urls[connection.profile.avatarUrl]) {
+          urls[connection.profile.avatarUrl] = await getSignedAvatarUrl(connection.profile.avatarUrl);
+        }
+      }
+      
+      setSignedAvatarUrls(urls);
+    };
+    
+    if (connections.length > 0) {
+      fetchSignedUrls();
+    }
+  }, [connections]);
 
   useEffect(() => {
     const fetchConnections = async () => {
-      const supabase = createClient();
       setIsLoading(true);
       setError(null);
 
       try {
-        // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
+        const response = await fetch(`/api/connections?sharerId=${sharerId}`);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to fetch connections');
+        }
 
-        // Fetch listeners
-        const { data: listeners, error: listenersError } = await supabase
-          .from('ProfileListener')
-          .select(`
-            id,
-            sharedSince,
-            hasAccess,
-            Profile:Profile (
-              id,
-              email,
-              firstName,
-              lastName
-            )
-          `)
-          .eq('sharerId', sharerId);
-
-        if (listenersError) throw listenersError;
-
-        // Fetch executor
-        const { data: executor, error: executorError } = await supabase
-          .from('ProfileExecutor')
-          .select(`
-            id,
-            Profile:Profile (
-              id,
-              email,
-              firstName,
-              lastName
-            )
-          `)
-          .eq('sharerId', sharerId)
-          .single();
-
-        if (executorError) throw executorError;
-
-        // Combine and format the data
-        const formattedConnections: Connection[] = [
-          ...(listeners?.map(l => ({
-            id: l.id,
-            role: 'LISTENER' as const,
-            profile: l.Profile,
-            sharedSince: l.sharedSince,
-            hasAccess: l.hasAccess,
-            isCurrentUser: l.Profile.id === user.id
-          })) || []),
-          {
-            id: executor.id,
-            role: 'EXECUTOR' as const,
-            profile: executor.Profile,
-            isCurrentUser: executor.Profile.id === user.id
-          }
-        ];
-
-        setConnections(formattedConnections);
+        const data = await response.json();
+        console.log('Fetched connections:', data.connections);
+        setConnections(data.connections);
       } catch (error) {
         console.error('Error fetching connections:', error);
         setError('Failed to fetch connections');
@@ -109,31 +81,14 @@ export default function ActiveConnections({ sharerId, role }: ActiveConnectionsP
 
   const handleRemoveConnection = async (connectionId: string) => {
     try {
-      const supabase = createClient();
-      
-      // First get the connection details for the notification
-      const connection = connections.find(c => c.id === connectionId);
-      if (!connection) throw new Error('Connection not found');
-
-      // Delete the connection
-      const { error } = await supabase
-        .from('ProfileListener')
-        .delete()
-        .eq('id', connectionId);
-
-      if (error) throw error;
-
-      // Create notification for the sharer
-      await supabase.from('Notification').insert({
-        userId: sharerId,
-        type: 'CONNECTION_CHANGE',
-        message: `Executor removed listener ${connection.profile.firstName} ${connection.profile.lastName}`,
-        data: {
-          action: 'REMOVED',
-          role: 'LISTENER',
-          executorAction: true
-        }
+      const response = await fetch(`/api/connections?connectionId=${connectionId}&sharerId=${sharerId}`, {
+        method: 'DELETE',
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to remove connection');
+      }
 
       setConnections(prev => prev.filter(c => c.id !== connectionId));
       toast.success('Connection removed successfully');
@@ -167,6 +122,12 @@ export default function ActiveConnections({ sharerId, role }: ActiveConnectionsP
     );
   }
 
+  // Helper function to get the signed URL for an avatar
+  const getAvatarUrl = (originalUrl: string | null): string | null => {
+    if (!originalUrl) return null;
+    return signedAvatarUrls[originalUrl] || originalUrl;
+  };
+
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">Active Connections</h3>
@@ -192,12 +153,27 @@ export default function ActiveConnections({ sharerId, role }: ActiveConnectionsP
                 )}
               >
                 <td className="py-3 px-4">
-                  {connection.profile.firstName} {connection.profile.lastName}
-                  {connection.isCurrentUser && (
-                    <span className="ml-2 text-xs text-muted-foreground">(You)</span>
-                  )}
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage 
+                        src={getAvatarUrl(connection.profile.avatarUrl) || undefined}
+                        alt={`${connection.profile.firstName || 'User'}'s avatar`}
+                      />
+                      <AvatarFallback>
+                        <User className="h-4 w-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <span>
+                        {connection.profile.firstName || ''} {connection.profile.lastName || ''}
+                      </span>
+                      {connection.isCurrentUser && (
+                        <span className="ml-2 text-xs text-muted-foreground">(You)</span>
+                      )}
+                    </div>
+                  </div>
                 </td>
-                <td className="py-3 px-4">{connection.profile.email}</td>
+                <td className="py-3 px-4">{connection.profile.email || 'No email'}</td>
                 <td className="py-3 px-4 capitalize">
                   {connection.role.toLowerCase()}
                 </td>
@@ -230,19 +206,30 @@ export default function ActiveConnections({ sharerId, role }: ActiveConnectionsP
             )}
           >
             <div className="flex justify-between items-start">
-              <div>
-                <h4 className="font-medium">
-                  {connection.profile.firstName} {connection.profile.lastName}
-                  {connection.isCurrentUser && (
-                    <span className="ml-2 text-xs text-muted-foreground">(You)</span>
-                  )}
-                </h4>
-                <p className="text-sm text-muted-foreground break-all">
-                  {connection.profile.email}
-                </p>
-                <span className="text-xs capitalize bg-muted px-2 py-1 rounded-full">
-                  {connection.role.toLowerCase()}
-                </span>
+              <div className="flex items-center gap-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage 
+                    src={getAvatarUrl(connection.profile.avatarUrl) || undefined}
+                    alt={`${connection.profile.firstName || 'User'}'s avatar`}
+                  />
+                  <AvatarFallback>
+                    <User className="h-4 w-4" />
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h4 className="font-medium">
+                    {connection.profile.firstName || ''} {connection.profile.lastName || ''}
+                    {connection.isCurrentUser && (
+                      <span className="ml-2 text-xs text-muted-foreground">(You)</span>
+                    )}
+                  </h4>
+                  <p className="text-sm text-muted-foreground break-all">
+                    {connection.profile.email || 'No email'}
+                  </p>
+                  <span className="text-xs capitalize bg-muted px-2 py-1 rounded-full">
+                    {connection.role.toLowerCase()}
+                  </span>
+                </div>
               </div>
               {connection.role === 'LISTENER' && !connection.isCurrentUser && (
                 <Button

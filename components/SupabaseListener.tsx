@@ -1,23 +1,24 @@
 /**
  * File: components/SupabaseListener.tsx
- * Description: Component that listens for authentication state changes and updates the app accordingly.
+ * Description: Component that handles navigation based on authentication state.
+ * This component no longer creates its own Supabase client or sets up auth listeners,
+ * instead it uses the centralized AuthContext.
  */
 
 'use client';
 
-import { useEffect, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { createClient } from '@/utils/supabase/client';
-import type { Subscription, AuthChangeEvent, Session } from '@supabase/supabase-js';
+import { useAuth } from '@/hooks/useAuth';
 import { debounce } from 'lodash';
 
 export default function SupabaseListener() {
   const router = useRouter();
   const pathname = usePathname();
-  const authListenerRef = useRef<Subscription | null>(null);
-  const isHandlingAuthChange = useRef(false);
+  const { user, loading, checkServerSession } = useAuth();
   const isMounted = useRef(false);
-  const supabaseRef = useRef(createClient());
+  const [isRoleTransition, setIsRoleTransition] = useState(false);
+  const previousPathname = useRef(pathname);
 
   // Skip auth checks on auth pages and invitation pages
   const isAuthPage =
@@ -27,131 +28,127 @@ export default function SupabaseListener() {
     pathname?.includes('/check-email') ||
     pathname?.includes('/forgot-password');
 
-  // Wrap verifyUser in useCallback so it can be added as a dependency
-  const verifyUser = useCallback(async () => {
-    if (!isMounted.current || isAuthPage) return null;
+  // Check if we're in a role transition
+  const isSelectRolePage = pathname === '/select-role';
+  const isRolePage = 
+    pathname?.startsWith('/role-listener') || 
+    pathname?.startsWith('/role-sharer') || 
+    pathname?.startsWith('/role-executor');
 
-    try {
-      // Get session first to ensure we have valid auth state
-      const { data: { session }, error: sessionError } =
-        await supabaseRef.current.auth.getSession();
+  // Create a debounced navigation function
+  const debouncedNavigate = useRef(
+    debounce((shouldRedirect: boolean) => {
+      if (!isMounted.current) return;
+      
+      console.log('[SUPABASE_LISTENER] Navigation decision:', { 
+        shouldRedirect,
+        pathname,
+        isAuthPage,
+        isRoleTransition,
+        userId: user?.id
+      });
+      
+      // Check if we are in a reset-password flow
+      const inResetFlow =
+        typeof window !== 'undefined' &&
+        (window.__isResettingPassword === true ||
+          window.history.state?.__preventRedirect);
 
-      if (sessionError) {
-        console.error('Error getting session:', sessionError);
-        return null;
+      console.log('[SUPABASE_LISTENER] Reset flow check:', { inResetFlow });
+
+      // Don't redirect if we're in a role transition
+      if (shouldRedirect && !isAuthPage && !inResetFlow && !isRoleTransition) {
+        console.log('[SUPABASE_LISTENER] Redirecting to /login');
+        router.push('/login');
       }
+    }, 300)
+  ).current;
 
-      if (!session) {
-        return null;
-      }
-
-      return session.user;
-    } catch (error) {
-      console.error('Error verifying user:', error);
-      return null;
+  // Effect to detect role transitions
+  useEffect(() => {
+    // If we're coming from select-role to a role page, or vice versa, mark as transition
+    if (
+      (previousPathname.current === '/select-role' && isRolePage) ||
+      (previousPathname.current?.startsWith('/role-') && isSelectRolePage)
+    ) {
+      console.log('[SUPABASE_LISTENER] Detected role transition:', {
+        from: previousPathname.current,
+        to: pathname
+      });
+      setIsRoleTransition(true);
+      
+      // Reset transition state after a delay
+      // Using a longer timeout to ensure we don't see multiple loading states
+      const timeoutId = setTimeout(() => {
+        setIsRoleTransition(false);
+        console.log('[SUPABASE_LISTENER] Role transition complete');
+      }, 2500); // Increased from 1000ms to 2500ms
+      
+      return () => clearTimeout(timeoutId);
     }
-  }, [isAuthPage]);
+    
+    // Update previous pathname
+    previousPathname.current = pathname;
+  }, [pathname, isRolePage, isSelectRolePage]);
 
-  // Wrap debouncedHandleAuthChange in useMemo so it is stable
-  const debouncedHandleAuthChange = useMemo(
-    () =>
-      debounce(async () => {
-        if (isHandlingAuthChange.current || !isMounted.current || isAuthPage)
-          return;
-        isHandlingAuthChange.current = true;
-
-        try {
-          const user = await verifyUser();
-          // Check if we are in a reset-password flow by looking for our global flag or history state flag
-          const inResetFlow =
-            typeof window !== 'undefined' &&
-            (window.__isResettingPassword === true ||
-              window.history.state?.__preventRedirect);
-
-          if (!user && !isAuthPage && !inResetFlow) {
-            router.push('/login');
-          } else if (user) {
-            router.refresh();
-          }
-        } finally {
-          isHandlingAuthChange.current = false;
-        }
-      }, 300),
-    [isAuthPage, router, verifyUser]
-  );
+  // Effect to check server session periodically
+  useEffect(() => {
+    console.log('[SUPABASE_LISTENER] Setting up server session check interval');
+    
+    // Check server session immediately
+    checkServerSession();
+    
+    // Set up interval to check server session every 30 seconds
+    const intervalId = setInterval(() => {
+      console.log('[SUPABASE_LISTENER] Checking server session (interval)');
+      checkServerSession();
+    }, 30000); // 30 seconds
+    
+    return () => {
+      console.log('[SUPABASE_LISTENER] Clearing server session check interval');
+      clearInterval(intervalId);
+    };
+  }, [checkServerSession]);
 
   useEffect(() => {
-    if (isAuthPage) return; // Skip effect on auth pages
-
+    console.log('[SUPABASE_LISTENER] Auth state changed:', {
+      hasUser: !!user,
+      userId: user?.id,
+      loading,
+      pathname,
+      isAuthPage,
+      isRoleTransition
+    });
+    
     isMounted.current = true;
 
-    const initializeAuth = async () => {
-      try {
-        // Initial auth check
-        const user = await verifyUser();
-        const inResetFlow =
-          typeof window !== 'undefined' &&
-          (window.__isResettingPassword === true ||
-            window.history.state?.__preventRedirect);
-        if (!user && !isAuthPage && !inResetFlow) {
-          router.push('/login');
-          return;
-        }
+    // Only handle navigation if not on auth pages and not in role transition
+    if (!isAuthPage && !loading && !isRoleTransition) {
+      console.log('[SUPABASE_LISTENER] Not on auth page and not loading, checking auth state');
+      
+      const inResetFlow =
+        typeof window !== 'undefined' &&
+        (window.__isResettingPassword === true ||
+          window.history.state?.__preventRedirect);
 
-        // Set up auth listener
-        const { data: { subscription } } =
-          supabaseRef.current.auth.onAuthStateChange(
-            async (event: AuthChangeEvent, session: Session | null) => {
-              if (!isMounted.current || isAuthPage) return;
+      console.log('[SUPABASE_LISTENER] Auth state check:', { 
+        hasUser: !!user, 
+        userId: user?.id,
+        inResetFlow,
+        isRoleTransition
+      });
 
-              // Check if in reset-password flow before acting on the event
-              const inReset =
-                typeof window !== 'undefined' &&
-                (window.__isResettingPassword === true ||
-                  window.history.state?.__preventRedirect);
-
-              if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-                if (session?.user) {
-                  if (!inReset) {
-                    router.refresh();
-                  } else {
-                    console.log(
-                      '[SUPABASE LISTENER] Reset password flow active, ignoring SIGNED_IN/TOKEN_REFRESHED event.'
-                    );
-                  }
-                }
-              } else if (event === 'SIGNED_OUT' && !isAuthPage) {
-                if (!inReset) {
-                  router.push('/login');
-                } else {
-                  console.log(
-                    '[SUPABASE LISTENER] Reset password flow active, ignoring SIGNED_OUT event.'
-                  );
-                }
-              }
-            }
-          );
-
-        authListenerRef.current = subscription;
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        if (!isAuthPage) {
-          router.push('/login');
-        }
+      if (!user && !inResetFlow) {
+        console.log('[SUPABASE_LISTENER] No user and not in reset flow, calling debouncedNavigate');
+        debouncedNavigate(true);
       }
-    };
-
-    initializeAuth();
+    }
 
     return () => {
-      debouncedHandleAuthChange.cancel();
       isMounted.current = false;
-      if (authListenerRef.current) {
-        authListenerRef.current.unsubscribe();
-        authListenerRef.current = null;
-      }
+      debouncedNavigate.cancel();
     };
-  }, [pathname, isAuthPage, router, debouncedHandleAuthChange, verifyUser]);
+  }, [user, loading, isAuthPage, debouncedNavigate, router, pathname, isRoleTransition]);
 
   return null;
 }

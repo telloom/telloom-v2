@@ -1,3 +1,13 @@
+/**
+ * TopicsTableAllClient.tsx
+ * 
+ * This component displays a list of topics with filtering capabilities.
+ * 
+ * URL Parameter Support:
+ * - filter: Can be set to 'favorites', 'queue', or 'has-responses' to filter topics
+ *   Example: /role-sharer/topics?filter=favorites
+ */
+
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -13,6 +23,7 @@ import TopicCard from '@/components/TopicCard';
 import TopicsTableFilters from '@/components/TopicsTableFilters';
 import { ActionButton } from '@/components/action-button';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Search,
   Star,
@@ -31,7 +42,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface CompletionStatus {
   status: 'Not Started' | 'In Progress' | 'Completed';
@@ -74,17 +85,31 @@ export default function TopicsTableAllClient({
   sharerId
 }: TopicsTableAllProps) {
   const supabase = createClient();
-  const [promptCategories, setPromptCategories] = useState(initialPromptCategories);
+  const { user, loading: authLoading } = useAuth();
+  const [promptCategories, setPromptCategories] = useState<PromptCategory[]>(initialPromptCategories);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [themeFilter, setThemeFilter] = useState('all');
-  const [activeFilters, setActiveFilters] = useState<ViewFilter[]>([]);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  // Initialize activeFilters from URL parameter
+  const [activeFilters, setActiveFilters] = useState<ViewFilter[]>(() => {
+    const filterParam = searchParams.get('filter');
+    if (filterParam) {
+      // Check if the filter parameter is valid
+      if (['favorites', 'queue', 'has-responses'].includes(filterParam)) {
+        return [filterParam as ViewFilter];
+      }
+    }
+    return [];
+  });
+
   const [sortField, setSortField] = useState<SortField>('topic');
   const [sortAsc, setSortAsc] = useState(true);
-  const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
+  const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [selectedCategory, setSelectedCategory] = useState<PromptCategory | null>(null);
   const [isPromptListOpen, setIsPromptListOpen] = useState(false);
-  const router = useRouter();
 
   // View preferences from store
   const { 
@@ -107,8 +132,7 @@ export default function TopicsTableAllClient({
 
   useEffect(() => {
     const fetchUserPreferences = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (authLoading || !user) return;
 
       // Build the query based on role
       let favoritesQuery = supabase
@@ -158,13 +182,12 @@ export default function TopicsTableAllClient({
     };
 
     fetchUserPreferences();
-  }, [supabase, currentRole, relationshipId, sharerId]);
+  }, [currentRole, supabase, user, authLoading, relationshipId, sharerId]);
 
   const toggleFavorite = async (categoryId: string) => {
     try {
       setLoading(prev => ({ ...prev, [`favorite-${categoryId}`]: true }));
-      const { data: { user } } = await supabase.auth.getUser();
-
+      
       if (!user) {
         toast.error('You must be logged in to favorite topics');
         return;
@@ -225,8 +248,7 @@ export default function TopicsTableAllClient({
   const toggleQueue = async (categoryId: string) => {
     try {
       setLoading(prev => ({ ...prev, [`queue-${categoryId}`]: true }));
-      const { data: { user } } = await supabase.auth.getUser();
-
+      
       if (!user) {
         toast.error('You must be logged in to queue topics');
         return;
@@ -331,7 +353,9 @@ export default function TopicsTableAllClient({
       if (isActive) {
         return prev.filter(f => f !== filter);
       } else {
-        return [...prev, filter];
+        // If we're adding a filter, replace the current filters with just this one
+        // This ensures we only have one filter active at a time for URL simplicity
+        return [filter];
       }
     });
   };
@@ -341,7 +365,29 @@ export default function TopicsTableAllClient({
     setSearchQuery('');
     setStatusFilter('all');
     setThemeFilter('all');
+    
+    // Remove filter parameter from URL when filters are reset
+    if (searchParams.has('filter')) {
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('filter');
+      router.replace(newUrl.pathname + newUrl.search);
+    }
   };
+
+  // Update URL when filters change
+  useEffect(() => {
+    // Only update URL if there's exactly one filter active
+    if (activeFilters.length === 1) {
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.set('filter', activeFilters[0]);
+      router.replace(newUrl.pathname + newUrl.search);
+    } else if (activeFilters.length === 0 && searchParams.has('filter')) {
+      // Remove filter parameter if no filters are active
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('filter');
+      router.replace(newUrl.pathname + newUrl.search);
+    }
+  }, [activeFilters, router, searchParams]);
 
   const filteredCategories = useMemo(() => {
     return promptCategories

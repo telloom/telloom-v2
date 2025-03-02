@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import ConnectionsPageContent from '@/components/executor/connections/ConnectionsPageContent';
+import { getSignedAvatarUrl } from '@/utils/avatar';
 
 interface Props {
   params: {
@@ -14,6 +15,7 @@ interface ProfileData {
   Profile: {
     firstName: string | null;
     lastName: string | null;
+    avatarUrl: string | null;
   };
 }
 
@@ -30,7 +32,8 @@ export default async function SharerExecutorConnectionsPage({ params }: Props) {
         id,
         Profile!inner (
           firstName,
-          lastName
+          lastName,
+          avatarUrl
         )
       `)
       .eq('id', sharerId)
@@ -42,10 +45,20 @@ export default async function SharerExecutorConnectionsPage({ params }: Props) {
     }
 
     const sharerName = `${sharer.Profile.firstName || ''} ${sharer.Profile.lastName || ''}`.trim();
+    
+    // Get signed avatar URL if available
+    let avatarUrl = null;
+    if (sharer.Profile.avatarUrl) {
+      avatarUrl = await getSignedAvatarUrl(sharer.Profile.avatarUrl);
+    }
 
     return (
       <Suspense fallback={<div>Loading...</div>}>
-        <ConnectionsPageContent sharerId={sharer.id} sharerName={sharerName} />
+        <ConnectionsPageContent 
+          sharerId={sharer.id} 
+          sharerName={sharerName} 
+          sharerAvatarUrl={avatarUrl}
+        />
       </Suspense>
     );
   } catch (error) {

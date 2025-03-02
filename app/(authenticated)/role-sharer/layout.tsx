@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import RoleLayoutLoading from '@/components/RoleLayoutLoading';
+import ClearRoleTransition from '@/components/ClearRoleTransition';
 
 async function RoleSharerLayoutContent({
   children,
@@ -49,6 +50,7 @@ async function RoleSharerLayoutContent({
 
   return (
     <div className="min-h-screen bg-background">
+      <ClearRoleTransition />
       {children}
     </div>
   );

@@ -23,7 +23,7 @@ import { Button } from './ui/button';
 import { UserPlus, Users, UserCircle, Settings, LogOut, SwitchCamera, Bell, BellRing, CircleDot, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserStore } from '@/stores/userStore';
-import { createClient } from '@/utils/supabase/client';
+import { supabase } from '@/utils/supabase/client';
 import InviteModal from './invite/InviteModal';
 import NotificationsBadge from '@/components/notifications/NotificationsBadge';
 import useSWR from 'swr';
@@ -75,38 +75,41 @@ interface Notification {
 }
 
 export default function Header() {
-  const { user } = useAuth();
+  const { user, signOut, checkServerSession } = useAuth();
   const { profile, setProfile } = useUserStore();
   const router = useRouter();
-  const supabase = createClient();
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [userRoles, setUserRoles] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuthInitialized, setIsAuthInitialized] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [signedAvatarUrl, setSignedAvatarUrl] = useState<string | null>(null);
   const currentRole = useCurrentRole();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [isAuthInitialized, setIsAuthInitialized] = useState(true);
+  const pathname = usePathname();
   const isMobile = useMediaQuery('(max-width: 768px)');
 
-  // Track auth initialization
+  // Check server session when component mounts
   useEffect(() => {
-    if (!isAuthInitialized) {
-      setIsAuthInitialized(true);
+    console.log('[HEADER] Checking server session on mount');
+    checkServerSession();
+  }, [checkServerSession]);
+
+  // Check server session when user state changes
+  useEffect(() => {
+    console.log('[HEADER] User state changed:', { hasUser: !!user });
+    if (!user) {
+      checkServerSession();
     }
-  }, [user]);
+  }, [user, checkServerSession]);
 
   // Fetch the user's profile and roles when user changes
   const fetchProfileAndRoles = useCallback(async () => {
+    if (!user) return;
+    
     setIsLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setIsLoading(false);
-        return;
-      }
-
       const [profileResult, rolesResult] = await Promise.all([
         supabase.from('Profile').select('*').eq('id', user.id).single(),
         supabase.from('ProfileRole').select('*').eq('profileId', user.id)
@@ -133,13 +136,13 @@ export default function Header() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, setProfile, supabase]);
+  }, [user, setProfile]);
 
   useEffect(() => {
-    if (isAuthInitialized) {
+    if (isAuthInitialized && user) {
       fetchProfileAndRoles();
     }
-  }, [isAuthInitialized, fetchProfileAndRoles]);
+  }, [isAuthInitialized, user, fetchProfileAndRoles]);
 
   // Update avatar state when profile changes
   useEffect(() => {
@@ -165,12 +168,7 @@ export default function Header() {
 
   const handleSignOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Error signing out:', error);
-        return;
-      }
-      
+      await signOut();
       setProfile(null);
       router.replace('/login');
     } catch (error) {
@@ -311,14 +309,14 @@ export default function Header() {
             <Image
               src="/images/Telloom Logo V1-Horizontal Green.png"
               alt="Telloom Logo"
-              width={180}
-              height={52}
+              width={128}
+              height={32}
               priority={true}
               quality={100}
               style={{
-                width: '120px',
+                width: 'auto',
                 height: 'auto',
-                maxWidth: '100%'
+                maxWidth: '128px'
               }}
             />
           </Link>

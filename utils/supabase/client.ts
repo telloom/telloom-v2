@@ -2,10 +2,21 @@
 // Client-side Supabase client with minimal logging
 
 import { createBrowserClient } from '@supabase/ssr';
+import type { User } from '@supabase/supabase-js';
 
 let client: ReturnType<typeof createBrowserClient> | null = null;
 let resetClient: ReturnType<typeof createBrowserClient> | null = null;
 
+// Cache for user data to reduce redundant network requests
+let cachedUser: { user: User | null } | null = null;
+let lastUserCheck = 0;
+const USER_CACHE_DURATION = 60 * 1000; // 1 minute cache
+
+/**
+ * Creates a Supabase client for client-side usage.
+ * NOTE: For most use cases, import the singleton instance exported as 'supabase' 
+ * instead of calling this function directly.
+ */
 export function createClient() {
   if (client) return client;
 
@@ -14,7 +25,7 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       auth: {
-        debug: process.env.NODE_ENV === 'development', // Enable debug in development
+        debug: false, // Disable debug logs even in development to reduce noise
         persistSession: true,
         // Completely disable URL detection to prevent automatic redirects
         detectSessionInUrl: false,
@@ -55,48 +66,10 @@ export function createResetPasswordClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       auth: {
-        debug: true, // Enable full debug logging
         persistSession: false, // Don't persist session for reset password flow
         detectSessionInUrl: false, // Completely disable URL detection
         flowType: 'pkce',
         autoRefreshToken: false, // Disable auto refresh for reset password
-        // Log all auth state changes but don't take any action
-        onAuthStateChange: (event, session) => {
-          console.log('[RESET CLIENT DEBUG] Auth state changed:', event, session ? 'Has session' : 'No session', 'at:', new Date().toISOString());
-          console.log('[RESET CLIENT DEBUG] Auth state change details:', { event, sessionExists: !!session });
-          
-          // IMPORTANT: Prevent any redirects on PASSWORD_RECOVERY event
-          if (event === 'PASSWORD_RECOVERY') {
-            console.log('[RESET CLIENT DEBUG] Intercepted PASSWORD_RECOVERY event, preventing default behavior');
-            // Don't do anything with the session - we'll handle it manually
-            return;
-          }
-        },
-        // Override the default storage to prevent automatic redirects
-        storage: {
-          getItem: (key) => {
-            console.log('[RESET CLIENT] Getting storage item:', key);
-            // For password reset, we don't want to restore any previous session
-            if (key.includes('access_token') || key.includes('refresh_token') || key.includes('auth-token')) {
-              console.log('[RESET CLIENT] Blocking access to auth token in storage');
-              return null;
-            }
-            const value = localStorage.getItem(key);
-            console.log('[RESET CLIENT] Retrieved value for', key, value ? 'exists' : 'is null');
-            return value;
-          },
-          setItem: (key, value) => {
-            console.log('[RESET CLIENT] Setting storage item:', key);
-            if (key.includes('auth-token')) {
-              console.log('[RESET CLIENT] Auth token being set:', value.substring(0, 20) + '...');
-            }
-            localStorage.setItem(key, value);
-          },
-          removeItem: (key) => {
-            console.log('[RESET CLIENT] Removing storage item:', key);
-            localStorage.removeItem(key);
-          }
-        },
       },
       global: {
         headers: {
@@ -106,6 +79,19 @@ export function createResetPasswordClient() {
       },
     }
   );
+  
+  // Set up auth state change listener for reset client
+  resetClient.auth.onAuthStateChange((event, session) => {
+    console.log('[RESET CLIENT DEBUG] Auth state changed:', event, session ? 'Has session' : 'No session', 'at:', new Date().toISOString());
+    console.log('[RESET CLIENT DEBUG] Auth state change details:', { event, sessionExists: !!session });
+    
+    // IMPORTANT: Prevent any redirects on PASSWORD_RECOVERY event
+    if (event === 'PASSWORD_RECOVERY') {
+      console.log('[RESET CLIENT DEBUG] Intercepted PASSWORD_RECOVERY event, preventing default behavior');
+      // Don't do anything with the session - we'll handle it manually
+      return;
+    }
+  });
   
   // Patch the client to log all auth operations
   const originalVerifyOtp = resetClient.auth.verifyOtp;
@@ -164,9 +150,9 @@ export function createResetPasswordClient() {
   // Completely disable the _redirect method to prevent any redirects
   if (resetClient.auth.constructor.prototype._redirect) {
     console.log('[RESET CLIENT DEBUG] Completely disabling _redirect method');
-    resetClient.auth.constructor.prototype._redirect = function() {
+    resetClient.auth.constructor.prototype._redirect = function(...args) {
       console.log('[RESET CLIENT DEBUG] Redirect attempt blocked at:', new Date().toISOString());
-      console.log('[RESET CLIENT DEBUG] Redirect would have gone to:', arguments[0] || 'unknown');
+      console.log('[RESET CLIENT DEBUG] Redirect would have gone to:', args[0] || 'unknown');
       return;
     };
   }
@@ -320,42 +306,68 @@ export function createResetPasswordClient() {
   return resetClient;
 }
 
-// Export singleton instance
+// Export singleton instance - USE THIS INSTEAD OF CALLING createClient() DIRECTLY
 export const supabase = createClient();
 
-// Cached user getter with longer expiry
-let cachedUser: Awaited<ReturnType<typeof supabase.auth.getUser>> | null = null;
-const userExpiryTime = 15 * 60 * 1000; // 15 minutes
-let lastUserCheck = 0;
-
+/**
+ * Gets the current user with caching to reduce redundant network requests.
+ * Use this instead of calling supabase.auth.getUser() directly in components.
+ */
 export const getUser = async () => {
   const now = Date.now();
   
   // Return cached user if it's still valid
-  if (cachedUser && (now - lastUserCheck) < userExpiryTime) {
-    return cachedUser.data.user;
+  if (cachedUser && (now - lastUserCheck) < USER_CACHE_DURATION) {
+    return cachedUser.user;
   }
 
   try {
-    const client = createClient();
-    const { data: { user }, error } = await client.auth.getUser();
+    const { data, error } = await supabase.auth.getUser();
     
     if (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Error getting user:', error);
+        // Only log non-auth-session-missing errors as errors
+        if (error.name === 'AuthSessionMissingError' || error.message?.includes('Auth session missing')) {
+          console.log('No auth session found, returning null user');
+        } else {
+          console.error('Error getting user:', error);
+        }
       }
+      cachedUser = { user: null };
+      lastUserCheck = now;
       return null;
     }
     
     // Cache the successful response
-    cachedUser = { data: { user } };
+    cachedUser = { user: data.user };
     lastUserCheck = now;
     
-    return user;
-  } catch (error) {
+    return data.user;
+  } catch (error: any) {
+    // Handle AuthSessionMissingError specifically
+    if (error.name === 'AuthSessionMissingError' || error.message?.includes('Auth session missing')) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('No auth session found, returning null user');
+      }
+      cachedUser = { user: null };
+      lastUserCheck = now;
+      return null;
+    }
+    
     if (process.env.NODE_ENV === 'development') {
       console.error('Unexpected error getting user:', error);
     }
+    cachedUser = { user: null };
+    lastUserCheck = now;
     return null;
   }
+};
+
+/**
+ * Invalidates the user cache, forcing the next getUser() call to fetch fresh data.
+ * Call this after operations that might change the user's state.
+ */
+export const invalidateUserCache = () => {
+  cachedUser = null;
+  lastUserCheck = 0;
 };

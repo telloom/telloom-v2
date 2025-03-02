@@ -317,7 +317,7 @@ export function TopicVideoUploader({
         {processingState === 'idle' && !isUploading && !muxPlaybackId && (
           <div className="mb-4">
             <h2 className="text-lg font-normal tracking-tight">
-              Upload Your Topic Video {categoryName ? `for ${categoryName}` : ''}
+              Select a video file to upload
             </h2>
           </div>
         )}

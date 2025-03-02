@@ -669,14 +669,16 @@ export function TopicVideoResponseSection({
                   </div>
                 )}
               </div>
-              {video.muxAssetId && (
-                <VideoDownloadButton 
-                  muxAssetId={video.muxAssetId}
-                  videoType="topic"
-                  userId={userId}
-                  topicName={topicName}
-                />
-              )}
+              <div className="flex items-center gap-2">
+                {video.muxAssetId && (
+                  <VideoDownloadButton
+                    muxAssetId={video.muxAssetId}
+                    videoType="topic"
+                    userId={userId}
+                    topicName={topicName}
+                  />
+                )}
+              </div>
             </div>
 
             {/* Transcript Section */}
@@ -1093,7 +1095,9 @@ export function TopicVideoResponseSection({
           fileType: imageAttachments[selectedImageIndex].fileType,
           description: imageAttachments[selectedImageIndex].description,
           dateCaptured: imageAttachments[selectedImageIndex].dateCaptured ? 
-            imageAttachments[selectedImageIndex].dateCaptured.toISOString() : null,
+            (imageAttachments[selectedImageIndex].dateCaptured instanceof Date ? 
+              imageAttachments[selectedImageIndex].dateCaptured.toISOString() : 
+              imageAttachments[selectedImageIndex].dateCaptured) : null,
           yearCaptured: imageAttachments[selectedImageIndex].yearCaptured,
           displayUrl: imageAttachments[selectedImageIndex].signedUrl || '',
           PersonTags: imageAttachments[selectedImageIndex].PersonTags || []

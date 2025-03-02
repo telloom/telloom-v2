@@ -2,6 +2,7 @@ import { checkRole } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import RoleLayoutLoading from '@/components/RoleLayoutLoading';
+import ClearRoleTransition from '@/components/ClearRoleTransition';
 
 async function RoleExecutorLayoutContent({
   children,
@@ -16,6 +17,7 @@ async function RoleExecutorLayoutContent({
 
   return (
     <div className="min-h-[calc(100vh-65px)]">
+      <ClearRoleTransition />
       {children}
     </div>
   );

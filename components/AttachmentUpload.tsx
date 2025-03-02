@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { PersonRelation, PersonTag } from "@/types/models";
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
+import { useAuth } from '@/hooks/useAuth';
 
 interface AttachmentUploadProps {
   promptResponseId: string;
@@ -45,40 +46,57 @@ export default function AttachmentUpload({
   onClose,
   onUploadSuccess
 }: AttachmentUploadProps) {
+  console.log('[AttachmentUpload] Component mounted, isOpen:', isOpen, 'promptResponseId:', promptResponseId);
+  
+  // Add effect to log when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      console.log('[DEBUG] AttachmentUpload dialog opened with promptResponseId:', promptResponseId);
+    }
+  }, [isOpen, promptResponseId]);
+  
+  const supabase = createClient();
+  const { user, loading: authLoading } = useAuth();
   const [files, setFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [tags, setTags] = useState<PersonTag[]>([]);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagRelation, setNewTagRelation] = useState<PersonRelation | ''>('');
+  const [profileSharerId, setProfileSharerId] = useState<string | null>(null);
+  const [sharerFirstName, setSharerFirstName] = useState('');
+  const [sharerLastName, setSharerLastName] = useState('');
+  const [promptCategory, setPromptCategory] = useState('');
+  const [isAddingTag, setIsAddingTag] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [fileDescriptions, setFileDescriptions] = useState<Record<number, string>>({});
+  const [fileDates, setFileDates] = useState<Record<number, string>>({});
+  const [fileYears, setFileYears] = useState<Record<number, number | null>>({});
+  const [isTagsLoading, setIsTagsLoading] = useState(true);
+  const [isMetadataLoading, setIsMetadataLoading] = useState(true);
+  const [isTagAddLoading, setIsTagAddLoading] = useState(false);
   const [description, setDescription] = useState('');
   const [dateCaptured, setDateCaptured] = useState('');
   const [yearCaptured, setYearCaptured] = useState('');
   const [selectedTags, setSelectedTags] = useState<PersonTag[]>([]);
   const [existingTags, setExistingTags] = useState<PersonTag[]>([]);
-  const [newTagName, setNewTagName] = useState('');
-  const [newTagRelation, setNewTagRelation] = useState<PersonRelation | ''>('');
-  const [isAddingTag, setIsAddingTag] = useState(false);
   const [previews, setPreviews] = useState<string[]>([]);
-  const [profileSharerId, setProfileSharerId] = useState<string>('');
-
-  // Because we need to fetch more info (profile names, category, etc.),
-  // store them here once loaded
-  const [firstName, setFirstName] = useState('Unknown');
-  const [lastName, setLastName] = useState('User');
-  const [categoryName, setCategoryName] = useState('untitled');
 
   // --------------------------------------------------------------------------
   // On mount (whenever dialog opens), fetch the data:
   // 1) profileSharerId
   // 2) profile => firstName, lastName
   // 3) promptResponse => prompt => promptCategory => category
+  // 4) existing PersonTags for this user
   // --------------------------------------------------------------------------
   useEffect(() => {
     async function fetchInitialData() {
       try {
         const supabase = createClient();
-
+        
         // Check the current user
-        const { data: { user }, error: authErr } = await supabase.auth.getUser();
-        if (authErr || !user) {
-          console.error('Authentication error:', authErr);
+        if (authLoading || !user) {
+          console.error('Authentication error: No user found or still loading');
           return;
         }
 
@@ -95,6 +113,20 @@ export default function AttachmentUpload({
         }
         setProfileSharerId(sharer.id);
 
+        // Fetch all available tags for this profile sharer
+        const { data: tags, error: tagsError } = await supabase
+          .from('PersonTag')
+          .select('*')
+          .eq('profileSharerId', sharer.id);
+
+        if (tagsError) {
+          console.error('Error fetching person tags:', tagsError);
+        } else if (tags) {
+          console.log('Fetched person tags:', tags.length);
+          setExistingTags(tags);
+          setIsTagsLoading(false);
+        }
+
         // From that profileId, get firstName + lastName from "Profile"
         const { data: profile } = await supabase
           .from('Profile')
@@ -103,8 +135,8 @@ export default function AttachmentUpload({
           .single();
 
         if (profile) {
-          setFirstName(profile.firstName || 'Unknown');
-          setLastName(profile.lastName || 'User');
+          setSharerFirstName(profile.firstName || 'Unknown');
+          setSharerLastName(profile.lastName || 'User');
         }
 
         // Now fetch the PromptResponse -> Prompt -> PromptCategory
@@ -130,7 +162,7 @@ export default function AttachmentUpload({
 
         // retrieve category from nested data
         const cat = responseData.Prompt?.PromptCategory?.category || 'untitled';
-        setCategoryName(cat);
+        setPromptCategory(cat);
       } catch (e) {
         console.error('Error fetching initial data:', e);
       }
@@ -246,42 +278,55 @@ export default function AttachmentUpload({
   // --------------------------------------------------------------------------
   const handleAddNewTag = async () => {
     if (!newTagName || !newTagRelation || !profileSharerId) return;
+    
+    setIsTagAddLoading(true);
     const supabase = createClient();
-    const { data: newTag, error } = await supabase
-      .from('PersonTag')
-      .insert({
-        name: newTagName,
-        relation: newTagRelation,
-        profileSharerId
-      })
-      .select()
-      .single();
+    
+    try {
+      const { data: newTag, error } = await supabase
+        .from('PersonTag')
+        .insert({
+          name: newTagName,
+          relation: newTagRelation,
+          profileSharerId
+        })
+        .select()
+        .single();
 
-    if (error) {
-      toast.error('Failed to create new tag');
-      return;
-    }
-    if (newTag) {
-      setSelectedTags((prev) => [...prev, newTag]);
-      setExistingTags((prev) => [...prev, newTag]);
-      setNewTagName('');
-      setNewTagRelation('');
-      setIsAddingTag(false);
+      if (error) {
+        toast.error('Failed to create new tag');
+        console.error('Error creating tag:', error);
+        return;
+      }
+      
+      if (newTag) {
+        setSelectedTags((prev) => [...prev, newTag]);
+        setExistingTags((prev) => [...prev, newTag]);
+        setNewTagName('');
+        setNewTagRelation('');
+        setIsAddingTag(false);
+        toast.success(`Added tag: ${newTag.name}`);
+      }
+    } catch (error) {
+      console.error('Error in handleAddNewTag:', error);
+      toast.error('An error occurred while adding the tag');
+    } finally {
+      setIsTagAddLoading(false);
     }
   };
 
   // --------------------------------------------------------------------------
   // Actually do the upload: final name, then insert
   // --------------------------------------------------------------------------
-  const handleUpload = async (shouldClose: boolean = true) => {
+  const handleUpload = async (shouldClose: boolean = false) => {
     if (!files.length) return;
 
     setIsUploading(true);
     const supabase = createClient();
 
     try {
-      const { data: { user }, error: authErr } = await supabase.auth.getUser();
-      if (authErr || !user) {
+      // Use the user and authLoading from the top level component
+      if (authLoading || !user) {
         toast.error('Not authenticated');
         return;
       }
@@ -300,9 +345,9 @@ export default function AttachmentUpload({
 
       // Build final name from real data
       const finalName = generateFinalFilename(
-        lastName,
-        firstName,
-        categoryName,
+        sharerLastName,
+        sharerFirstName,
+        promptCategory,
         fileExt
       );
 
@@ -369,6 +414,10 @@ export default function AttachmentUpload({
         setDateCaptured('');
         setYearCaptured('');
         setSelectedTags([]);
+        // Add a toast to indicate the user can add more
+        toast('You can now add another attachment', {
+          description: 'The form has been reset for your next upload'
+        });
       }
     } catch (error) {
       console.error(error);
@@ -516,58 +565,73 @@ export default function AttachmentUpload({
 
             {!isAddingTag && (
               <div className="space-y-4">
-                <Select
-                  value=""
-                  onValueChange={(value) => {
-                    const tag = existingTags.find(t => t.id === value);
-                    if (tag) {
-                      if (selectedTags.some(t => t.id === tag.id)) {
-                        removeTag(tag.id);
-                      } else {
-                        setSelectedTags(prev => [...prev, tag]);
-                      }
-                    }
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select people..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {existingTags.map((tag) => (
-                      <SelectItem
-                        key={tag.id}
-                        value={tag.id}
-                      >
-                        <div className="flex items-center">
-                          {selectedTags.some(t => t.id === tag.id) ? (
-                            <span className="mr-2">✓</span>
-                          ) : (
-                            <span className="mr-2 opacity-0">✓</span>
-                          )}
-                          {tag.name} ({tag.relation})
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <div className="flex flex-wrap gap-2">
-                  {selectedTags.map(tag => (
-                    <Badge
-                      key={tag.id}
-                      variant="default"
-                      className="cursor-pointer"
-                      onClick={() => removeTag(tag.id)}
+                {isTagsLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-[#1B4332]"></div>
+                    <span className="ml-2 text-sm text-gray-500">Loading tags...</span>
+                  </div>
+                ) : (
+                  <>
+                    <Select
+                      value=""
+                      onValueChange={(value) => {
+                        const tag = existingTags.find(t => t.id === value);
+                        if (tag) {
+                          if (selectedTags.some(t => t.id === tag.id)) {
+                            removeTag(tag.id);
+                          } else {
+                            setSelectedTags(prev => [...prev, tag]);
+                          }
+                        }
+                      }}
                     >
-                      <Tag className="h-3 w-3 mr-1" />
-                      {tag.name} ({tag.relation})
-                      <X className="h-3 w-3 ml-1" onClick={(e) => {
-                        e.stopPropagation();
-                        removeTag(tag.id);
-                      }} />
-                    </Badge>
-                  ))}
-                </div>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={existingTags.length > 0 ? "Select people..." : "No people tags found"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {existingTags.length > 0 ? (
+                          existingTags.map((tag) => (
+                            <SelectItem
+                              key={tag.id}
+                              value={tag.id}
+                            >
+                              <div className="flex items-center">
+                                {selectedTags.some(t => t.id === tag.id) ? (
+                                  <span className="mr-2">✓</span>
+                                ) : (
+                                  <span className="mr-2 opacity-0">✓</span>
+                                )}
+                                {tag.name} ({tag.relation})
+                              </div>
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="px-2 py-4 text-center text-sm text-gray-500">
+                            No people tags found. Create one with "Add Person".
+                          </div>
+                        )}
+                      </SelectContent>
+                    </Select>
+
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTags.map(tag => (
+                        <Badge
+                          key={tag.id}
+                          variant="default"
+                          className="cursor-pointer"
+                          onClick={() => removeTag(tag.id)}
+                        >
+                          <Tag className="h-3 w-3 mr-1" />
+                          {tag.name} ({tag.relation})
+                          <X className="h-3 w-3 ml-1" onClick={(e) => {
+                            e.stopPropagation();
+                            removeTag(tag.id);
+                          }} />
+                        </Badge>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -608,16 +672,24 @@ export default function AttachmentUpload({
                     size="sm"
                     onClick={() => setIsAddingTag(false)}
                     className="rounded-full"
+                    disabled={isTagAddLoading}
                   >
                     Cancel
                   </Button>
                   <Button
                     size="sm"
                     onClick={handleAddNewTag}
-                    disabled={!newTagName || !newTagRelation}
+                    disabled={!newTagName || !newTagRelation || isTagAddLoading}
                     className="rounded-full"
                   >
-                    Add Person
+                    {isTagAddLoading ? (
+                      <>
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2"></div>
+                        Adding...
+                      </>
+                    ) : (
+                      <>Add Person</>
+                    )}
                   </Button>
                 </div>
               </div>

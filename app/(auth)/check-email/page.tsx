@@ -17,6 +17,11 @@ export default function CheckEmail() {
             width={160}
             height={40}
             className="mx-auto mb-3"
+            style={{
+              width: 'auto',
+              height: 'auto',
+              maxWidth: '160px'
+            }}
           />
           <h1 className="text-xl font-bold tracking-tight">Check your email</h1>
         </div>

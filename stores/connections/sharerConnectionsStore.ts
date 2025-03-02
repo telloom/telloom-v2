@@ -171,6 +171,7 @@ export const useSharerConnectionsStore = create<SharerConnectionsStore>((set, ge
       const { data: invitations, error } = await supabase
         .from('Invitation')
         .select('*')
+        .eq('status', 'PENDING')
         .order('createdAt', { ascending: false });
 
       if (error) throw error;

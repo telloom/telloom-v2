@@ -11,6 +11,11 @@ export default function RoleExecutorLoading() {
             width={160}
             height={40}
             className="mx-auto mb-6"
+            style={{
+              width: 'auto',
+              height: 'auto',
+              maxWidth: '100%'
+            }}
           />
           <div className="flex justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1B4332] border-t-transparent" />

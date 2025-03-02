@@ -46,8 +46,8 @@ export function VideoDownloadButton({
         }
 
         const data = await response.json();
-        // For prompt videos, we'll consider them available if we have the muxAssetId
-        setIsAvailable(videoType === 'prompt' ? true : data.isAvailable);
+        // Use the API's availability check for all video types
+        setIsAvailable(data.isAvailable);
       } catch (error) {
         console.error('Error checking download availability:', error);
         setIsAvailable(false);

@@ -37,6 +37,7 @@ import {
 import NextImage from 'next/image';
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
 import { urlCache } from '@/utils/url-cache';
+import { useAuth } from '@/hooks/useAuth';
 
 // Remove the local PersonRelation constant and update the type
 type PersonRelationType = PersonRelation;
@@ -98,22 +99,21 @@ export function AttachmentDialog({
   onDelete,
   onDownload
 }: AttachmentDialogProps) {
+  const supabase = createClient();
+  const { user, loading: authLoading } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [editingAttachment, setEditingAttachment] = useState<Attachment | null>(null);
   const [imageLoading, setImageLoading] = useState(true);
   const [signedUrl, setSignedUrl] = useState<string | undefined>(initialSignedUrl);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isAddingNewTag, setIsAddingNewTag] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [newTagRelation, setNewTagRelation] = useState<PersonRelation | ''>('');
   const [existingTags, setExistingTags] = useState<PersonTag[]>([]);
   const [selectedTags, setSelectedTags] = useState<PersonTag[]>([]);
-  const [profileSharerId, setProfileSharerId] = useState<string>('');
+  const [profileSharerId, setProfileSharerId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [error, setError] = useState(false);
-
-  // Create client instance once
-  const supabase = useMemo(() => createClient(), []);
+  const [error, setError] = useState<string | null>(null);
 
   // Reset state when attachment changes
   useEffect(() => {
@@ -131,8 +131,14 @@ export function AttachmentDialog({
       setImageLoading(!initialSignedUrl);
       setSelectedTags(personTags);
       setIsEditing(false); // Reset editing state
+      setIsLoading(true); // Set loading to true when a new attachment is loaded
     }
   }, [attachment, initialSignedUrl]);
+
+  // Debug log for isLoading state changes
+  useEffect(() => {
+    console.log('[AttachmentDialog] isLoading state changed:', isLoading);
+  }, [isLoading]);
 
   // Combine user and profile data fetching into a single effect
   useEffect(() => {
@@ -145,8 +151,7 @@ export function AttachmentDialog({
         const supabase = createClient();
         
         // Get user and profile data first
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError) throw userError;
+        if (authLoading) return;
         if (!user || !mounted) return;
 
         // Get profile data
@@ -157,9 +162,9 @@ export function AttachmentDialog({
           .single();
 
         if (profileError) throw profileError;
-        if (!profileSharer || !mounted) return;
-
-        setProfileSharerId(profileSharer.id);
+        if (profileSharer && mounted) {
+          setProfileSharerId(profileSharer.id);
+        }
 
         // Fetch attachment data with all related information
         const { data: attachmentData, error: attachmentError } = await supabase
@@ -214,12 +219,16 @@ export function AttachmentDialog({
       } catch (error) {
         console.error('Error fetching data:', error);
         toast.error('Failed to load data');
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     }
 
     fetchData();
     return () => { mounted = false; };
-  }, [isOpen, attachment?.id]);
+  }, [isOpen, attachment?.id, user, authLoading]);
 
   // Optimize URL handling
   useEffect(() => {
@@ -283,7 +292,6 @@ export function AttachmentDialog({
   useEffect(() => {
     const fetchProfileSharerId = async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase
           .from('ProfileSharer')
@@ -296,7 +304,7 @@ export function AttachmentDialog({
       }
     };
     fetchProfileSharerId();
-  }, []);
+  }, [user]);
 
   const handleAddNewTag = async () => {
     if (!newTagName || !newTagRelation || !profileSharerId) return;
@@ -495,7 +503,11 @@ export function AttachmentDialog({
                       ...attachment,
                       fileUrl: attachment.displayUrl || attachment.fileUrl,
                       signedUrl: signedUrl || attachment.signedUrl,
-                      dateCaptured: attachment.dateCaptured ? new Date(attachment.dateCaptured) : null
+                      dateCaptured: attachment.dateCaptured ? 
+                        (typeof attachment.dateCaptured === 'string' ? 
+                          attachment.dateCaptured : 
+                          new Date(attachment.dateCaptured).toISOString().split('T')[0]) 
+                        : null
                     }}
                     size="lg"
                     className="w-full h-full object-contain"
@@ -600,7 +612,12 @@ export function AttachmentDialog({
                   disabled={isLoading}
                   className="rounded-full"
                 >
-                  {isEditing ? (
+                  {isLoading ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-[#1B4332] mr-2"></div>
+                      Loading...
+                    </>
+                  ) : isEditing ? (
                     <>
                       <Check className="h-4 w-4 mr-2" />
                       Save
@@ -644,7 +661,11 @@ export function AttachmentDialog({
                     <Input
                       id="attachment-date"
                       type="date"
-                      value={editingAttachment?.dateCaptured || ''}
+                      value={editingAttachment?.dateCaptured ? 
+                        (typeof editingAttachment.dateCaptured === 'string' ? 
+                          editingAttachment.dateCaptured : 
+                          new Date(editingAttachment.dateCaptured).toISOString().split('T')[0]) 
+                        : ''}
                       onChange={(e) => setEditingAttachment(prev => {
                         if (!prev) return prev;
                         return {

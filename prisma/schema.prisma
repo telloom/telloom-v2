@@ -129,11 +129,6 @@ model Profile {
   addressCity                              String?
   addressState                             us_state?
   addressZipcode                           String?
-  executorFirstName                        String?
-  executorLastName                         String?
-  executorRelation                         String?
-  executorPhone                            String?
-  executorEmail                            String?
   isAdmin                                  Boolean                         @default(false)
   createdAt                                DateTime                        @default(now()) @db.Timestamptz(6)
   updatedAt                                DateTime                        @db.Timestamptz(6)
@@ -153,10 +148,10 @@ model Profile {
   VideoDownload                            VideoDownload[]
 }
 
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// Updated so it’s clearly one Sharer → many Executors
 model ProfileExecutor {
   id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sharerId       String           @unique @db.Uuid
+  sharerId       String           @db.Uuid
   executorId     String           @db.Uuid
   createdAt      DateTime         @default(now()) @db.Timestamptz(6)
   updatedAt      DateTime         @default(now()) @db.Timestamptz(6)
@@ -164,6 +159,28 @@ model ProfileExecutor {
   ProfileSharer  ProfileSharer    @relation(fields: [sharerId], references: [id], onDelete: Cascade)
   TopicFavorite  TopicFavorite[]
   TopicQueueItem TopicQueueItem[]
+
+  @@unique([sharerId, executorId], map: "profileexecutor_sharerid_executorid_unique")
+}
+
+/// Make this an array field so it is one ProfileSharer → many ProfileExecutor
+model ProfileSharer {
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId                String                     @unique @db.Uuid
+  subscriptionStatus       Boolean
+  createdAt                DateTime                   @default(now()) @db.Timestamptz(6)
+  FollowRequest            FollowRequest[]
+  Invitation               Invitation[]
+  PersonTag                PersonTag[]
+  ProfileExecutor          ProfileExecutor[]
+  ProfileListener          ProfileListener[]
+  Profile                  Profile                    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  PromptResponse           PromptResponse[]
+  PromptResponseAttachment PromptResponseAttachment[]
+  TopicFavorite            TopicFavorite[]
+  TopicQueueItem           TopicQueueItem[]
+  TopicVideo               TopicVideo[]
+  Video                    Video[]
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -195,26 +212,6 @@ model ProfileRole {
   Profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@unique([profileId, role])
-}
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model ProfileSharer {
-  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  profileId                String                     @unique @db.Uuid
-  subscriptionStatus       Boolean
-  createdAt                DateTime                   @default(now()) @db.Timestamptz(6)
-  FollowRequest            FollowRequest[]
-  Invitation               Invitation[]
-  PersonTag                PersonTag[]
-  ProfileExecutor          ProfileExecutor?
-  ProfileListener          ProfileListener[]
-  Profile                  Profile                    @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  PromptResponse           PromptResponse[]
-  PromptResponseAttachment PromptResponseAttachment[]
-  TopicFavorite            TopicFavorite[]
-  TopicQueueItem           TopicQueueItem[]
-  TopicVideo               TopicVideo[]
-  Video                    Video[]
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.

@@ -49,14 +49,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create response with redirect URL
-    const response = NextResponse.json({ 
-      success: true, 
-      redirectUrl: `/role-${role.toLowerCase()}`
-    });
-
-    // Set the activeRole cookie
-    const cookieStore = await cookies();
+    // Set the activeRole cookie - properly awaited
+    const cookieStore = cookies();
     await cookieStore.set('activeRole', role, {
       path: '/',
       maxAge: 60 * 60 * 24 * 30, // 30 days
@@ -64,7 +58,11 @@ export async function POST(request: Request) {
       secure: process.env.NODE_ENV === 'production',
     });
 
-    return response;
+    // Create response with redirect URL
+    return NextResponse.json({ 
+      success: true, 
+      redirectUrl: `/role-${role.toLowerCase()}`
+    });
   } catch (error) {
     console.error('Error in select-role route:', error);
     return NextResponse.json({ error: 'Failed to set role' }, { status: 500 });

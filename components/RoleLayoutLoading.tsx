@@ -1,6 +1,45 @@
+'use client';
+
 import Image from 'next/image';
+import { useEffect, useState } from 'react';
 
 export default function RoleLayoutLoading() {
+  const [shouldShow, setShouldShow] = useState(false);
+  
+  useEffect(() => {
+    // Check if we're in a role transition
+    const isInTransition = localStorage.getItem('telloom_role_transition') === 'true';
+    const transitionTimestamp = localStorage.getItem('telloom_transition_timestamp');
+    
+    // If we're in a transition, don't show this loading component
+    if (isInTransition) {
+      console.log('[ROLE_LAYOUT_LOADING] In transition, not showing loading state');
+      
+      // If the transition has been active for more than 5 seconds, clear it
+      // This prevents the flag from getting stuck if something goes wrong
+      if (transitionTimestamp) {
+        const timestamp = parseInt(transitionTimestamp, 10);
+        const now = Date.now();
+        if (now - timestamp > 5000) {
+          console.log('[ROLE_LAYOUT_LOADING] Clearing stale transition state');
+          localStorage.removeItem('telloom_role_transition');
+          localStorage.removeItem('telloom_transition_timestamp');
+          setShouldShow(true);
+        }
+      }
+      
+      return;
+    }
+    
+    // If we're not in a transition, show this loading component
+    setShouldShow(true);
+  }, []);
+  
+  // Don't render anything if we shouldn't show
+  if (!shouldShow) {
+    return null;
+  }
+
   return (
     <div className="min-h-[calc(100vh-65px)] flex items-center justify-center">
       <div className="w-full max-w-6xl px-4 py-6 md:py-8">
@@ -9,13 +48,13 @@ export default function RoleLayoutLoading() {
             <Image
               src="/images/Telloom Logo V1-Horizontal Green.png"
               alt="Telloom Logo"
-              width={120}
-              height={27}
+              width={160}
+              height={40}
               priority={true}
               style={{
-                width: '120px',
+                width: 'auto',
                 height: 'auto',
-                maxWidth: '100%'
+                maxWidth: '160px'
               }}
             />
           </div>

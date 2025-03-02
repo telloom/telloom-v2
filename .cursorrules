@@ -219,6 +219,28 @@ const Button = ({ children }) => (
 );
 ```
 
+### Logo Standardization
+- Always use the standardized dimensions for the Telloom logo:
+  - Width: 160px
+  - Height: 40px
+  - Aspect ratio: 4:1
+- Use the following pattern for all logo implementations:
+  ```typescript
+  <Image
+    src="/images/Telloom Logo V1-Horizontal Green.png"
+    alt="Telloom Logo"
+    width={160}
+    height={40}
+    priority={true}
+    style={{
+      width: 'auto',
+      height: 'auto',
+      maxWidth: '160px'
+    }}
+  />
+  ```
+- This ensures consistent branding and prevents image dimension warnings
+
 ## Spacing Guidelines
 
 ### Global Content Wrapper

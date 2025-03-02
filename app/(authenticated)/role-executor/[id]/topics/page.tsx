@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import TopicsClientWrapper from './TopicsClientWrapper';
 import { PromptCategory } from '@/types/models';
+import { getSignedAvatarUrl } from '@/utils/avatar';
 
 export default async function ExecutorTopicsPage({ 
   params 
@@ -32,7 +33,8 @@ export default async function ExecutorTopicsPage({
         profileId,
         Profile:profileId (
           firstName,
-          lastName
+          lastName,
+          avatarUrl
         )
       )
     `)
@@ -47,6 +49,12 @@ export default async function ExecutorTopicsPage({
   // Access the profile data correctly
   const sharerProfile = executorRelationship.sharer.Profile;
   const sharerName = `${sharerProfile.firstName || ''} ${sharerProfile.lastName || ''}`.trim();
+
+  // Get signed avatar URL if available
+  let avatarUrl = null;
+  if (sharerProfile.avatarUrl) {
+    avatarUrl = await getSignedAvatarUrl(sharerProfile.avatarUrl);
+  }
 
   // Fetch prompt categories with responses
   const { data: promptCategories } = await supabase
@@ -99,6 +107,7 @@ export default async function ExecutorTopicsPage({
       relationshipId={executorRelationship.id}
       sharerId={sharerId}
       sharerName={sharerName}
+      sharerAvatarUrl={avatarUrl}
     />
   );
 } 

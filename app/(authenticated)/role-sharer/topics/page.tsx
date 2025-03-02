@@ -153,7 +153,7 @@ export default async function TopicsPage() {
 
     return (
       <div className="container mx-auto px-4 py-8">
-        <BackButton href="/role-sharer" />
+        <BackButton href="/role-sharer" label="Back" />
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">All Topics</h1>
         </div>

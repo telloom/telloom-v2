@@ -1471,7 +1471,11 @@ export function VideoResponseSection({ promptId, promptText, promptCategory, res
           fileName: imageAttachments[selectedImageIndex].fileName,
           fileType: imageAttachments[selectedImageIndex].fileType,
           description: imageAttachments[selectedImageIndex].description,
-          dateCaptured: imageAttachments[selectedImageIndex].dateCaptured?.toISOString().split('T')[0] || null,
+          dateCaptured: imageAttachments[selectedImageIndex].dateCaptured 
+            ? (imageAttachments[selectedImageIndex].dateCaptured instanceof Date 
+                ? imageAttachments[selectedImageIndex].dateCaptured.toISOString().split('T')[0] 
+                : imageAttachments[selectedImageIndex].dateCaptured) 
+            : null,
           yearCaptured: imageAttachments[selectedImageIndex].yearCaptured,
           displayUrl: imageAttachments[selectedImageIndex].signedUrl || '',
           PersonTags: imageAttachments[selectedImageIndex].PersonTags || []

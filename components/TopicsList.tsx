@@ -206,7 +206,7 @@ export default function TopicsList({ promptCategories: initialPromptCategories }
         case 'Topics Queue':
           return 'queue';
         case 'Topics with Responses':
-          return 'with_responses';
+          return 'has-responses';
         default:
           return '';
       }

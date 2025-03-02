@@ -66,13 +66,13 @@ export default function ForgotPassword() {
           <Image
             src="/images/Telloom Logo V1-Horizontal Green.png"
             alt="Telloom Logo"
-            width={120}
-            height={27}
+            width={160}
+            height={40}
             priority={true}
             style={{
-              width: '120px',
+              width: 'auto',
               height: 'auto',
-              maxWidth: '100%'
+              maxWidth: '160px'
             }}
           />
         </Link>

@@ -68,24 +68,37 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
   useEffect(() => {
     const fetchVideoData = async () => {
       try {
+        // Create a fresh Supabase client for this request
+        const supabase = createClient();
+        
+        // Add a small delay to ensure auth is properly initialized
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         const { data: videoData, error: videoError } = await supabase
           .from('TopicVideo')
           .select('id, muxPlaybackId')
           .eq('promptCategoryId', promptCategoryId)
           .maybeSingle();
 
-        if (videoError) throw videoError;
-        setVideo(videoData);
+        if (videoError) {
+          console.error('Error fetching video data:', videoError.message);
+        } else {
+          setVideo(videoData);
+        }
       } catch (error) {
-        const pgError = error as PostgrestError;
-        console.error('Error fetching video data:', pgError.message);
+        console.error('Error fetching video data:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchVideoData();
-  }, [promptCategoryId, supabase]);
+    // Call the function with a slight delay to ensure auth is ready
+    const timer = setTimeout(() => {
+      fetchVideoData();
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [promptCategoryId]);
 
   // Fetch attachments when needed
   useEffect(() => {
@@ -95,6 +108,12 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
       console.log('Fetching attachments for category:', promptCategoryId);
       
       try {
+        // Create a fresh Supabase client for this request
+        const supabase = createClient();
+        
+        // Add a small delay to ensure auth is properly initialized
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         // First get all prompts in this category
         const { data: prompts, error: promptError } = await supabase
           .from('Prompt')
@@ -135,33 +154,52 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
 
         console.log('Found responses:', responses.length);
 
-        // Get all attachments for these responses
-        const { data: attachmentData, error: attachmentError } = await supabase
-          .from('PromptResponseAttachment')
-          .select(`
-            *,
-            PromptResponseAttachmentPersonTag (
-              PersonTag (
-                id,
-                name,
-                relation,
-                profileSharerId
-              )
-            )
-          `)
-          .in('promptResponseId', responses.map((r: { id: string }) => r.id))
-          .order('dateCaptured', { ascending: false, nullsLast: true });
-
-        if (attachmentError) {
-          console.error('Error fetching attachments:', attachmentError.message);
-          setAttachments([]);
-          return;
+        // Split the response IDs into smaller chunks to avoid URL length limits
+        const chunkSize = 10;
+        const responseIdChunks = [];
+        for (let i = 0; i < responses.length; i += chunkSize) {
+          responseIdChunks.push(responses.slice(i, i + chunkSize).map((r: { id: string }) => r.id));
         }
 
-        console.log('Found attachments:', attachmentData?.length ?? 0);
+        // Fetch attachments in chunks and combine results
+        let allAttachments: any[] = [];
+        
+        for (const chunk of responseIdChunks) {
+          try {
+            const { data: attachmentData, error: attachmentError } = await supabase
+              .from('PromptResponseAttachment')
+              .select(`
+                *,
+                PromptResponseAttachmentPersonTag (
+                  PersonTag (
+                    id,
+                    name,
+                    relation,
+                    profileSharerId
+                  )
+                )
+              `)
+              .in('promptResponseId', chunk)
+              .order('dateCaptured', { ascending: false, nullsLast: true });
+
+            if (attachmentError) {
+              console.error('Error fetching attachments chunk:', attachmentError.message);
+              continue; // Continue with next chunk instead of failing completely
+            }
+
+            if (attachmentData?.length) {
+              allAttachments = [...allAttachments, ...attachmentData];
+            }
+          } catch (chunkError) {
+            console.error('Error processing attachment chunk:', chunkError);
+            // Continue with next chunk
+          }
+        }
+
+        console.log('Found attachments:', allAttachments.length);
 
         // Convert to UIAttachments
-        const uiAttachments = attachmentData?.map((att: any) => toUIAttachment(att)) ?? [];
+        const uiAttachments = allAttachments.map((att: any) => toUIAttachment(att)) ?? [];
         setAttachments(uiAttachments);
       } catch (error) {
         if (error instanceof Error) {
@@ -171,24 +209,40 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
         } else {
           console.error('Unknown error fetching attachments');
         }
-        setAttachments([]);
+        // Don't clear attachments on error to prevent UI flashing
       }
     };
 
-    fetchAttachments();
-  }, [promptCategoryId, showAttachments, supabase]);
+    // Call the function with a slight delay to ensure auth is ready
+    const timer = setTimeout(() => {
+      fetchAttachments();
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [promptCategoryId, showAttachments]);
 
   // Add a useEffect to fetch attachments count immediately
   useEffect(() => {
     const fetchAttachmentsCount = async () => {
       try {
+        // Create a fresh Supabase client for this request
+        const supabase = createClient();
+        
+        // Add a small delay to ensure auth is properly initialized
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         // First get all prompts in this category
         const { data: prompts, error: promptError } = await supabase
           .from('Prompt')
           .select('id')
           .eq('promptCategoryId', promptCategoryId);
 
-        if (promptError) throw promptError;
+        if (promptError) {
+          console.error('Error fetching prompts:', promptError);
+          setAttachments([]);
+          return;
+        }
+
         if (!prompts?.length) {
           setAttachments([]);
           return;
@@ -200,47 +254,87 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
           .select('id')
           .in('promptId', prompts.map((p: { id: string }) => p.id));
 
-        if (responseError) throw responseError;
+        if (responseError) {
+          console.error('Error fetching responses:', responseError);
+          setAttachments([]);
+          return;
+        }
+
         if (!responses?.length) {
           setAttachments([]);
           return;
         }
 
-        // Get all attachments for these responses
-        const { data: attachmentData, error: attachmentError } = await supabase
-          .from('PromptResponseAttachment')
-          .select(`
-            *,
-            PromptResponseAttachmentPersonTag (
-              PersonTag (
-                id,
-                name,
-                relation,
-                profileSharerId
-              )
-            )
-          `)
-          .in('promptResponseId', responses.map((r: { id: string }) => r.id))
-          .order('dateCaptured', { ascending: false, nullsLast: true });
+        // Split the response IDs into smaller chunks to avoid URL length limits
+        const chunkSize = 10;
+        const responseIdChunks = [];
+        for (let i = 0; i < responses.length; i += chunkSize) {
+          responseIdChunks.push(responses.slice(i, i + chunkSize).map((r: { id: string }) => r.id));
+        }
 
-        if (attachmentError) throw attachmentError;
+        // Fetch attachments in chunks and combine results
+        let allAttachments: any[] = [];
+        
+        for (const chunk of responseIdChunks) {
+          try {
+            const { data: attachmentData, error: attachmentError } = await supabase
+              .from('PromptResponseAttachment')
+              .select(`
+                *,
+                PromptResponseAttachmentPersonTag (
+                  PersonTag (
+                    id,
+                    name,
+                    relation,
+                    profileSharerId
+                  )
+                )
+              `)
+              .in('promptResponseId', chunk)
+              .order('dateCaptured', { ascending: false, nullsLast: true });
+
+            if (attachmentError) {
+              console.error('Error fetching attachments chunk:', attachmentError);
+              continue; // Continue with next chunk instead of failing completely
+            }
+
+            if (attachmentData?.length) {
+              allAttachments = [...allAttachments, ...attachmentData];
+            }
+          } catch (chunkError) {
+            console.error('Error processing attachment chunk:', chunkError);
+            // Continue with next chunk
+          }
+        }
 
         // Convert to UIAttachments
-        const uiAttachments = attachmentData?.map((att: any) => toUIAttachment(att)) ?? [];
+        const uiAttachments = allAttachments.map((att: any) => toUIAttachment(att)) ?? [];
         setAttachments(uiAttachments);
       } catch (error) {
         console.error('Error fetching attachments count:', error);
-        setAttachments([]);
+        // Don't clear attachments on error to prevent UI flashing
+        // Just keep the previous state
       }
     };
 
-    fetchAttachmentsCount();
-  }, [promptCategoryId, supabase]);
+    // Call the function with a slight delay to ensure auth is ready
+    const timer = setTimeout(() => {
+      fetchAttachmentsCount();
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [promptCategoryId]);
 
   // New useEffect to fetch playlist videos
   useEffect(() => {
     const fetchPlaylistVideos = async () => {
       try {
+        // Create a fresh Supabase client for this request
+        const supabase = createClient();
+        
+        // Add a small delay to ensure auth is properly initialized
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         // First get all prompts in this category
         const { data: prompts, error: promptError } = await supabase
           .from('Prompt')
@@ -259,7 +353,10 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
           .eq('promptCategoryId', promptCategoryId)
           .order('isContextEstablishing', { ascending: false });
 
-        if (promptError) throw promptError;
+        if (promptError) {
+          console.error('Error fetching prompts for playlist:', promptError);
+          return;
+        }
 
         // Filter and transform the data
         const videos: PlaylistVideo[] = [];
@@ -298,11 +395,17 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
         setPlaylistVideos(videos);
       } catch (error) {
         console.error('Error fetching playlist videos:', error);
+        // Don't update state on error to prevent UI issues
       }
     };
 
-    fetchPlaylistVideos();
-  }, [promptCategoryId, supabase]);
+    // Call the function with a slight delay to ensure auth is ready
+    const timer = setTimeout(() => {
+      fetchPlaylistVideos();
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [promptCategoryId]);
 
   const handleUploadSuccess = async () => {
     const { data: videoData, error: videoError } = await supabase
@@ -321,6 +424,11 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
   };
 
   const handleCardClick = () => {
+    // Don't navigate if any dialog is open
+    if (showVideo || showAttachments || showUploader || showPlaylist) {
+      return;
+    }
+    
     if (video?.muxPlaybackId) {
       router.push(`/role-sharer/topics/${promptCategoryId}/topic-summary`);
     }
@@ -390,12 +498,12 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
   return (
     <Card 
       className={cn(
-        "p-6 border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]",
-        video?.muxPlaybackId && "cursor-pointer hover:shadow-lg transition-shadow"
+        "p-4 md:p-6 border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]",
+        video?.muxPlaybackId && !showAttachments && !showVideo && !showUploader && !showPlaylist && "cursor-pointer hover:shadow-lg transition-shadow"
       )}
       onClick={handleCardClick}
     >
-      <div className="text-center space-y-4">
+      <div className="text-center space-y-3 md:space-y-4">
         <div>
           <h2 className="text-xl font-semibold tracking-tight mb-2">Topic Video</h2>
           <p className="text-muted-foreground">
@@ -403,42 +511,22 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
           </p>
         </div>
 
-        <div className="flex justify-center gap-3">
+        <div className="flex flex-wrap justify-center gap-3">
           {video?.muxPlaybackId ? (
-            <>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowVideo(true);
-                }}
-                className="rounded-full bg-[#1B4332] hover:bg-[#1B4332]/90"
-              >
-                <div className="flex items-center text-sm">
-                  <Play className="h-4 w-4 mr-2" />
-                  Topic Video
-                </div>
-              </Button>
-              {playlistVideos.length > 0 && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowPlaylist(true);
-                    setCurrentVideoIndex(0);
-                    setShowCompletionMessage(false);
-                  }}
-                  className="rounded-full bg-[#1B4332] hover:bg-[#1B4332]/90"
-                >
-                  <div className="flex items-center text-sm">
-                    <Play className="h-4 w-4 mr-2" />
-                    All Responses ({playlistVideos.length})
-                  </div>
-                </Button>
-              )}
-            </>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowVideo(true);
+              }}
+              className="rounded-full bg-[#1B4332] hover:bg-[#1B4332]/90"
+            >
+              <div className="flex items-center text-sm">
+                <Play className="h-4 w-4 mr-2" />
+                Topic Video
+              </div>
+            </Button>
           ) : (
             <Button
               variant="default"
@@ -455,13 +543,33 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
               </div>
             </Button>
           )}
+          
+          {playlistVideos.length > 0 && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowPlaylist(true);
+                setCurrentVideoIndex(0);
+                setShowCompletionMessage(false);
+              }}
+              className="rounded-full bg-[#1B4332] hover:bg-[#1B4332]/90"
+            >
+              <div className="flex items-center text-sm whitespace-nowrap">
+                <Play className="h-4 w-4 mr-2" />
+                All Responses ({playlistVideos.length})
+              </div>
+            </Button>
+          )}
+          
           <Button
             variant="outline"
             size="sm"
             onClick={handleAttachmentsClick}
             className="rounded-full border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55]"
           >
-            <div className="flex items-center text-sm">
+            <div className="flex items-center text-sm whitespace-nowrap">
               <Paperclip className="h-4 w-4" />
               <span className="ml-1 mr-2">{attachments.length}</span>
               All Topic Attachments
@@ -471,150 +579,158 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
       </div>
 
       {/* Video Popup */}
-      <VideoPopup
-        open={showVideo}
-        onClose={() => setShowVideo(false)}
-        promptText={categoryName}
-        videoId={video?.muxPlaybackId}
-      />
+      <div onClick={(e) => e.stopPropagation()}>
+        <VideoPopup
+          open={showVideo}
+          onClose={() => setShowVideo(false)}
+          promptText={categoryName}
+          videoId={video?.muxPlaybackId}
+        />
+      </div>
 
       {/* Playlist Video Popup */}
-      <VideoPopup
-        open={showPlaylist}
-        onClose={() => {
-          setShowPlaylist(false);
-          setCurrentVideoIndex(0);
-          setShowCompletionMessage(false);
-        }}
-        promptText={playlistVideos[currentVideoIndex]?.promptText || ''}
-        videoId={playlistVideos[currentVideoIndex]?.muxPlaybackId}
-        onNext={handleNextVideo}
-        onPrevious={handlePreviousVideo}
-        hasNext={currentVideoIndex < playlistVideos.length - 1}
-        hasPrevious={currentVideoIndex > 0}
-        onVideoEnd={handleVideoEnd}
-        showProgress={true}
-        currentVideo={currentVideoIndex + 1}
-        totalVideos={playlistVideos.length}
-        showCompletionMessage={showCompletionMessage}
-        onRestart={handleRestartPlaylist}
-      />
+      <div onClick={(e) => e.stopPropagation()}>
+        <VideoPopup
+          open={showPlaylist}
+          onClose={() => {
+            setShowPlaylist(false);
+            setCurrentVideoIndex(0);
+            setShowCompletionMessage(false);
+          }}
+          promptText={playlistVideos[currentVideoIndex]?.promptText || ''}
+          videoId={playlistVideos[currentVideoIndex]?.muxPlaybackId}
+          onNext={handleNextVideo}
+          onPrevious={handlePreviousVideo}
+          hasNext={currentVideoIndex < playlistVideos.length - 1}
+          hasPrevious={currentVideoIndex > 0}
+          onVideoEnd={handleVideoEnd}
+          showProgress={true}
+          currentVideo={currentVideoIndex + 1}
+          totalVideos={playlistVideos.length}
+          showCompletionMessage={showCompletionMessage}
+          onRestart={handleRestartPlaylist}
+        />
+      </div>
 
       {/* Attachments Dialog */}
-      <AttachmentDialog
-        attachment={attachments[currentAttachmentIndex] ? {
-          id: attachments[currentAttachmentIndex].id,
-          fileUrl: attachments[currentAttachmentIndex].fileUrl,
-          displayUrl: attachments[currentAttachmentIndex].displayUrl,
-          fileType: attachments[currentAttachmentIndex].fileType,
-          fileName: attachments[currentAttachmentIndex].fileName,
-          description: attachments[currentAttachmentIndex].description,
-          dateCaptured: attachments[currentAttachmentIndex].dateCaptured instanceof Date 
-            ? attachments[currentAttachmentIndex].dateCaptured.toISOString().split('T')[0]
-            : attachments[currentAttachmentIndex].dateCaptured,
-          yearCaptured: attachments[currentAttachmentIndex].yearCaptured,
-          PersonTags: attachments[currentAttachmentIndex].PersonTags
-        } : null}
-        isOpen={showAttachments}
-        onClose={() => setShowAttachments(false)}
-        onNext={currentAttachmentIndex < attachments.length - 1 ? handleNext : undefined}
-        onPrevious={currentAttachmentIndex > 0 ? handlePrevious : undefined}
-        hasNext={currentAttachmentIndex < attachments.length - 1}
-        hasPrevious={currentAttachmentIndex > 0}
-        onSave={async (attachment) => {
-          const updatedUIAttachment = {
-            ...attachments[currentAttachmentIndex],
-            description: attachment.description,
-            dateCaptured: attachment.dateCaptured ? new Date(attachment.dateCaptured) : null,
-            yearCaptured: attachment.yearCaptured,
-            PersonTags: attachment.PersonTags
-          };
-          await handleAttachmentSave(updatedUIAttachment);
-        }}
-        onDelete={async (attachmentId) => {
-          try {
-            const attachment = attachments.find(a => a.id === attachmentId);
-            
-            if (attachment?.fileUrl) {
+      <div onClick={(e) => e.stopPropagation()}>
+        <AttachmentDialog
+          attachment={attachments[currentAttachmentIndex] ? {
+            id: attachments[currentAttachmentIndex].id,
+            fileUrl: attachments[currentAttachmentIndex].fileUrl,
+            displayUrl: attachments[currentAttachmentIndex].displayUrl,
+            fileType: attachments[currentAttachmentIndex].fileType,
+            fileName: attachments[currentAttachmentIndex].fileName,
+            description: attachments[currentAttachmentIndex].description,
+            dateCaptured: attachments[currentAttachmentIndex].dateCaptured instanceof Date 
+              ? attachments[currentAttachmentIndex].dateCaptured.toISOString().split('T')[0]
+              : attachments[currentAttachmentIndex].dateCaptured,
+            yearCaptured: attachments[currentAttachmentIndex].yearCaptured,
+            PersonTags: attachments[currentAttachmentIndex].PersonTags
+          } : null}
+          isOpen={showAttachments}
+          onClose={() => setShowAttachments(false)}
+          onNext={currentAttachmentIndex < attachments.length - 1 ? handleNext : undefined}
+          onPrevious={currentAttachmentIndex > 0 ? handlePrevious : undefined}
+          hasNext={currentAttachmentIndex < attachments.length - 1}
+          hasPrevious={currentAttachmentIndex > 0}
+          onSave={async (attachment) => {
+            const updatedUIAttachment = {
+              ...attachments[currentAttachmentIndex],
+              description: attachment.description,
+              dateCaptured: attachment.dateCaptured ? new Date(attachment.dateCaptured) : null,
+              yearCaptured: attachment.yearCaptured,
+              PersonTags: attachment.PersonTags
+            };
+            await handleAttachmentSave(updatedUIAttachment);
+          }}
+          onDelete={async (attachmentId) => {
+            try {
+              const attachment = attachments.find(a => a.id === attachmentId);
+              
+              if (attachment?.fileUrl) {
+                const filePath = attachment.fileUrl.includes('attachments/') 
+                  ? attachment.fileUrl.split('attachments/')[1]
+                  : attachment.fileUrl;
+                  
+                // Delete from storage
+                const { error: storageError } = await supabase
+                  .storage
+                  .from('attachments')
+                  .remove([filePath]);
+                  
+                if (storageError) throw storageError;
+              }
+
+              // Delete from database
+              const { error: dbError } = await supabase
+                .from('PromptResponseAttachment')
+                .delete()
+                .eq('id', attachmentId);
+
+              if (dbError) throw dbError;
+
+              toast.success('Attachment deleted successfully');
+              setShowAttachments(false);
+              // Update local state
+              setAttachments(prev => prev.filter(a => a.id !== attachmentId));
+            } catch (error) {
+              console.error('Error deleting attachment:', error);
+              toast.error('Failed to delete attachment');
+            }
+          }}
+          onDownload={async (attachment) => {
+            try {
               const filePath = attachment.fileUrl.includes('attachments/') 
                 ? attachment.fileUrl.split('attachments/')[1]
                 : attachment.fileUrl;
-                
-              // Delete from storage
-              const { error: storageError } = await supabase
-                .storage
+              
+              const { data, error } = await supabase.storage
                 .from('attachments')
-                .remove([filePath]);
-                
-              if (storageError) throw storageError;
+                .download(filePath);
+
+              if (error) throw error;
+
+              if (data) {
+                const url = URL.createObjectURL(data);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = attachment.fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+              }
+            } catch (error) {
+              console.error('Error downloading file:', error);
+              toast.error('Failed to download file');
             }
-
-            // Delete from database
-            const { error: dbError } = await supabase
-              .from('PromptResponseAttachment')
-              .delete()
-              .eq('id', attachmentId);
-
-            if (dbError) throw dbError;
-
-            toast.success('Attachment deleted successfully');
-            setShowAttachments(false);
-            // Update local state
-            setAttachments(prev => prev.filter(a => a.id !== attachmentId));
-          } catch (error) {
-            console.error('Error deleting attachment:', error);
-            toast.error('Failed to delete attachment');
-          }
-        }}
-        onDownload={async (attachment) => {
-          try {
-            const filePath = attachment.fileUrl.includes('attachments/') 
-              ? attachment.fileUrl.split('attachments/')[1]
-              : attachment.fileUrl;
-            
-            const { data, error } = await supabase.storage
-              .from('attachments')
-              .download(filePath);
-
-            if (error) throw error;
-
-            if (data) {
-              const url = URL.createObjectURL(data);
-              const link = document.createElement('a');
-              link.href = url;
-              link.download = attachment.fileName;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              URL.revokeObjectURL(url);
-            }
-          } catch (error) {
-            console.error('Error downloading file:', error);
-            toast.error('Failed to download file');
-          }
-        }}
-      />
+          }}
+        />
+      </div>
 
       {/* Upload Popup */}
-      <Dialog open={showUploader} onOpenChange={setShowUploader}>
-        <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-6">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold">
-              Upload Video for {categoryName}
-            </DialogTitle>
-            <DialogDescription className="text-muted-foreground mb-4">
-              Upload a video summary that captures the essence of this topic.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <TopicVideoUploader
-              promptCategoryId={promptCategoryId}
-              onUploadSuccess={handleUploadSuccess}
-              categoryName={categoryName}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
+      <div onClick={(e) => e.stopPropagation()}>
+        <Dialog open={showUploader} onOpenChange={setShowUploader}>
+          <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-6">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-semibold">
+                Topic Video for {categoryName}
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground mb-4">
+                Create a summary video that captures the essence of this topic.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <TopicVideoUploader
+                promptCategoryId={promptCategoryId}
+                onUploadSuccess={handleUploadSuccess}
+                categoryName={categoryName}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
     </Card>
   );
 } 

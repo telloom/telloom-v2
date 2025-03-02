@@ -79,10 +79,8 @@ export async function POST(request: Request) {
 
     // If this is just an availability check, return a simple response
     if (checkAvailabilityOnly) {
-      const isAvailable = asset.status === 'ready' && 
-                         asset.mp4_support !== 'none' && 
-                         asset.static_renditions?.status === 'ready';
-      
+      // Only check if the asset is ready, regardless of video type
+      const isAvailable = asset.status === 'ready';
       return NextResponse.json({ isAvailable });
     }
 

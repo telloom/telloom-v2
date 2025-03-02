@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { createClient } from '@/utils/supabase/client';
 import { MuxPlayer } from './MuxPlayer';
 import styles from './UploadInterface.module.css';
+import { useAuth } from '@/hooks/useAuth';
 
 interface UploadInterfaceProps {
   promptId: string;
@@ -38,6 +39,7 @@ export function UploadInterface({
   promptText
 }: UploadInterfaceProps) {
   const supabase = createClient();
+  const { user, loading: authLoading } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [existingVideo, setExistingVideo] = useState<any>(null);
@@ -140,9 +142,12 @@ export function UploadInterface({
       try {
         // Get current user
         const supabase = createClient();
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
         
-        if (userError || !user) {
+        if (authLoading) {
+          throw new Error('Authentication in progress');
+        }
+        
+        if (!user) {
           throw new Error('Please sign in to upload videos');
         }
 
@@ -253,7 +258,7 @@ export function UploadInterface({
         }
       }
     },
-    [promptId, pollVideoStatus, handleVideoError]
+    [promptId, pollVideoStatus, handleVideoError, authLoading, user]
   );
 
   const handleDrop = useCallback(

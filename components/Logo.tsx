@@ -8,15 +8,15 @@ export default function Logo() {
         <Image
           src="/images/Telloom Logo V1-Horizontal Green.png"
           alt="Telloom Logo"
-          width={180}
-          height={52}
+          width={160}
+          height={40}
           priority={true}
           quality={100}
           className="mx-auto"
           style={{
-            width: '160px',
+            width: 'auto',
             height: 'auto',
-            maxWidth: '100%'
+            maxWidth: '160px'
           }}
         />
       </Link>

@@ -45,7 +45,7 @@ export default function SharerConnectionsPage() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="space-y-1">
-            <BackButton href="/role-sharer" />
+            <BackButton href="/role-sharer" label="Back" />
             <h1 className="text-2xl sm:text-3xl font-bold">Manage Connections</h1>
           </div>
           <Button 

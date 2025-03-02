@@ -2,8 +2,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { User, AuthChangeEvent } from '@supabase/supabase-js';
-import { createClient } from '@/utils/supabase/client';
+import { User } from '@supabase/supabase-js';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/utils/supabase/client';
 
 interface UserWithProfile extends User {
   profile?: {
@@ -14,72 +15,48 @@ interface UserWithProfile extends User {
 }
 
 export function useUser() {
+  const { user: authUser, loading: authLoading } = useAuth();
   const [user, setUser] = useState<UserWithProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const supabase = createClient();
+    // Only fetch profile when auth is loaded and we have a user
+    if (authLoading) {
+      return;
+    }
 
-    async function getUser() {
+    async function getProfile() {
+      if (!authUser) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       try {
-        const { data: { user }, error } = await supabase.auth.getUser();
-        console.log("Auth user:", user);
-        if (error) throw error;
+        // Fetch profile data
+        const { data: profile, error: profileError } = await supabase
+          .from('Profile')
+          .select('firstName, lastName, avatarUrl')
+          .eq('id', authUser.id)
+          .single();
 
-        if (user) {
-          // Fetch profile data
-          const { data: profile, error: profileError } = await supabase
-            .from('Profile')
-            .select('firstName, lastName, avatarUrl')
-            .eq('id', user.id)
-            .single();
-
-          console.log("Profile data:", profile);
-
-          if (profileError) throw profileError;
-
-          setUser({ ...user, profile });
+        if (profileError) {
+          console.error('Error fetching profile:', profileError);
+          setUser({ ...authUser, profile: null });
         } else {
-          setUser(null);
+          setUser({ ...authUser, profile });
         }
       } catch (error) {
-        console.error('Error fetching user:', error);
-        setUser(null);
+        console.error('Error in profile fetch:', error);
+        setUser({ ...authUser, profile: null });
       } finally {
         setLoading(false);
       }
     }
 
-    getUser();
+    getProfile();
+  }, [authUser, authLoading]);
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent) => {
-      // Always verify user with getUser() after auth state changes
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error) {
-        console.error('Error getting user after auth state change:', error);
-        setUser(null);
-        return;
-      }
-
-      if (user) {
-        const { data: profile } = await supabase
-          .from('Profile')
-          .select('firstName, lastName, avatarUrl')
-          .eq('id', user.id)
-          .single();
-
-        setUser({ ...user, profile: profile || null });
-      } else {
-        setUser(null);
-      }
-    });
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  console.log("Returning user:", user, "loading:", loading);
-  return { user, loading };
+  return { user, loading: loading || authLoading };
 }

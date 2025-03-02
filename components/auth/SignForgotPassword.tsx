@@ -65,7 +65,17 @@ export default function SignForgotPassword() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex justify-center mb-4">
-            <Image src="/logo.png" alt="Telloom Logo" width={120} height={40} />
+            <Image 
+              src="/images/Telloom Logo V1-Horizontal Green.png" 
+              alt="Telloom Logo" 
+              width={160} 
+              height={40} 
+              style={{
+                width: 'auto',
+                height: 'auto',
+                maxWidth: '160px'
+              }}
+            />
           </div>
           <CardTitle className="text-2xl font-bold text-center">Forgot Password</CardTitle>
           <CardDescription className="text-center">
