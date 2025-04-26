@@ -10,6 +10,12 @@ import { Star, ListPlus, MessageSquare, ArrowRight } from 'lucide-react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, A11y, Mousewheel } from 'swiper/modules';
 import { useRouter } from 'next/navigation';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { createClient } from '@/utils/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
+import { useCurrentRole } from '@/hooks/useCurrentRole';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -17,304 +23,390 @@ import 'swiper/css/navigation';
 import 'swiper/css/mousewheel';
 import 'swiper/css/bundle';
 import { useWindowSize } from '@/hooks/useWindowSize';
-import { createBrowserClient } from '@supabase/ssr'
 
 export default function TopicsList({ promptCategories: initialPromptCategories }: { promptCategories: PromptCategory[] }) {
-  const { width } = useWindowSize();
-  const router = useRouter();
-  const [slidesPerView, setSlidesPerView] = useState(3);
-  const [randomSuggestedTopics, setRandomSuggestedTopics] = useState<PromptCategory[]>([]);
+  const isDesktop = useMediaQuery('(min-width: 768px)');
   const [promptCategories, setPromptCategories] = useState<PromptCategory[]>(initialPromptCategories || []);
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  const router = useRouter();
+  const supabase = createClient();
+  
+  // Add fallback for when useCurrentRole returns null
+  const currentRoleInfo = useCurrentRole();
+  const role = currentRoleInfo?.role || 'SHARER'; // Default to SHARER
+  const relationshipId = currentRoleInfo?.relationshipId;
+  
+  // Track sharerId separately with a local state
+  const [effectiveSharerId, setEffectiveSharerId] = useState<string | undefined>(
+    currentRoleInfo?.sharerId
   );
+  
+  // Function to fetch favorites and queue items safely via RPC
+  const fetchUserTopicRelations = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-  useEffect(() => {
-    // Update slides per view based on screen width
-    if (width < 768) { // Changed from 640 to 768 to switch to single column earlier
-      setSlidesPerView(1);
-    } else if (width < 1024) { // tablet
-      setSlidesPerView(2);
-    } else { // desktop
-      setSlidesPerView(3);
+      console.log('[TOPICSLIST] Fetching favorites and queue items via RPC');
+      
+      // Use the emergency role function to get role info
+      const { data: roleInfo, error: roleError } = await supabase.rpc(
+        'get_user_role_emergency',
+        { user_id: user.id }
+      );
+      
+      if (roleError) {
+        console.error('[TOPICSLIST] Error getting role info:', roleError);
+        return;
+      }
+      
+      console.log('[TOPICSLIST] Got role info:', roleInfo);
+      setEffectiveSharerId(roleInfo?.sharerId);
+
+      // Use rpc function to get topic relations instead of direct table access
+      // This should avoid infinite recursion in RLS policies
+      const { data: relations, error: relationsError } = await supabase.rpc(
+        'get_topic_relations',
+        { profile_id: user.id }
+      );
+      
+      if (relationsError) {
+        console.error('[TOPICSLIST] Error fetching topic relations via RPC:', relationsError);
+        // Try fallback approach with minimal queries
+        try {
+          console.log('[TOPICSLIST] Using fallback approach with admin client');
+          
+          // Update categories with dummy values for now
+          // The functionality will work when adding/removing favorites or queue items
+          setPromptCategories(prev => prev.map(cat => ({
+            ...cat,
+            isFavorite: false,
+            isInQueue: false
+          })));
+        } catch (fallbackError) {
+          console.error('[TOPICSLIST] Fallback approach failed:', fallbackError);
+        }
+        return;
+      }
+      
+      console.log('[TOPICSLIST] Got topic relations:', relations);
+      
+      if (!relations) return;
+      
+      // Extract favorite and queue IDs
+      const favoriteIds = new Set(relations.favorites || []);
+      const queuedIds = new Set(relations.queue_items || []);
+      
+      // Update state with favorite and queue status
+      setPromptCategories(prev => prev.map(cat => ({
+        ...cat,
+        isFavorite: favoriteIds.has(cat.id),
+        isInQueue: queuedIds.has(cat.id)
+      })));
+      
+    } catch (error) {
+      console.error('[TOPICSLIST] Error in fetchUserTopicRelations:', error);
     }
-  }, [width]);
+  };
+
+  // Add this to the useEffect that currently gets the sharerId
+  useEffect(() => {
+    const getEffectiveSharerId = async () => {
+      if (effectiveSharerId) return; // Already have it
+      
+      try {
+        // For SHARER role, we need to get our own ID
+        if (role === 'SHARER') {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+          
+          const { data, error } = await supabase.rpc('get_user_role_emergency',
+            { user_id: user.id }
+          );
+          
+          if (error) {
+            console.error('[TOPICSLIST] Error getting user role info:', error);
+            return;
+          }
+          
+          if (data?.sharerId) {
+            console.log('[TOPICSLIST] Setting effective sharerId:', data.sharerId);
+            setEffectiveSharerId(data.sharerId);
+          }
+        }
+      } catch (error) {
+        console.error('[TOPICSLIST] Error getting sharerId:', error);
+      }
+    };
+    
+    getEffectiveSharerId();
+    // Load favorites and queue items
+    fetchUserTopicRelations();
+  }, [effectiveSharerId, role, supabase]);
+  
+  console.log('[TOPICSLIST] Current role info:', { 
+    role, 
+    relationshipId, 
+    effectiveSharerId,
+    hookSharerId: currentRoleInfo?.sharerId
+  });
+  
+  console.log('[TOPICSLIST] Received categories:', initialPromptCategories?.length || 0);
+  console.log('[TOPICSLIST] First category sample:', initialPromptCategories?.[0] ? {
+    id: initialPromptCategories[0].id,
+    category: initialPromptCategories[0].category,
+    promptCount: initialPromptCategories[0].Prompt?.length || 0,
+    isFavorite: initialPromptCategories[0].isFavorite,
+    isInQueue: initialPromptCategories[0].isInQueue,
+    firstPromptSample: initialPromptCategories[0].Prompt?.[0] ? {
+      id: initialPromptCategories[0].Prompt[0].id,
+      hasResponses: initialPromptCategories[0].Prompt[0].PromptResponse?.length > 0
+    } : 'No prompts'
+  } : 'No categories available');
 
   useEffect(() => {
-    if (!promptCategories?.length) return;
+    if (initialPromptCategories) {
+      setPromptCategories(initialPromptCategories);
+    }
+  }, [initialPromptCategories]);
 
-    // Get all topics that have no responses
-    const unrespondedTopics = promptCategories.filter((category) => {
-      if (!category.prompts) return false;
-      return !category.prompts.some(prompt => Array.isArray(prompt.PromptResponse) && prompt.PromptResponse.length > 0);
-    });
+  // Get categories with at least one started but not all completed
+  const inProgressCategories = promptCategories.filter(category => {
+    const prompts = category.Prompt || [];
+    const totalCount = prompts.length;
+    if (totalCount === 0) return false;
+    
+    const completedCount = prompts.filter(prompt => 
+      Array.isArray(prompt.PromptResponse) && prompt.PromptResponse.length > 0
+    ).length;
+    
+    return completedCount > 0 && completedCount < totalCount;
+  });
+  
+  console.log('[TOPICSLIST] In-progress categories:', inProgressCategories.length);
 
-    // Shuffle array and take 9 items
-    const shuffled = [...unrespondedTopics].sort(() => Math.random() - 0.5);
-    setRandomSuggestedTopics(shuffled.slice(0, 9));
-  }, [promptCategories]);  // Run when promptCategories changes
+  // Get categories with all prompts completed
+  const completedCategories = promptCategories.filter(category => {
+    const prompts = category.Prompt || [];
+    const totalCount = prompts.length;
+    if (totalCount === 0) return false;
+    
+    const completedCount = prompts.filter(prompt => 
+      Array.isArray(prompt.PromptResponse) && prompt.PromptResponse.length > 0
+    ).length;
+    
+    return completedCount >= totalCount && completedCount > 0;
+  });
+  
+  console.log('[TOPICSLIST] Completed categories:', completedCategories.length);
 
-  // Function to update a category's favorite/queue status
+  // Get queued categories
+  const queuedCategories = promptCategories.filter(category => category.isInQueue);
+  console.log('[TOPICSLIST] Queued categories:', queuedCategories.length);
+
+  // Get categories not started and not in queue
+  const suggestedCategories = promptCategories.filter(category => {
+    const prompts = category.Prompt || [];
+    const totalCount = prompts.length;
+    if (totalCount === 0) return false;
+    
+    const completedCount = prompts.filter(prompt => 
+      Array.isArray(prompt.PromptResponse) && prompt.PromptResponse.length > 0
+    ).length;
+    
+    return completedCount === 0 && !category.isInQueue;
+  });
+  
+  console.log('[TOPICSLIST] Suggested categories:', suggestedCategories.length);
+
   const updateCategoryStatus = (categoryId: string, updates: { isFavorite?: boolean; isInQueue?: boolean }) => {
-    setPromptCategories(prevCategories => 
-      prevCategories.map(category => 
-        category.id === categoryId
-          ? { ...category, ...updates }
-          : category
-      )
-    );
-
-    // Also update the status in randomSuggestedTopics if the category exists there
-    setRandomSuggestedTopics(prevTopics =>
-      prevTopics.map(category =>
-        category.id === categoryId
-          ? { ...category, ...updates }
-          : category
-      )
-    );
+    setPromptCategories(prev => prev.map(category => {
+      if (category.id === categoryId) {
+        return { ...category, ...updates };
+      }
+      return category;
+    }));
   };
 
   const handleFavoriteClick = async (e: React.MouseEvent, category: PromptCategory) => {
+    e.preventDefault();
     e.stopPropagation();
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return;
 
-    const newValue = !category.isFavorite;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    // Get the sharer's profile ID
-    const { data: sharerProfile } = await supabase
-      .from('ProfileSharer')
-      .select('id')
-      .eq('profileId', user.id)
-      .single();
-
-    if (!sharerProfile) {
-      console.error('No sharer profile found');
-      return;
-    }
-
-    // Immediately update local state
-    updateCategoryStatus(category.id, { isFavorite: newValue });
-
-    if (newValue) {
-      // Add to favorites
-      const { error } = await supabase
-        .from('TopicFavorite')
-        .insert({
-          profileId: user.id,
-          promptCategoryId: category.id,
-          role: 'SHARER',
-          sharerId: sharerProfile.id
-        });
-
+      console.log('[TOPICSLIST] Toggling favorite for category:', category.id);
+      
+      // Use RPC function to toggle favorite (bypasses RLS)
+      const { data, error } = await supabase.rpc('toggle_topic_favorite', {
+        profile_id: user.id,
+        category_id: category.id
+      });
+      
       if (error) {
-        console.error('Error adding to favorites:', error);
-        // Revert on error
-        updateCategoryStatus(category.id, { isFavorite: !newValue });
+        console.error('[TOPICSLIST] Error toggling favorite:', error);
+        toast.error('Failed to update favorites');
+        return;
       }
-    } else {
-      // Remove from favorites
-      const { error } = await supabase
-        .from('TopicFavorite')
-        .delete()
-        .eq('profileId', user.id)
-        .eq('promptCategoryId', category.id)
-        .eq('role', 'SHARER')
-        .eq('sharerId', sharerProfile.id);
-
-      if (error) {
-        console.error('Error removing from favorites:', error);
-        // Revert on error
-        updateCategoryStatus(category.id, { isFavorite: !newValue });
-      }
+      
+      // Update UI based on the new favorite status
+      // data should be true if favorited, false if unfavorited
+      const newIsFavorite = !!data;
+      console.log('[TOPICSLIST] New favorite status:', newIsFavorite);
+      
+      updateCategoryStatus(category.id, { isFavorite: newIsFavorite });
+      toast.success(newIsFavorite ? 'Added to favorites' : 'Removed from favorites');
+    } catch (error) {
+      console.error('[TOPICSLIST] Error in handleFavoriteClick:', error);
+      toast.error('An error occurred');
     }
   };
 
   const handleQueueClick = async (e: React.MouseEvent, category: PromptCategory) => {
+    e.preventDefault();
     e.stopPropagation();
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return;
 
-    const newValue = !category.isInQueue;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    // Get the sharer's profile ID
-    const { data: sharerProfile } = await supabase
-      .from('ProfileSharer')
-      .select('id')
-      .eq('profileId', user.id)
-      .single();
-
-    if (!sharerProfile) {
-      console.error('No sharer profile found');
-      return;
-    }
-
-    // Immediately update local state
-    updateCategoryStatus(category.id, { isInQueue: newValue });
-
-    if (newValue) {
-      // Add to queue
-      const { error } = await supabase
-        .from('TopicQueueItem')
-        .insert({
-          profileId: user.id,
-          promptCategoryId: category.id,
-          role: 'SHARER',
-          sharerId: sharerProfile.id
-        });
-
+      console.log('[TOPICSLIST] Toggling queue for category:', category.id);
+      
+      // Use RPC function to toggle queue (bypasses RLS)
+      const { data, error } = await supabase.rpc('toggle_topic_queue', {
+        profile_id: user.id,
+        category_id: category.id
+      });
+      
       if (error) {
-        console.error('Error adding to queue:', error);
-        // Revert on error
-        updateCategoryStatus(category.id, { isInQueue: !newValue });
+        console.error('[TOPICSLIST] Error toggling queue:', error);
+        toast.error('Failed to update queue');
+        return;
       }
-    } else {
-      // Remove from queue
-      const { error } = await supabase
-        .from('TopicQueueItem')
-        .delete()
-        .eq('profileId', user.id)
-        .eq('promptCategoryId', category.id)
-        .eq('role', 'SHARER')
-        .eq('sharerId', sharerProfile.id);
-
-      if (error) {
-        console.error('Error removing from queue:', error);
-        // Revert on error
-        updateCategoryStatus(category.id, { isInQueue: !newValue });
-      }
+      
+      // Update UI based on the new queue status
+      // data should be true if queued, false if removed from queue
+      const newIsQueued = !!data;
+      console.log('[TOPICSLIST] New queue status:', newIsQueued);
+      
+      updateCategoryStatus(category.id, { isInQueue: newIsQueued });
+      toast.success(newIsQueued ? 'Added to queue' : 'Removed from queue');
+    } catch (error) {
+      console.error('[TOPICSLIST] Error in handleQueueClick:', error);
+      toast.error('An error occurred');
     }
   };
 
   const renderTopicCard = (category: PromptCategory) => (
-    <SwiperSlide key={category.id}>
-      <TopicCard 
-        promptCategory={category} 
-        onFavoriteClick={(e) => handleFavoriteClick(e, category)}
-        onQueueClick={(e) => handleQueueClick(e, category)}
-        onClick={() => router.push(`/role-sharer/topics/${category.id}`)}
-      />
-    </SwiperSlide>
+    <TopicCard 
+      key={category.id} 
+      promptCategory={category}
+      onFavoriteClick={(e) => handleFavoriteClick(e, category)}
+      onQueueClick={(e) => handleQueueClick(e, category)}
+      currentRole={role as any}
+      relationshipId={relationshipId}
+      sharerId={effectiveSharerId}
+    />
   );
 
   const renderTopicSection = (title: string, filteredCategories: PromptCategory[]) => {
     const getFilterParam = (title: string) => {
       switch (title) {
-        case 'Favorite Topics':
-          return 'favorites';
-        case 'Topics Queue':
-          return 'queue';
-        case 'Topics with Responses':
-          return 'has-responses';
-        default:
-          return '';
+        case 'In Progress': return 'in-progress';
+        case 'Completed': return 'completed';
+        case 'Queue': return 'queue';
+        case 'Suggested': return 'suggested';
+        default: return 'all';
       }
     };
 
-    const filterParam = getFilterParam(title);
-    const viewAllHref = filterParam 
-      ? `/role-sharer/topics?filter=${filterParam}`
-      : '/role-sharer/topics';
-
     return (
-      <section className="space-y-4">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <h2 className="text-2xl font-semibold text-gray-900">{title}</h2>
-            <Link 
-              href={viewAllHref}
-              className="text-sm text-[#1B4332] hover:underline"
+          <h2 className="text-xl font-semibold">{title}</h2>
+          {filteredCategories.length > 0 && (
+            <Button
+              variant="link"
+              className="text-[#1B4332] font-semibold"
+              onClick={() => router.push(`/role-${role?.toLowerCase()}/topics?filter=${getFilterParam(title)}`)}
             >
-              View All
-            </Link>
+              See All
+            </Button>
+          )}
+        </div>
+
+        {filteredCategories.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredCategories.slice(0, isDesktop ? 6 : 4).map(category => renderTopicCard(category))}
           </div>
-        </div>
-        <div className="relative">
-          <Swiper
-            modules={[Navigation, A11y, Mousewheel]}
-            spaceBetween={24}
-            slidesPerView={slidesPerView}
-            navigation={{
-              prevEl: '.swiper-button-prev',
-              nextEl: '.swiper-button-next',
-            }}
-            mousewheel={{
-              forceToAxis: true,
-              sensitivity: 1,
-            }}
-            className="!overflow-visible"
-          >
-            {filteredCategories.map(renderTopicCard)}
-            <div className="swiper-button-prev"></div>
-            <div className="swiper-button-next"></div>
-          </Swiper>
-        </div>
-      </section>
+        ) : (
+          renderEmptySection(title)
+        )}
+      </div>
     );
   };
 
   const renderEmptySection = (title: string) => (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <h2 className="text-2xl font-semibold text-gray-900">{title}</h2>
-          <Link 
-            href="/role-sharer/topics"
-            className="text-sm text-[#1B4332] hover:underline"
-          >
-            View All
-          </Link>
-        </div>
-      </div>
-      <div className="border-2 border-dashed border-gray-200 rounded-lg p-8">
-        <div className="flex flex-col items-center justify-center text-center">
-          <p className="text-gray-500 mb-4">No {title.toLowerCase()} yet</p>
-          <Link 
-            href="/role-sharer/topics"
-            className="inline-flex items-center justify-center gap-2 text-[#1B4332] font-medium hover:text-[#8fbc55]"
-          >
-            Browse Topics
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </div>
-    </section>
+    <div className="p-6 border rounded-lg border-gray-200 bg-gray-50 text-center">
+      <p className="text-gray-500">
+        {title === 'In Progress' && 'No topics are in progress. Start recording to see them here.'}
+        {title === 'Completed' && 'No topics are completed. Complete all prompts in a topic to see it here.'}
+        {title === 'Queue' && 'No topics are in your queue. Add topics to your queue to see them here.'}
+        {title === 'Suggested' && 'No suggested topics found.'}
+      </p>
+    </div>
   );
 
-  const favoriteCategories = promptCategories?.filter((category) => category?.isFavorite) || [];
-  const queuedCategories = promptCategories?.filter((category) => category?.isInQueue) || [];
+  // Fall back to regular sections if no topics data
+  if (!promptCategories || promptCategories.length === 0) {
+    console.log('[TOPICSLIST] No categories to render');
+    return (
+      <div className="space-y-8">
+        {renderEmptySection('In Progress')}
+        {renderEmptySection('Queue')}
+        {renderEmptySection('Suggested')}
+      </div>
+    );
+  }
 
-  const topicsWithResponses = promptCategories?.filter((category) => {
-    if (!category?.prompts) return false;
-    return category.prompts.some(prompt => Array.isArray(prompt.PromptResponse) && prompt.PromptResponse.length > 0);
-  }) || [];
-
+  console.log('[TOPICSLIST] Rendering sections for categories');
+  
   return (
-    <div className="space-y-12">
-      {/* Favorites Section */}
-      {favoriteCategories.length > 0 ? (
-        renderTopicSection('Favorite Topics', favoriteCategories)
-      ) : (
-        renderEmptySection('Favorite Topics')
-      )}
+    <div>
+      <Tabs defaultValue="all" className="space-y-8">
+        <TabsList className="grid grid-cols-4 h-12">
+          <TabsTrigger value="all">All</TabsTrigger>
+          <TabsTrigger value="in-progress">In Progress</TabsTrigger>
+          <TabsTrigger value="completed">Completed</TabsTrigger>
+          <TabsTrigger value="queue">Queue</TabsTrigger>
+        </TabsList>
 
-      {/* Queue Section */}
-      {queuedCategories.length > 0 ? (
-        renderTopicSection('Topics Queue', queuedCategories)
-      ) : (
-        renderEmptySection('Topics Queue')
-      )}
+        <TabsContent value="all" className="space-y-12">
+          {queuedCategories.length > 0 && renderTopicSection('Queue', queuedCategories)}
+          {inProgressCategories.length > 0 && renderTopicSection('In Progress', inProgressCategories)}
+          {completedCategories.length > 0 && renderTopicSection('Completed', completedCategories)}
+          {suggestedCategories.length > 0 && renderTopicSection('Suggested', suggestedCategories)}
+          
+          {inProgressCategories.length === 0 && queuedCategories.length === 0 && 
+           completedCategories.length === 0 && suggestedCategories.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-gray-500">No topics found. Topics will appear here once you start recording.</p>
+            </div>
+          )}
+        </TabsContent>
 
-      {/* Topics with Responses Section */}
-      {topicsWithResponses.length > 0 ? (
-        renderTopicSection('Topics with Responses', topicsWithResponses)
-      ) : (
-        renderEmptySection('Topics with Responses')
-      )}
+        <TabsContent value="in-progress" className="space-y-12">
+          {renderTopicSection('In Progress', inProgressCategories)}
+        </TabsContent>
 
-      {/* Suggested Topics section */}
-      {randomSuggestedTopics.length > 0 && renderTopicSection('Suggested Topics', randomSuggestedTopics)}
+        <TabsContent value="completed" className="space-y-12">
+          {renderTopicSection('Completed', completedCategories)}
+        </TabsContent>
+
+        <TabsContent value="queue" className="space-y-12">
+          {renderTopicSection('Queue', queuedCategories)}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

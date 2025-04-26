@@ -2,13 +2,14 @@
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Headphones, Share2, UserCog } from 'lucide-react';
+import { Headphones, Share2, UserCog, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import Image from 'next/image';
 import Link from 'next/link';
 import { supabase } from '@/utils/supabase/client';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 type Role = 'LISTENER' | 'SHARER' | 'EXECUTOR';
 
@@ -20,7 +21,7 @@ interface RoleInfo {
 }
 
 interface SelectRoleClientProps {
-  userId?: string; // Optional to maintain backward compatibility
+  userId?: string;
 }
 
 const ROLES: RoleInfo[] = [
@@ -49,6 +50,8 @@ export default function SelectRoleClient({ userId }: SelectRoleClientProps) {
   const [isLoadingRoles, setIsLoadingRoles] = useState(true);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const router = useRouter();
 
   // Prefetch all possible role pages to make transitions faster
@@ -61,15 +64,18 @@ export default function SelectRoleClient({ userId }: SelectRoleClientProps) {
   useEffect(() => {
     const fetchRoles = async () => {
       setIsLoadingRoles(true);
+      setError(null);
       try {
         const response = await fetch('/api/select-role');
         if (!response.ok) {
-          throw new Error('Failed to fetch roles');
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to fetch roles');
         }
         const data = await response.json();
         setAvailableRoles(data.roles || []);
       } catch (error) {
         console.error('Error fetching roles:', error);
+        setError('Failed to load available roles. Please try refreshing the page.');
         toast.error('Failed to load available roles');
       } finally {
         setIsLoadingRoles(false);
@@ -77,29 +83,30 @@ export default function SelectRoleClient({ userId }: SelectRoleClientProps) {
     };
 
     fetchRoles();
-  }, []);
+  }, [retryCount]);
+
+  const handleRetry = () => {
+    setRetryCount(prev => prev + 1);
+  };
 
   const handleSelectRole = async (role: Role) => {
     if (isTransitioning) return;
     
-    // Set transition state immediately to prevent multiple clicks
     setSelectedRole(role);
     setIsTransitioning(true);
+    setError(null);
     
     try {
       console.log(`[SELECT_ROLE] Starting role transition to ${role}`);
       
-      // Set a flag in localStorage to indicate we're in a transition
-      // This will be used to prevent RoleLayoutLoading from showing
+      // Set transition flags in localStorage for UI state
       if (typeof window !== 'undefined') {
         localStorage.setItem('telloom_role_transition', 'true');
         localStorage.setItem('telloom_transition_timestamp', Date.now().toString());
       }
       
-      // Determine the target URL based on role
-      const targetUrl = `/role-${role.toLowerCase()}`;
-      
-      // Make the API call to set the role
+      // First, call the API to set the activeRole cookie server-side
+      console.log(`[SELECT_ROLE] Setting cookie via API for role: ${role}`);
       const response = await fetch('/api/select-role', {
         method: 'POST',
         headers: {
@@ -109,21 +116,31 @@ export default function SelectRoleClient({ userId }: SelectRoleClientProps) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to select role');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to select role');
       }
+      
+      // Get the redirectUrl from the API response
+      const data = await response.json();
+      const targetUrl = data.redirectUrl || `/role-${role.toLowerCase()}`;
       
       console.log(`[SELECT_ROLE] API call successful, navigating to ${targetUrl}`);
       
-      // Use router.push with replace to avoid adding to history
-      router.push(targetUrl, { scroll: false });
+      // Force a full page navigation to ensure cookie is applied properly
+      // This ensures consistent behavior across all role types
+      // Important: using document.location (not window.location) for most reliable navigation
+      console.log(`[SELECT_ROLE] Performing hard navigation to: ${targetUrl}`);
+      document.location.href = targetUrl;
       
     } catch (error) {
       console.error('Error selecting role:', error);
-      toast.error('Failed to select role. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to select role';
+      setError(errorMessage);
+      toast.error(errorMessage);
       setSelectedRole(null);
       setIsTransitioning(false);
       
-      // Clear the transition flag if there was an error
+      // Clear transition flags
       if (typeof window !== 'undefined') {
         localStorage.removeItem('telloom_role_transition');
         localStorage.removeItem('telloom_transition_timestamp');
@@ -165,6 +182,21 @@ export default function SelectRoleClient({ userId }: SelectRoleClientProps) {
       <div className="w-full h-[50vh] flex flex-col items-center justify-center">
         <div className="h-10 w-10 animate-spin rounded-full border-3 border-[#1B4332] border-t-transparent" />
         <p className="text-lg text-[#1B4332] mt-4">Loading available roles...</p>
+      </div>
+    );
+  }
+
+  // Show error state with retry button
+  if (error) {
+    return (
+      <div className="w-full h-[50vh] flex flex-col items-center justify-center space-y-6">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+        <Button onClick={handleRetry} variant="outline">
+          Try Again
+        </Button>
       </div>
     );
   }

@@ -17,8 +17,9 @@ import { useAuth } from '@/hooks/useAuth';
 
 interface UploadInterfaceProps {
   promptId: string;
-  onUploadSuccess?: (playbackId: string) => Promise<void>;
+  onUploadSuccess?: (videoId: string, playbackId: string) => Promise<void>;
   promptText?: string;
+  targetSharerId: string;
 }
 
 interface ProfileRole {
@@ -36,7 +37,8 @@ interface Profile {
 export function UploadInterface({
   promptId,
   onUploadSuccess,
-  promptText
+  promptText,
+  targetSharerId
 }: UploadInterfaceProps) {
   const supabase = createClient();
   const { user, loading: authLoading } = useAuth();
@@ -48,6 +50,7 @@ export function UploadInterface({
     'idle' | 'uploading' | 'processing' | 'ready' | 'error'
   >('idle');
   const [muxPlaybackId, setMuxPlaybackId] = useState<string | null>(null);
+  const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   const uploadLock = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const hasStartedUpload = useRef(false);
@@ -56,11 +59,11 @@ export function UploadInterface({
     setProcessingState('ready');
     setMuxPlaybackId(playbackId);
     setExistingVideo(null); // Clear existing video check after successful upload
-    toast.success('Video uploaded successfully');
+    toast.success('Upload Successful!');
     if (onUploadSuccess) {
-      onUploadSuccess(playbackId);
+      onUploadSuccess(currentVideoId || '', playbackId);
     }
-  }, [onUploadSuccess]);
+  }, [onUploadSuccess, currentVideoId]);
 
   const handleVideoError = useCallback(() => {
     setProcessingState('error');
@@ -96,7 +99,7 @@ export function UploadInterface({
             setMuxPlaybackId(video.muxPlaybackId);
             setProcessingState('ready');
             if (onUploadSuccess) {
-              await onUploadSuccess(video.muxPlaybackId);
+              await onUploadSuccess(videoId, video.muxPlaybackId);
             }
             return;
           }
@@ -164,7 +167,10 @@ export function UploadInterface({
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`
           },
-          body: JSON.stringify({ promptId }),
+          body: JSON.stringify({
+            promptId,
+            targetSharerId
+          }),
         });
 
         if (!response.ok) {
@@ -181,6 +187,7 @@ export function UploadInterface({
         }
 
         const { uploadUrl, uploadId, videoId } = await response.json();
+        setCurrentVideoId(videoId);
 
         if (!uploadUrl || !uploadId) {
           throw new Error('Failed to get upload URL');
@@ -198,19 +205,20 @@ export function UploadInterface({
           }
         });
 
-        xhr.addEventListener('load', () => {
+        xhr.addEventListener('loadend', () => {
           if (aborted) return;
-
           if (xhr.status >= 200 && xhr.status < 300) {
-            setIsUploading(false);
-            setUploadProgress(100);
             setProcessingState('processing');
-
-            // Start polling for video status
-            pollVideoStatus(videoId);
+            if (videoId) {
+              pollVideoStatus(videoId);
+            } else {
+              console.error("Video ID not available for polling after upload.");
+              handleVideoError();
+            }
           } else {
-            handleVideoError();
-            setProcessingState('idle');
+            setError(`Upload failed: ${xhr.statusText || 'Unknown error'}`);
+            setIsUploading(false);
+            setProcessingState('error');
           }
         });
 
@@ -236,7 +244,7 @@ export function UploadInterface({
         };
 
         // Add cleanup to all event listeners
-        xhr.addEventListener('load', cleanup);
+        xhr.addEventListener('loadend', cleanup);
         xhr.addEventListener('error', cleanup);
         xhr.addEventListener('abort', cleanup);
 
@@ -258,7 +266,7 @@ export function UploadInterface({
         }
       }
     },
-    [promptId, pollVideoStatus, handleVideoError, authLoading, user]
+    [promptId, pollVideoStatus, handleVideoError, authLoading, user, targetSharerId]
   );
 
   const handleDrop = useCallback(

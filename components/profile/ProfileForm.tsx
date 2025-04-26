@@ -431,34 +431,66 @@ export default function ProfileForm({ initialData, states }: ProfileFormProps) {
     try {
       setIsLoading(true);
 
-      // Update profile data
-      const { error: updateError, data: updateResult } = await supabase
-        .from('Profile')
-        .update(updatedData)
-        .eq('id', formData.id)
-        .select()
-        .single();
+      // Construct the payload with only actual Profile table columns
+      // This payload will be sent to the RPC function
+      const payloadForUpdate: Partial<ProfileFormData> = {
+        firstName: updatedData.firstName,
+        lastName: updatedData.lastName,
+        phone: updatedData.phone,
+        avatarUrl: updatedData.avatarUrl,
+        addressStreet: updatedData.addressStreet,
+        addressUnit: updatedData.addressUnit,
+        addressCity: updatedData.addressCity,
+        addressState: updatedData.addressState,
+        addressZipcode: updatedData.addressZipcode,
+      };
 
-      if (updateError) {
-        throw updateError;
+      // Call the secure RPC function to update the profile
+      const { data: updateResultJson, error: rpcError } = await supabase
+        .rpc('update_profile_safe', {
+          target_user_id: formData.id, // Pass the ID of the profile to update
+          update_payload: payloadForUpdate // Pass the filtered data
+        });
+
+      if (rpcError) {
+        throw rpcError; // Throw if the RPC call itself failed
       }
 
+      // The RPC function returns the updated profile as JSONB
+      const updateResult: ProfileFormData | null = updateResultJson as ProfileFormData | null;
+
       // Update both local form state and global profile state
-      if (updateResult) {
+      if (updateResult && updateResult.id) {
         // Normalize the avatar URL if it exists
         if (updateResult.avatarUrl) {
           updateResult.avatarUrl = normalizeAvatarUrl(updateResult.avatarUrl);
         }
-        
-        setFormData(updateResult);
+
+        // Update local state with the result from the RPC call
+        setFormData({
+          id: updateResult.id,
+          email: formData.email, // Email wasn't updated, keep the original
+          firstName: updateResult.firstName,
+          lastName: updateResult.lastName,
+          phone: updateResult.phone,
+          avatarUrl: updateResult.avatarUrl,
+          addressStreet: updateResult.addressStreet,
+          addressUnit: updateResult.addressUnit,
+          addressCity: updateResult.addressCity,
+          addressState: updateResult.addressState,
+          addressZipcode: updateResult.addressZipcode,
+        });
+
         // Update global store with full profile data to trigger header refresh
         setProfile({
           ...updateResult,
-          hasProfile: true,
-          profileId: updateResult.id,
-          timestamp: new Date().toISOString()
+          userId: updateResult.id, // Ensure userId is set if needed by Profile type
         });
         setAvatarPreview(updateResult.avatarUrl);
+      } else {
+        // Handle cases where RPC might not return data as expected
+        console.error('RPC update_profile_safe did not return valid profile data:', updateResultJson);
+        throw new Error('Profile update via RPC failed to return data.');
       }
 
       toast.success('Profile updated successfully');

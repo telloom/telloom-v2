@@ -6,27 +6,38 @@ import ProfileForm from '@/components/profile/ProfileForm';
 import ClientWrapper from '@/components/ClientWrapper';
 import BackButton from '@/components/profile/BackButton';
 import { getUSStates } from '@/utils/states';
+import { Profile } from '@/types/models'; // Assuming you have a Profile type definition
 
 export default async function ProfilePage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   
   // Get the current user
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   
   if (userError || !user) {
+    console.error('[ProfilePage] User not found or error fetching user:', userError);
     notFound();
   }
 
-  // Get the user's profile
-  const { data: profile, error: profileError } = await supabase
-    .from('Profile')
-    .select('*')
-    .eq('id', user.id)
-    .single();
+  // Get the user's profile using the SAFE RPC function
+  // This function uses SECURITY DEFINER and bypasses RLS for this specific fetch
+  console.log(`[ProfilePage] Fetching profile via RPC for user: ${user.id}`);
+  const { data: profileData, error: profileRpcError } = await supabase
+    .rpc('get_profile_safe', { target_user_id: user.id }); // Pass user.id to the function
 
-  if (profileError || !profile) {
-    notFound();
+  // The RPC returns a JSONB object, not a direct row like .select().single()
+  const profile: Profile | null = profileData as Profile | null;
+
+  if (profileRpcError || !profile || !profile.id) { // Check if profile object or its id is null/undefined
+    console.error('[ProfilePage] Profile not found via RPC or error fetching profile', {
+      userId: user?.id,
+      profileRpcError,
+      profileData // Log the raw data received from RPC
+    });
+    notFound(); // Call notFound if RPC fails or returns no valid profile data
   }
+
+  console.log('[ProfilePage] Successfully fetched profile via RPC:', profile.id);
 
   // Get US states from the database
   const states = await getUSStates();

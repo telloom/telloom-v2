@@ -89,25 +89,25 @@ export async function POST(request: Request) {
       }
 
       case 'video.asset.track.ready': {
-        const { 
-          text_source, 
-          text_type, 
-          status, 
-          id: text_track_id, 
+        const {
+          text_source,
+          text_type,
+          status,
+          id: text_track_id,
           asset_id,
           name,
-          language_code 
+          language_code
         } = eventData;
-        
-        console.log('Received track ready event:', { 
-          text_source, 
-          text_type, 
-          status, 
+
+        console.log('Received track ready event:', {
+          text_source,
+          text_type,
+          status,
           text_track_id,
           asset_id,
           name,
           language_code,
-          eventData 
+          eventData
         });
 
         // Only process generated captions
@@ -120,16 +120,34 @@ export async function POST(request: Request) {
           break;
         }
 
-        // Get video by muxAssetId
+        // Check if this asset ID exists in the Video table before proceeding
+        const { data: checkVideoData, error: checkVideoError } = await supabaseAdmin
+          .from('Video')
+          .select('id')
+          .eq('muxAssetId', asset_id)
+          .maybeSingle(); // Use maybeSingle to handle 0 or 1 result
+
+        if (checkVideoError) {
+            console.error(`[Main Webhook - Track Ready] Error checking Video table for asset ${asset_id}:`, checkVideoError);
+            throw checkVideoError; // Propagate DB errors
+        }
+
+        if (!checkVideoData) {
+            console.log(`[Main Webhook - Track Ready] Asset ${asset_id} not found in Video table. Assuming TopicVideo event. Ignoring.`);
+            return NextResponse.json({ message: 'Event ignored (handled by topic video webhook)' }, { status: 200 });
+        }
+
+        // Get video by muxAssetId (We already confirmed it exists)
         const { data: video, error: videoError } = await supabaseAdmin
           .from('Video')
           .select('id, muxPlaybackId')
           .eq('muxAssetId', asset_id)
-          .single();
+          .single(); // Safe to use single() now
 
         if (videoError || !video?.muxPlaybackId) {
-          console.error('Error getting video by asset ID:', { videoError, asset_id });
-          throw videoError || new Error('Video not found or missing playback ID');
+          // This case should be less likely now, but kept for safety
+          console.error('Error getting video by asset ID (after check):', { videoError, asset_id });
+          throw videoError || new Error('Video not found or missing playback ID (after check)');
         }
 
         // Set videoId for the rest of the function
@@ -145,24 +163,24 @@ export async function POST(request: Request) {
           try {
             const transcriptUrl = `https://stream.mux.com/${video.muxPlaybackId}/text/${text_track_id}.txt`;
             console.log(`Fetching transcript (attempt ${attempt}/${MAX_RETRIES}):`, transcriptUrl);
-            
+
             const transcriptResponse = await fetch(transcriptUrl);
             if (!transcriptResponse.ok) {
               throw new Error(`Failed to fetch transcript: ${transcriptResponse.statusText}`);
             }
-            
+
             transcript = await transcriptResponse.text();
             console.log('Successfully fetched transcript, length:', transcript.length);
             break; // Success, exit retry loop
           } catch (error) {
             lastError = error;
             console.error(`Transcript fetch attempt ${attempt}/${MAX_RETRIES} failed:`, error);
-            
+
             if (attempt === MAX_RETRIES) {
               console.error('All transcript fetch attempts failed');
               throw lastError;
             }
-            
+
             // Wait before retrying (exponential backoff)
             await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
           }
@@ -204,9 +222,33 @@ export async function POST(request: Request) {
       }
 
       case 'video.asset.ready': {
-        const { playback_ids, duration, aspect_ratio, max_stored_resolution, max_stored_frame_rate, video_quality, resolution_tier } = eventData;
-        console.log('Processing asset ready event:', { videoId });
-        
+        const { id: asset_id, playback_ids, duration, aspect_ratio, max_stored_resolution, max_stored_frame_rate, video_quality, resolution_tier } = eventData;
+        console.log('Processing asset ready event:', { videoId, asset_id });
+
+        // Ensure videoId is available (it should be from earlier logic or passthrough)
+        if (!videoId) {
+            console.error('[Main Webhook - Asset Ready] videoId is missing at the start of the case. Cannot proceed.');
+            // Returning 400 as this indicates a logic flaw earlier or bad passthrough
+            return NextResponse.json({ error: 'Internal state error: videoId missing' }, { status: 400 });
+        }
+
+        // Check if this videoId exists in the Video table before proceeding
+        const { data: checkVideoData, error: checkVideoError } = await supabaseAdmin
+          .from('Video')
+          .select('id')
+          .eq('id', videoId)
+          .maybeSingle(); // Use maybeSingle to handle 0 or 1 result
+
+        if (checkVideoError) {
+            console.error(`[Main Webhook - Asset Ready] Error checking Video table for video ${videoId}:`, checkVideoError);
+            throw checkVideoError; // Propagate DB errors
+        }
+
+        if (!checkVideoData) {
+            console.log(`[Main Webhook - Asset Ready] Video ${videoId} not found in Video table. Assuming TopicVideo event. Ignoring.`);
+            return NextResponse.json({ message: 'Event ignored (handled by topic video webhook)' }, { status: 200 });
+        }
+
         // Get the playback ID
         const playbackId = playback_ids?.[0]?.id;
         if (!playbackId) {
@@ -216,11 +258,11 @@ export async function POST(request: Request) {
         // First update just the playback ID
         const { error: playbackError } = await supabaseAdmin
           .from('Video')
-          .update({ muxPlaybackId: playbackId })
+          .update({ muxPlaybackId: playbackId, muxAssetId: asset_id }) // Also update asset ID here
           .eq('id', videoId);
 
         if (playbackError) {
-          console.error('Error updating playback ID:', playbackError);
+          console.error('Error updating playback ID and Asset ID:', playbackError);
           throw playbackError;
         }
 
@@ -248,7 +290,7 @@ export async function POST(request: Request) {
         const { data: video, error: videoError } = await supabaseAdmin
           .from('Video')
           .select('promptId, profileSharerId')
-          .eq('id', videoId)
+          .eq('id', videoId) // Use the verified videoId
           .single();
 
         if (videoError || !video) {
@@ -271,6 +313,7 @@ export async function POST(request: Request) {
           throw responseError;
         }
 
+        console.log('Successfully updated video record to READY:', { videoId, playbackId });
         break;
       }
 

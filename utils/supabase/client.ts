@@ -8,9 +8,72 @@ let client: ReturnType<typeof createBrowserClient> | null = null;
 let resetClient: ReturnType<typeof createBrowserClient> | null = null;
 
 // Cache for user data to reduce redundant network requests
-let cachedUser: { user: User | null } | null = null;
+let cachedUserData: UserCache | null = null;
 let lastUserCheck = 0;
-const USER_CACHE_DURATION = 60 * 1000; // 1 minute cache
+const USER_CACHE_DURATION = 30 * 1000; // 30 seconds cache (reduced from 2 minutes)
+
+// Storage for cached user data
+type UserCache = {
+  user: User | null;
+  timestamp: number;
+};
+
+// Get cached user data if valid
+function getUserCache(): User | null {
+  if (!cachedUserData) return null;
+  
+  const now = Date.now();
+  if (now - cachedUserData.timestamp > USER_CACHE_DURATION) {
+    return null; // Cache expired
+  }
+  
+  return cachedUserData.user;
+}
+
+// Set user data in cache
+function setUserCache(user: User): void {
+  cachedUserData = {
+    user,
+    timestamp: Date.now()
+  };
+}
+
+// Clear auth cookies from the browser
+function clearAuthCookies(): void {
+  if (typeof document === 'undefined') return;
+
+  // Clear common Supabase auth cookies
+  const cookiesToClear = [
+    'supabase-auth-token',
+    'sb-access-token',
+    'sb-refresh-token',
+    'sb:token',
+    'sb-provider-token',
+    'sb-auth-token'
+  ];
+  
+  cookiesToClear.forEach(cookieName => {
+    document.cookie = `${cookieName}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax; Secure;`;
+  });
+}
+
+/**
+ * Invalidates the user cache, forcing the next getUser() call to fetch fresh data.
+ * Call this after operations that might change the user's state.
+ */
+export function invalidateUserCache() {
+  console.log('[AUTH] Invalidating user cache');
+  cachedUserData = null;
+  
+  // Also attempt to clear cookies - this is a belt and suspenders approach
+  // for clients that might have stale cookie data
+  try {
+    // Non-critical functions - shouldn't throw but wrapped in try/catch to be safe
+    clearAuthCookies();
+  } catch (e) {
+    console.error('[AUTH] Error clearing cookies during cache invalidation:', e);
+  }
+}
 
 /**
  * Creates a Supabase client for client-side usage.
@@ -18,29 +81,10 @@ const USER_CACHE_DURATION = 60 * 1000; // 1 minute cache
  * instead of calling this function directly.
  */
 export function createClient() {
-  if (client) return client;
-
-  client = createBrowserClient(
+  return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      auth: {
-        debug: false, // Disable debug logs even in development to reduce noise
-        persistSession: true,
-        // Completely disable URL detection to prevent automatic redirects
-        detectSessionInUrl: false,
-        flowType: 'pkce', // Use PKCE flow for better security
-        autoRefreshToken: true,
-      },
-      global: {
-        headers: {
-          'x-application-name': 'telloom',
-        },
-      },
-    }
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
-
-  return client;
 }
 
 /**
@@ -310,64 +354,139 @@ export function createResetPasswordClient() {
 export const supabase = createClient();
 
 /**
- * Gets the current user with caching to reduce redundant network requests.
- * Use this instead of calling supabase.auth.getUser() directly in components.
+ * Forces a refresh of the user's session and returns fresh user data
+ * @returns The refreshed session data
  */
-export const getUser = async () => {
-  const now = Date.now();
-  
-  // Return cached user if it's still valid
-  if (cachedUser && (now - lastUserCheck) < USER_CACHE_DURATION) {
-    return cachedUser.user;
-  }
-
+export const refreshSession = async () => {
   try {
-    const { data, error } = await supabase.auth.getUser();
+    const startTime = Date.now();
+    console.log('[AUTH] Refreshing session');
     
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        // Only log non-auth-session-missing errors as errors
-        if (error.name === 'AuthSessionMissingError' || error.message?.includes('Auth session missing')) {
-          console.log('No auth session found, returning null user');
-        } else {
-          console.error('Error getting user:', error);
-        }
-      }
-      cachedUser = { user: null };
-      lastUserCheck = now;
-      return null;
+    // First check the server API endpoint for definitive session status
+    const serverCheckResponse = await fetch('/api/auth/session');
+    const serverData = await serverCheckResponse.json();
+    
+    console.log('[AUTH] Server session check result:', { 
+      hasServerSession: !!serverData.session?.user,
+      responseTime: `${Date.now() - startTime}ms` 
+    });
+    
+    // If server indicates user is authenticated, make Supabase client match that state
+    const { data: { session }, error } = await supabase.auth.getSession();
+    
+    const userId = session?.user?.id;
+    const serverUserId = serverData.session?.user?.id;
+    
+    // Log any discrepancies between client and server auth state
+    if (!!userId !== !!serverUserId) {
+      console.warn('[AUTH] Auth state mismatch between client and server:', {
+        clientHasUser: !!userId,
+        serverHasUser: !!serverUserId,
+        clientId: userId?.substring(0, 8),
+        serverId: serverUserId?.substring(0, 8)
+      });
     }
     
-    // Cache the successful response
-    cachedUser = { user: data.user };
-    lastUserCheck = now;
-    
-    return data.user;
-  } catch (error: any) {
-    // Handle AuthSessionMissingError specifically
-    if (error.name === 'AuthSessionMissingError' || error.message?.includes('Auth session missing')) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('No auth session found, returning null user');
-      }
-      cachedUser = { user: null };
-      lastUserCheck = now;
-      return null;
+    // If we have a server session but no client session, force a refresh
+    if (serverData.session?.user && !session) {
+      console.log('[AUTH] Server has session but client does not - force refreshing');
+      await supabase.auth.refreshSession();
     }
     
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Unexpected error getting user:', error);
-    }
-    cachedUser = { user: null };
-    lastUserCheck = now;
-    return null;
+    return {
+      hasSession: !!session || !!serverData.session?.user,
+      sessionUserId: userId || serverData.session?.user?.id || null,
+      timestamp: new Date().toISOString()
+    };
+  } catch (e) {
+    console.error('[AUTH] Error refreshing session:', e);
+    return {
+      hasSession: false,
+      sessionUserId: null,
+      error: e instanceof Error ? e.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    };
   }
 };
 
 /**
- * Invalidates the user cache, forcing the next getUser() call to fetch fresh data.
- * Call this after operations that might change the user's state.
+ * Gets the current user, with caching for performance
+ * @param forceRefresh Whether to skip the cache and force a fresh fetch
+ * @returns User data or null if not authenticated
  */
-export const invalidateUserCache = () => {
-  cachedUser = null;
-  lastUserCheck = 0;
-};
+export const getUser = async (forceRefresh = false): Promise<User | null> => {
+  // Skip cache immediately if forced
+  if (forceRefresh) {
+    console.log('[AUTH] Cache invalid or force refresh requested, fetching fresh user data');
+    
+    // Check server session first for definitive answer
+    try {
+      const sessionResponse = await fetch('/api/auth/session');
+      const sessionData = await sessionResponse.json();
+      
+      console.log('[AUTH] Server session check for getUser:', {
+        hasServerUser: !!sessionData.session?.user
+      });
+      
+      // If server says no user, respect that decision
+      if (!sessionData.session?.user) {
+        console.log('[AUTH] Server confirms no authenticated user');
+        invalidateUserCache();
+        return null;
+      }
+    } catch (error) {
+      console.error('[AUTH] Error checking server session:', error);
+      // Continue with client check as fallback
+    }
+    
+    try {
+      // Refresh session before getting user
+      const sessionStatus = await refreshSession();
+      console.log('[AUTH] Session refresh result:', sessionStatus);
+      
+      // If refresh indicates no session, return null
+      if (!sessionStatus.hasSession) {
+        console.log('[AUTH] No session after refresh, returning null');
+        invalidateUserCache();
+        return null;
+      }
+      
+      // Explicitly refresh auth token for good measure
+      console.log('[AUTH] Explicitly refreshing auth token');
+      await supabase.auth.refreshSession();
+      
+      // Get fresh user data
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error) {
+        console.error('[AUTH] Error retrieving user after refresh:', error.message);
+        invalidateUserCache();
+        return null;
+      }
+      
+      if (!user) {
+        console.log('[AUTH] No user returned after session refresh');
+        invalidateUserCache();
+        return null;
+      }
+      
+      // Cache the user data
+      console.log('[AUTH] User data retrieved successfully:', { 
+        userId: user?.id, 
+        email: user?.email?.substring(0, 3) + '***',
+        timestamp: new Date().toISOString()
+      });
+
+      setUserCache(user);
+      console.log('[AUTH] User data cached with TTL:', USER_CACHE_DURATION / 1000, 'seconds');
+
+      return user;
+    } catch (error) {
+      console.error('[AUTH] Critical error in getUser with force refresh:', error);
+      invalidateUserCache();
+      return null;
+    }
+  }
+  
+  // If not forcing refresh, use the rest of the original function...
+}

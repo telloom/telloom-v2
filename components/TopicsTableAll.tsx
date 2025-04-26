@@ -2,9 +2,17 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { Suspense } from 'react';
+import { Loader2 } from 'lucide-react';
 
 const TopicsTableAllClient = dynamic(() => import('./TopicsTableAllClient'), {
-  ssr: false
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center p-12">
+      <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      <span className="ml-2 text-gray-500">Loading topics...</span>
+    </div>
+  )
 });
 
 interface TopicsTableAllProps {
@@ -15,6 +23,15 @@ interface TopicsTableAllProps {
 }
 
 export default function TopicsTableAll(props: TopicsTableAllProps) {
-  return <TopicsTableAllClient {...props} />;
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center p-12">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <span className="ml-2 text-gray-500">Loading topics...</span>
+      </div>
+    }>
+      <TopicsTableAllClient {...props} />
+    </Suspense>
+  );
 }
 

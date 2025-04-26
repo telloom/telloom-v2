@@ -4,48 +4,77 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import RoleLayoutLoading from '@/components/RoleLayoutLoading';
 import ClearRoleTransition from '@/components/ClearRoleTransition';
+import { getCookie } from '@/utils/next-cookies-helper';
+import { getUserWithRoleData } from '@/utils/supabase/jwt-helpers';
+import { createAdminClient } from '@/utils/supabase/admin';
 
 async function RoleSharerLayoutContent({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
+  console.log('[role-sharer/layout] Starting layout processing');
+  
+  // Get user and role data from JWT claims
+  const { user, roleData } = await getUserWithRoleData();
 
   if (!user) {
+    console.log('[role-sharer/layout] No user found, redirecting to login');
     redirect('/login');
   }
 
-  // Check if user has SHARER role
-  const { data: roles } = await supabase
-    .from('ProfileRole')
-    .select('role')
-    .eq('profileId', user.id);
+  console.log('[role-sharer/layout] Authenticated user:', user.id);
 
-  const hasSharerRole = roles?.some(r => r.role === 'SHARER');
-  
-  if (!hasSharerRole) {
+  // Get the activeRole cookie first to track explicit user choice
+  const activeRole = await getCookie('activeRole');
+  console.log('[role-sharer/layout] Active role from cookie:', activeRole);
+
+  // Check if user has SHARER role using JWT claims
+  if (!roleData.roles.includes('SHARER')) {
+    console.log('[role-sharer/layout] User does not have SHARER role, redirecting to select-role');
     redirect('/select-role');
   }
 
-  // Check if they have a ProfileSharer record
-  const { data: profileSharer } = await supabase
-    .from('ProfileSharer')
-    .select('id')
-    .eq('profileId', user.id)
-    .single();
-
-  if (!profileSharer) {
-    // If they don't have a ProfileSharer record, create one
-    const { error: createError } = await supabase
-      .from('ProfileSharer')
-      .insert([{ profileId: user.id }]);
-
-    if (createError) {
-      console.error('Error creating ProfileSharer:', createError);
-      redirect('/select-role');
+  try {
+    // Check if the user has a ProfileSharer record
+    if (!roleData.isSharer) {
+      console.log('[role-sharer/layout] User has SHARER role but no ProfileSharer record');
+      
+      // Only redirect to executor if they didn't explicitly select SHARER role
+      if (activeRole !== 'SHARER' && roleData.roles.includes('EXECUTOR')) {
+        console.log('[role-sharer/layout] Redirecting to role-executor as user has EXECUTOR role');
+        redirect('/role-executor');
+      } else {
+        console.log('[role-sharer/layout] User explicitly selected SHARER role, but no ProfileSharer record');
+        
+        // If we need to create a ProfileSharer record, we would do so here
+        // For now, just redirect to select-role
+        redirect('/select-role');
+      }
     }
+
+    // Get the effective sharer ID
+    const effectiveSharerId = roleData.sharerId;
+    if (!effectiveSharerId) {
+      console.error('[role-sharer/layout] No sharer ID in JWT claims for user with isSharer=true:', { userId: user.id });
+      
+      // Fall back to getting the sharer ID from the database
+      const adminClient = createAdminClient();
+      const { data: roleInfo, error: roleError } = await adminClient.rpc(
+        'get_user_role_emergency',
+        { user_id: user.id }
+      );
+
+      if (roleError || !roleInfo?.sharerId) {
+        console.error('[role-sharer/layout] Failed to retrieve sharer ID for user with ProfileSharer record:', { userId: user.id });
+        redirect('/select-role');
+      }
+    }
+
+    console.log('[role-sharer/layout] Layout checks passed, continuing to render page');
+  } catch (error) {
+    console.error('[role-sharer/layout] Unexpected error:', error);
+    redirect('/error?reason=role-check-error');
   }
 
   return (

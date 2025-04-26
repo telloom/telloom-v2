@@ -11,6 +11,7 @@ import { TopicVideoResponseSection } from '@/components/TopicVideoResponseSectio
 import { UIAttachment, toUIAttachment } from '@/types/component-interfaces';
 import { PromptResponseAttachment } from '@/types/models';
 import { ArrowLeft } from 'lucide-react';
+import { getEffectiveSharerId } from '@/utils/supabase/role-helpers';
 
 export default function TopicSummaryPage() {
   const params = useParams();
@@ -37,20 +38,34 @@ export default function TopicSummaryPage() {
         return;
       }
 
-      // Get the user's ProfileSharer record
-      const { data: profileSharer, error: profileSharerError } = await supabase
-        .from('ProfileSharer')
-        .select('id')
-        .eq('profileId', user.id)
-        .single();
+      // Check if user has SHARER or EXECUTOR role
+      const { data: roles, error: rolesError } = await supabase
+        .from('ProfileRole')
+        .select('role')
+        .eq('profileId', user.id);
 
-      if (profileSharerError) {
-        console.error('Error fetching ProfileSharer:', profileSharerError);
+      if (rolesError) {
+        console.error('Error fetching roles:', rolesError);
         return;
       }
 
-      const profileSharerId = profileSharer.id;
-      setUserId(profileSharerId);
+      const hasSharerOrExecutorRole = roles?.some(r => r.role === 'SHARER' || r.role === 'EXECUTOR');
+      if (!hasSharerOrExecutorRole) {
+        console.error('User does not have SHARER or EXECUTOR role');
+        router.push('/select-role');
+        return;
+      }
+
+      // Get the effective sharer ID using the helper function
+      const effectiveSharerId = await getEffectiveSharerId(user.id, supabase);
+      if (!effectiveSharerId) {
+        console.error('No effective sharer ID found for user:', user.id);
+        router.push('/select-role');
+        return;
+      }
+
+      console.log('Effective sharer ID found:', effectiveSharerId);
+      setUserId(effectiveSharerId);
 
       // Fetch topic name
       const { data: topicData, error: topicError } = await supabase
@@ -63,16 +78,7 @@ export default function TopicSummaryPage() {
       setTopicName(topicData?.category || '');
 
       // First get the video with detailed logging
-      console.log('Fetching video for topicId:', topicId, 'and profileSharerId:', profileSharerId);
-      
-      // First verify the ProfileSharer relationship
-      const { data: sharerCheck, error: sharerCheckError } = await supabase
-        .from('ProfileSharer')
-        .select('id, profileId')
-        .eq('id', profileSharerId)
-        .single();
-        
-      console.log('ProfileSharer check:', { sharerCheck, sharerCheckError, currentUserId: user.id });
+      console.log('Fetching video for topicId:', topicId, 'and profileSharerId:', effectiveSharerId);
       
       const { data: videoData, error: videoError } = await supabase
         .from('TopicVideo')
@@ -96,7 +102,7 @@ export default function TopicSummaryPage() {
           )
         `)
         .eq('promptCategoryId', topicId)
-        .eq('profileSharerId', profileSharerId)
+        .eq('profileSharerId', effectiveSharerId)
         .maybeSingle();
 
       if (videoError) {
@@ -186,10 +192,10 @@ export default function TopicSummaryPage() {
             createdAt
           `)
           .in('promptId', prompts.map((p: { id: string }) => p.id))
-          .eq('profileSharerId', profileSharerId);
+          .eq('profileSharerId', effectiveSharerId);
 
         console.log('Filtered responses:', {
-          profileSharerId,
+          profileSharerId: effectiveSharerId,
           filteredResponses
         });
 
@@ -211,12 +217,12 @@ export default function TopicSummaryPage() {
               )
             `)
             .in('promptResponseId', filteredResponses.map((r: { id: string }) => r.id))
-            .eq('profileSharerId', profileSharerId)
+            .eq('profileSharerId', effectiveSharerId)
             .order('dateCaptured', { ascending: false, nullsLast: true });
 
           console.log('Attachments found:', {
             responseIds: filteredResponses.map((r: { id: string }) => r.id),
-            profileSharerId,
+            profileSharerId: effectiveSharerId,
             attachmentCount: attachmentData?.length,
             attachmentData,
             attachmentError

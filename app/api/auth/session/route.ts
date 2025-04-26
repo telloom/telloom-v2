@@ -1,49 +1,50 @@
+import { createDirectClient } from '@/utils/supabase/direct-client';
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@/utils/supabase/route-handler';
-import { cookies } from 'next/headers';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    console.log('[API] GET /api/auth/session - Checking server-side session');
-    const supabase = createRouteHandlerClient({ cookies });
+    console.log('[API] Session route called');
     
-    try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      
-      if (error) {
-        // Check if this is an auth session missing error
-        if (error.name === 'AuthSessionMissingError' || error.message?.includes('Auth session missing')) {
-          console.log('[API] No auth session found, returning null session');
-          return NextResponse.json({ session: null });
-        }
-        
-        // For other errors, log and return 500
-        console.error('[API] Error getting user:', error);
-        return NextResponse.json({ error: 'Error getting user' }, { status: 500 });
-      }
-      
-      console.log('[API] User check result:', { hasUser: !!user });
-      
-      return NextResponse.json({ 
-        session: user ? {
-          user: {
-            id: user.id,
-            email: user.email,
-          }
-        } : null 
-      });
-    } catch (authError: any) {
-      // Catch any auth errors and return null session for auth session missing errors
-      if (authError.name === 'AuthSessionMissingError' || authError.message?.includes('Auth session missing')) {
-        console.log('[API] Auth session missing error caught:', authError.message);
-        return NextResponse.json({ session: null });
-      }
-      
-      // For other errors, rethrow to be caught by the outer try/catch
-      throw authError;
+    // Extract the authorization header
+    const authHeader = request.headers.get('Authorization');
+    console.log('[API] Authorization header:', authHeader ? 'present' : 'missing');
+    
+    // Create a direct client
+    const supabase = createDirectClient();
+    
+    // If we have a token, use it
+    let sessionResult;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      console.log('[API] Using token from Authorization header');
+      sessionResult = await supabase.auth.getSession();
+    } else {
+      // Try getting the session without a token
+      console.log('[API] No token provided, trying to get session');
+      sessionResult = await supabase.auth.getSession();
     }
+    
+    const { data: { session }, error } = sessionResult;
+
+    if (error) {
+      console.error('[API] Error getting session:', error.message);
+      return NextResponse.json(
+        { error: 'Failed to get session', details: error.message },
+        { status: 500 }
+      );
+    }
+
+    console.log('[API] Session retrieved successfully:', { hasSession: !!session });
+    return NextResponse.json({ 
+      session,
+      source: 'api/auth/session',
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
-    console.error('[API] Unexpected error in session endpoint:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[API] Error in session route:', error);
+    return NextResponse.json(
+      { error: 'Internal server error', details: String(error) },
+      { status: 500 }
+    );
   }
 } 

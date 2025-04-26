@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { createClient } from '@/utils/supabase/client';
 import { TopicVideoUploader } from './TopicVideoUploader';
 import { Button } from './ui/button';
-import { Paperclip, Play, Upload } from 'lucide-react';
+import { Paperclip, Play, Upload, Loader2 } from 'lucide-react';
 import { VideoPopup } from './VideoPopup';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from './ui/dialog';
 import { useRouter } from 'next/navigation';
@@ -61,6 +61,7 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
   const [playlistVideos, setPlaylistVideos] = useState<PlaylistVideo[]>([]);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [showCompletionMessage, setShowCompletionMessage] = useState(false);
+  const [attachmentCount, setAttachmentCount] = useState<number>(0);
   const supabase = createClient();
   const router = useRouter();
 
@@ -105,16 +106,13 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
     const fetchAttachments = async () => {
       if (!showAttachments) return;
       
-      console.log('Fetching attachments for category:', promptCategoryId);
+      console.log('Fetching attachments metadata for category:', promptCategoryId);
+      setAttachments([]);
       
       try {
-        // Create a fresh Supabase client for this request
         const supabase = createClient();
-        
-        // Add a small delay to ensure auth is properly initialized
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        // First get all prompts in this category
         const { data: prompts, error: promptError } = await supabase
           .from('Prompt')
           .select('id')
@@ -134,7 +132,6 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
 
         console.log('Found prompts:', prompts.length);
 
-        // Get all prompt responses for these prompts
         const { data: responses, error: responseError } = await supabase
           .from('PromptResponse')
           .select('id')
@@ -154,14 +151,12 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
 
         console.log('Found responses:', responses.length);
 
-        // Split the response IDs into smaller chunks to avoid URL length limits
         const chunkSize = 10;
         const responseIdChunks = [];
         for (let i = 0; i < responses.length; i += chunkSize) {
           responseIdChunks.push(responses.slice(i, i + chunkSize).map((r: { id: string }) => r.id));
         }
 
-        // Fetch attachments in chunks and combine results
         let allAttachments: any[] = [];
         
         for (const chunk of responseIdChunks) {
@@ -184,7 +179,7 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
 
             if (attachmentError) {
               console.error('Error fetching attachments chunk:', attachmentError.message);
-              continue; // Continue with next chunk instead of failing completely
+              continue;
             }
 
             if (attachmentData?.length) {
@@ -192,24 +187,25 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
             }
           } catch (chunkError) {
             console.error('Error processing attachment chunk:', chunkError);
-            // Continue with next chunk
           }
         }
 
-        console.log('Found attachments:', allAttachments.length);
+        console.log('Found attachments metadata:', allAttachments.length);
 
-        // Convert to UIAttachments
+        // Convert to UIAttachments (without signedUrl/displayUrl for now)
         const uiAttachments = allAttachments.map((att: any) => toUIAttachment(att)) ?? [];
         setAttachments(uiAttachments);
+        console.log('[TopicVideoCard fetchAttachments] Set raw uiAttachments state (sample):', uiAttachments.slice(0, 2));
+
       } catch (error) {
         if (error instanceof Error) {
-          console.error('Unexpected error fetching attachments:', error.message);
+          console.error('[TopicVideoCard] Unexpected error fetching attachments:', error.message);
         } else if ((error as PostgrestError).message) {
-          console.error('Database error fetching attachments:', (error as PostgrestError).message);
+          console.error('[TopicVideoCard] Database error fetching attachments:', (error as PostgrestError).message);
         } else {
-          console.error('Unknown error fetching attachments');
+          console.error('[TopicVideoCard] Unknown error fetching attachments');
         }
-        // Don't clear attachments on error to prevent UI flashing
+        toast.error("Failed to load attachments.");
       }
     };
 
@@ -223,15 +219,14 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
 
   // Add a useEffect to fetch attachments count immediately
   useEffect(() => {
+    let isMounted = true;
+
     const fetchAttachmentsCount = async () => {
+      let count = 0;
       try {
-        // Create a fresh Supabase client for this request
         const supabase = createClient();
-        
-        // Add a small delay to ensure auth is properly initialized
         await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // First get all prompts in this category
+
         const { data: prompts, error: promptError } = await supabase
           .from('Prompt')
           .select('id')
@@ -248,7 +243,6 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
           return;
         }
 
-        // Get all prompt responses for these prompts
         const { data: responses, error: responseError } = await supabase
           .from('PromptResponse')
           .select('id')
@@ -265,64 +259,30 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
           return;
         }
 
-        // Split the response IDs into smaller chunks to avoid URL length limits
-        const chunkSize = 10;
-        const responseIdChunks = [];
-        for (let i = 0; i < responses.length; i += chunkSize) {
-          responseIdChunks.push(responses.slice(i, i + chunkSize).map((r: { id: string }) => r.id));
+        const { count: attachmentCountResult, error: countError } = await supabase
+          .from('PromptResponseAttachment')
+          .select('* ', { count: 'exact', head: true })
+          .in('promptResponseId', responses.map((r: { id: string }) => r.id));
+
+        if (countError) {
+          console.error('Error fetching attachment count:', countError);
+        } else {
+          count = attachmentCountResult ?? 0;
         }
-
-        // Fetch attachments in chunks and combine results
-        let allAttachments: any[] = [];
-        
-        for (const chunk of responseIdChunks) {
-          try {
-            const { data: attachmentData, error: attachmentError } = await supabase
-              .from('PromptResponseAttachment')
-              .select(`
-                *,
-                PromptResponseAttachmentPersonTag (
-                  PersonTag (
-                    id,
-                    name,
-                    relation,
-                    profileSharerId
-                  )
-                )
-              `)
-              .in('promptResponseId', chunk)
-              .order('dateCaptured', { ascending: false, nullsLast: true });
-
-            if (attachmentError) {
-              console.error('Error fetching attachments chunk:', attachmentError);
-              continue; // Continue with next chunk instead of failing completely
-            }
-
-            if (attachmentData?.length) {
-              allAttachments = [...allAttachments, ...attachmentData];
-            }
-          } catch (chunkError) {
-            console.error('Error processing attachment chunk:', chunkError);
-            // Continue with next chunk
-          }
-        }
-
-        // Convert to UIAttachments
-        const uiAttachments = allAttachments.map((att: any) => toUIAttachment(att)) ?? [];
-        setAttachments(uiAttachments);
       } catch (error) {
         console.error('Error fetching attachments count:', error);
-        // Don't clear attachments on error to prevent UI flashing
-        // Just keep the previous state
+      } finally {
+        if (isMounted) {
+           setAttachmentCount(count);
+        }
       }
     };
 
-    // Call the function with a slight delay to ensure auth is ready
-    const timer = setTimeout(() => {
-      fetchAttachmentsCount();
-    }, 1000);
-    
-    return () => clearTimeout(timer);
+    fetchAttachmentsCount();
+
+    return () => {
+      isMounted = false;
+    };
   }, [promptCategoryId]);
 
   // New useEffect to fetch playlist videos
@@ -436,7 +396,7 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
 
   const handleAttachmentsClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log('Opening attachments dialog');
+    console.log('Opening attachments dialog, fetching metadata if needed...');
     setShowAttachments(true);
     setCurrentAttachmentIndex(0);
   };
@@ -571,7 +531,7 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
           >
             <div className="flex items-center text-sm whitespace-nowrap">
               <Paperclip className="h-4 w-4" />
-              <span className="ml-1 mr-2">{attachments.length}</span>
+              <span className="ml-1 mr-2">{attachmentCount}</span>
               All Topic Attachments
             </div>
           </Button>
@@ -615,35 +575,21 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
       {/* Attachments Dialog */}
       <div onClick={(e) => e.stopPropagation()}>
         <AttachmentDialog
-          attachment={attachments[currentAttachmentIndex] ? {
-            id: attachments[currentAttachmentIndex].id,
-            fileUrl: attachments[currentAttachmentIndex].fileUrl,
-            displayUrl: attachments[currentAttachmentIndex].displayUrl,
-            fileType: attachments[currentAttachmentIndex].fileType,
-            fileName: attachments[currentAttachmentIndex].fileName,
-            description: attachments[currentAttachmentIndex].description,
-            dateCaptured: attachments[currentAttachmentIndex].dateCaptured instanceof Date 
-              ? attachments[currentAttachmentIndex].dateCaptured.toISOString().split('T')[0]
-              : attachments[currentAttachmentIndex].dateCaptured,
-            yearCaptured: attachments[currentAttachmentIndex].yearCaptured,
-            PersonTags: attachments[currentAttachmentIndex].PersonTags
-          } : null}
           isOpen={showAttachments}
           onClose={() => setShowAttachments(false)}
-          onNext={currentAttachmentIndex < attachments.length - 1 ? handleNext : undefined}
-          onPrevious={currentAttachmentIndex > 0 ? handlePrevious : undefined}
+          attachment={
+            attachments.length > 0 ? {
+              ...attachments[currentAttachmentIndex],
+              dateCaptured: attachments[currentAttachmentIndex]?.dateCaptured instanceof Date
+                ? attachments[currentAttachmentIndex].dateCaptured.toISOString()
+                : null,
+            } : null
+          }
+          onNext={handleNext}
+          onPrevious={handlePrevious}
           hasNext={currentAttachmentIndex < attachments.length - 1}
           hasPrevious={currentAttachmentIndex > 0}
-          onSave={async (attachment) => {
-            const updatedUIAttachment = {
-              ...attachments[currentAttachmentIndex],
-              description: attachment.description,
-              dateCaptured: attachment.dateCaptured ? new Date(attachment.dateCaptured) : null,
-              yearCaptured: attachment.yearCaptured,
-              PersonTags: attachment.PersonTags
-            };
-            await handleAttachmentSave(updatedUIAttachment);
-          }}
+          onSave={handleAttachmentSave}
           onDelete={async (attachmentId) => {
             try {
               const attachment = attachments.find(a => a.id === attachmentId);

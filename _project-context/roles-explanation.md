@@ -147,7 +147,10 @@ In **Telloom**, each user can assume one or more roles—**SHARER**, **LISTENER*
 - **(authenticated)/role-listener** routes for Listeners:
   - Auto-play feed, favorites, recently watched, notifications, topic-based content browsing.
 - **(authenticated)/role-executor** routes for Executors:
-  - Manage the Sharer’s media and invites, see a “sharers” list if assigned to multiple.
+  - Manage the Sharer's media and invites, see a "sharers" list if assigned to multiple.
+- **(authenticated)/role-executor/[id]** routes for managing a specific Sharer:
+  - Manage media, invites and settings for the Sharer with ID `[id]`.
+  - Only accessible if the Executor is assigned to that Sharer.
 - **Admin** routes (optional):
   - Typically `(authenticated)/admin/...` for system-wide tasks.
 

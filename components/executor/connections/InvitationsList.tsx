@@ -33,33 +33,20 @@ export default function InvitationsList({ sharerId, role }: InvitationsListProps
 
   useEffect(() => {
     const fetchInvitations = async () => {
-      const supabase = createClient();
       setIsLoading(true);
       setError(null);
 
       try {
-        const { data, error } = await supabase
-          .from('Invitation')
-          .select(`
-            id,
-            inviteeEmail,
-            role,
-            status,
-            createdAt,
-            inviter:Profile!inviterId (
-              id,
-              firstName,
-              lastName,
-              email
-            )
-          `)
-          .eq('sharerId', sharerId)
-          .eq('status', 'PENDING')
-          .order('createdAt', { ascending: false });
-
-        if (error) throw error;
-
-        setInvitations(data || []);
+        // Use API endpoint instead of direct query
+        const response = await fetch(`/api/connections/invitations?sharerId=${sharerId}`);
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to fetch invitations');
+        }
+        
+        const data = await response.json();
+        setInvitations(data.invitations || []);
       } catch (error) {
         console.error('Error fetching invitations:', error);
         setError('Failed to fetch invitations');
@@ -73,33 +60,18 @@ export default function InvitationsList({ sharerId, role }: InvitationsListProps
 
   const handleCancelInvitation = async (invitationId: string) => {
     try {
-      const supabase = createClient();
-
-      // Get the invitation details for the notification
-      const invitation = invitations.find(i => i.id === invitationId);
-      if (!invitation) throw new Error('Invitation not found');
-
-      // Delete the invitation
-      const { error } = await supabase
-        .from('Invitation')
-        .delete()
-        .eq('id', invitationId);
-
-      if (error) throw error;
-
-      // Create notification for the sharer
-      await supabase.from('Notification').insert({
-        userId: sharerId,
-        type: 'INVITATION_CANCELLED',
-        message: `Executor cancelled invitation to ${invitation.inviteeEmail}`,
-        data: {
-          inviteeEmail: invitation.inviteeEmail,
-          role: invitation.role,
-          executorAction: true
-        }
+      // Use API endpoint instead of direct query/delete
+      const response = await fetch(`/api/connections/invitations?invitationId=${invitationId}&sharerId=${sharerId}`, {
+        method: 'DELETE',
       });
 
-      setInvitations(prev => prev.filter(i => i.id !== invitationId));
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to cancel invitation');
+      }
+
+      // Remove the invitation from the state
+      setInvitations((prev) => prev.filter((inv) => inv.id !== invitationId));
       toast.success('Invitation cancelled successfully');
     } catch (error) {
       console.error('Error cancelling invitation:', error);

@@ -8,8 +8,8 @@ export default function RoleExecutorLoading() {
           <Image
             src="/images/Telloom Logo V1-Horizontal Green.png"
             alt="Telloom Logo"
-            width={160}
-            height={40}
+            width={104}
+            height={26}
             className="mx-auto mb-6"
             style={{
               width: 'auto',

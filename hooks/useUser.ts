@@ -4,13 +4,15 @@
 import { useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/utils/supabase/client';
+import { getProfileSafely } from '@/utils/supabase/client-helpers';
 
 interface UserWithProfile extends User {
   profile?: {
     firstName: string;
     lastName: string;
-    avatarUrl: string;
+    avatarUrl?: string;
+    displayName?: string;
+    email?: string;
   } | null;
 }
 
@@ -34,21 +36,25 @@ export function useUser() {
 
       setLoading(true);
       try {
-        // Fetch profile data
-        const { data: profile, error: profileError } = await supabase
-          .from('Profile')
-          .select('firstName, lastName, avatarUrl')
-          .eq('id', authUser.id)
-          .single();
+        console.log('[useUser] Fetching profile safely');
+        // Use the new helper function to avoid direct table queries
+        const profileData = await getProfileSafely(authUser.id);
 
-        if (profileError) {
-          console.error('Error fetching profile:', profileError);
+        if (!profileData) {
+          console.error('[useUser] No profile data found');
           setUser({ ...authUser, profile: null });
         } else {
+          const profile = {
+            firstName: profileData.firstName || '',
+            lastName: profileData.lastName || '',
+            avatarUrl: profileData.avatarUrl,
+            displayName: profileData.displayName || `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim() || authUser.email,
+            email: profileData.email || authUser.email
+          };
           setUser({ ...authUser, profile });
         }
       } catch (error) {
-        console.error('Error in profile fetch:', error);
+        console.error('[useUser] Error in profile fetch:', error);
         setUser({ ...authUser, profile: null });
       } finally {
         setLoading(false);

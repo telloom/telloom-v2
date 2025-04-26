@@ -1,5 +1,4 @@
 import { createRouteHandlerClient } from '@/utils/supabase/route-handler';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/utils/supabase/admin';
 
@@ -12,11 +11,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Missing sharerId parameter' }, { status: 400 });
     }
 
-    // Verify user is authenticated and authorized
-    const supabase = createRouteHandlerClient({ cookies });
+    // Verify user is authenticated using Route Handler Client (reads cookies)
+    const supabase = await createRouteHandlerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
+      console.error('[CONNECTIONS GET] Auth error:', authError);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -100,11 +100,12 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
     }
 
-    // Verify user is authenticated and authorized
-    const supabase = createRouteHandlerClient({ cookies });
+    // Verify user is authenticated using Route Handler Client (reads cookies)
+    const supabase = await createRouteHandlerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
+      console.error('[CONNECTIONS DELETE] Auth error:', authError);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

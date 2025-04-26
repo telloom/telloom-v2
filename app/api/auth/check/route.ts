@@ -1,13 +1,16 @@
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
 
-export async function GET() {
-  const supabase = createClient();
-
+export async function GET(request: NextRequest) {
   try {
+    const supabase = await createClient();
+    
+    // Get the session
+    const { data: { session }, error } = await supabase.auth.getSession();
+
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });

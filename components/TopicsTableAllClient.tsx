@@ -10,7 +10,7 @@
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useViewPreferences } from '@/stores/viewPreferencesStore';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,11 @@ import {
   LayoutGrid,
   ArrowUpDown,
   ArrowRight,
-  ListOrdered
+  ListOrdered,
+  StarIcon,
+  BookmarkIcon,
+  Bookmark,
+  Loader2
 } from 'lucide-react';
 import {
   Tooltip,
@@ -43,6 +47,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useRouter, useSearchParams } from 'next/navigation';
+import type { PromptCategory, Prompt, PromptResponse as CanonicalPromptResponse } from '@/types/models';
 
 interface CompletionStatus {
   status: 'Not Started' | 'In Progress' | 'Completed';
@@ -52,33 +57,28 @@ interface CompletionStatus {
 type ViewFilter = 'favorites' | 'queue' | 'has-responses';
 type SortField = 'topic' | 'theme';
 
-interface PromptResponse {
-  // Add any necessary properties
-}
-
-interface Prompt {
-  PromptResponse: PromptResponse[];
-  // Add any other necessary properties
-}
-
-interface PromptCategory {
-  id: string;
-  category: string;
-  theme: string | null;
-  description: string;
-  prompts: Prompt[];
-  isFavorite?: boolean;
-  isInQueue?: boolean;
+interface ExtendedPromptCategory extends PromptCategory {
+  completedPromptCount?: number;
+  totalPromptCount?: number;
 }
 
 interface TopicsTableAllProps {
-  initialPromptCategories: PromptCategory[];
+  initialPromptCategories: ExtendedPromptCategory[];
   currentRole?: 'SHARER' | 'EXECUTOR';
   relationshipId?: string;
   sharerId?: string;
 }
 
-export default function TopicsTableAllClient({ 
+// Type for the actual data returned by the RPC
+interface RpcPromptResponse {
+  id: string;
+  promptId: string;
+  promptCategoryId: string;
+  videoId: string | null;
+}
+
+// Define the component
+function TopicsTableAllClientComponent({ 
   initialPromptCategories,
   currentRole = 'SHARER',
   relationshipId,
@@ -86,21 +86,17 @@ export default function TopicsTableAllClient({
 }: TopicsTableAllProps) {
   const supabase = createClient();
   const { user, loading: authLoading } = useAuth();
-  const [promptCategories, setPromptCategories] = useState<PromptCategory[]>(initialPromptCategories);
+  const [promptCategories, setPromptCategories] = useState<ExtendedPromptCategory[]>(initialPromptCategories);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [themeFilter, setThemeFilter] = useState('all');
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // Initialize activeFilters from URL parameter
   const [activeFilters, setActiveFilters] = useState<ViewFilter[]>(() => {
     const filterParam = searchParams.get('filter');
-    if (filterParam) {
-      // Check if the filter parameter is valid
-      if (['favorites', 'queue', 'has-responses'].includes(filterParam)) {
-        return [filterParam as ViewFilter];
-      }
+    if (filterParam && ['favorites', 'queue', 'has-responses'].includes(filterParam)) {
+      return [filterParam as ViewFilter];
     }
     return [];
   });
@@ -108,7 +104,7 @@ export default function TopicsTableAllClient({
   const [sortField, setSortField] = useState<SortField>('topic');
   const [sortAsc, setSortAsc] = useState(true);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
-  const [selectedCategory, setSelectedCategory] = useState<PromptCategory | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<ExtendedPromptCategory | null>(null);
   const [isPromptListOpen, setIsPromptListOpen] = useState(false);
 
   // View preferences from store
@@ -130,181 +126,77 @@ export default function TopicsTableAllClient({
     }
   }, [currentRole, setSharerTopicsView, setExecutorTopicsView]);
 
-  useEffect(() => {
-    const fetchUserPreferences = async () => {
-      if (authLoading || !user) return;
+  const toggleFavorite = useCallback(async (categoryId: string) => {
+    if (!user) {
+      toast.error('You must be logged in to favorite topics');
+      return;
+    }
+    setLoading(prev => ({ ...prev, [`fav-${categoryId}`]: true }));
 
-      // Build the query based on role
-      let favoritesQuery = supabase
-        .from('TopicFavorite')
-        .select('promptCategoryId')
-        .eq('profileId', user.id)
-        .eq('role', currentRole);
+    // Optimistically update UI
+    const originalCategories = [...promptCategories];
+    setPromptCategories(prev => prev.map(cat => 
+      cat.id === categoryId ? { ...cat, isFavorite: !cat.isFavorite } : cat
+    ));
 
-      let queueQuery = supabase
-        .from('TopicQueueItem')
-        .select('promptCategoryId')
-        .eq('profileId', user.id)
-        .eq('role', currentRole);
-
-      // Add relationship conditions based on role
-      if (currentRole === 'EXECUTOR') {
-        if (sharerId) {
-          favoritesQuery = favoritesQuery.eq('sharerId', sharerId);
-          queueQuery = queueQuery.eq('sharerId', sharerId);
-        }
-      } else {
-        // For SHARER role
-        if (relationshipId) {
-          favoritesQuery = favoritesQuery.eq('sharerId', relationshipId);
-          queueQuery = queueQuery.eq('sharerId', relationshipId);
-        }
-      }
-
-      // Execute both queries
-      const [{ data: favorites }, { data: queueItems }] = await Promise.all([
-        favoritesQuery,
-        queueQuery
-      ]);
-
-      // Create Sets for efficient lookup
-      const favoritedIds = new Set(favorites?.map((f: { promptCategoryId: string }) => f.promptCategoryId) || []);
-      const queuedIds = new Set(queueItems?.map((q: { promptCategoryId: string }) => q.promptCategoryId) || []);
-
-      // Update prompt categories with favorite and queue status
-      setPromptCategories(prevCategories => 
-        prevCategories.map(category => ({
-          ...category,
-          isFavorite: favoritedIds.has(category.id),
-          isInQueue: queuedIds.has(category.id)
-        }))
-      );
-    };
-
-    fetchUserPreferences();
-  }, [currentRole, supabase, user, authLoading, relationshipId, sharerId]);
-
-  const toggleFavorite = async (categoryId: string) => {
     try {
-      setLoading(prev => ({ ...prev, [`favorite-${categoryId}`]: true }));
+      const { data, error } = await supabase.rpc('toggle_topic_favorite', {
+        p_category_id: categoryId,
+        p_profile_id: user.id,
+        p_role: currentRole,
+        p_sharer_id: currentRole === 'EXECUTOR' ? sharerId : null
+      });
+
+      if (error) throw error;
+
+      // Use the returned state from the function
+      toast.success(data.is_favorite ? 'Topic added to favorites' : 'Topic removed from favorites');
       
-      if (!user) {
-        toast.error('You must be logged in to favorite topics');
-        return;
-      }
-
-      const category = promptCategories.find(c => c.id === categoryId);
-      if (!category) return;
-
-      if (category.isFavorite) {
-        // Delete the favorite
-        const { error: deleteError } = await supabase
-          .from('TopicFavorite')
-          .delete()
-          .eq('profileId', user.id)
-          .eq('promptCategoryId', categoryId)
-          .eq('role', currentRole)
-          .eq('sharerId', sharerId);
-
-        if (deleteError) throw deleteError;
-      } else {
-        // Insert new favorite
-        const insertData = {
-          profileId: user.id,
-          promptCategoryId: categoryId,
-          role: currentRole,
-          sharerId: sharerId
-        };
-
-        const { error: insertError } = await supabase
-          .from('TopicFavorite')
-          .insert([insertData]);
-
-        if (insertError) throw insertError;
-      }
-
-      // Update local state
-      setPromptCategories(prev =>
-        prev.map(c =>
-          c.id === categoryId
-            ? { ...c, isFavorite: !c.isFavorite }
-            : c
-        )
-      );
-
-      toast.success(
-        category.isFavorite
-          ? 'Removed from favorites'
-          : 'Added to favorites'
-      );
     } catch (error: any) {
       console.error('Error toggling favorite:', error);
-      toast.error('Failed to update favorites');
+      toast.error('Failed to update favorite status.');
+      // Revert optimistic update on error
+      setPromptCategories(originalCategories);
     } finally {
-      setLoading(prev => ({ ...prev, [`favorite-${categoryId}`]: false }));
+      setLoading(prev => ({ ...prev, [`fav-${categoryId}`]: false }));
     }
-  };
+  }, [user, supabase, promptCategories, currentRole, sharerId]);
 
-  const toggleQueue = async (categoryId: string) => {
+  const toggleQueue = useCallback(async (categoryId: string) => {
+     if (!user) {
+      toast.error('You must be logged in to manage the queue');
+      return;
+    }
+    setLoading(prev => ({ ...prev, [`queue-${categoryId}`]: true }));
+
+    // Optimistically update UI
+    const originalCategories = [...promptCategories];
+    setPromptCategories(prev => prev.map(cat => 
+      cat.id === categoryId ? { ...cat, isInQueue: !cat.isInQueue } : cat
+    ));
+
     try {
-      setLoading(prev => ({ ...prev, [`queue-${categoryId}`]: true }));
+       const { data, error } = await supabase.rpc('toggle_topic_queue', {
+        p_category_id: categoryId,
+        p_profile_id: user.id,
+        p_role: currentRole,
+        p_sharer_id: currentRole === 'EXECUTOR' ? sharerId : null
+      });
+
+      if (error) throw error;
       
-      if (!user) {
-        toast.error('You must be logged in to queue topics');
-        return;
-      }
+      // Use the returned state from the function
+      toast.success(data.is_in_queue ? 'Topic added to queue' : 'Topic removed from queue');
 
-      const category = promptCategories.find(c => c.id === categoryId);
-      if (!category) return;
-
-      if (category.isInQueue) {
-        // Delete the queue item
-        const { error: deleteError } = await supabase
-          .from('TopicQueueItem')
-          .delete()
-          .eq('profileId', user.id)
-          .eq('promptCategoryId', categoryId)
-          .eq('role', currentRole)
-          .eq('sharerId', sharerId);
-
-        if (deleteError) throw deleteError;
-      } else {
-        // Insert new queue item
-        const insertData = {
-          profileId: user.id,
-          promptCategoryId: categoryId,
-          role: currentRole,
-          sharerId: sharerId
-        };
-
-        const { error: insertError } = await supabase
-          .from('TopicQueueItem')
-          .insert([insertData]);
-
-        if (insertError) throw insertError;
-      }
-
-      // Update local state
-      setPromptCategories(prev =>
-        prev.map(c =>
-          c.id === categoryId
-            ? { ...c, isInQueue: !c.isInQueue }
-            : c
-        )
-      );
-
-      toast.success(
-        category.isInQueue
-          ? 'Removed from queue'
-          : 'Added to queue'
-      );
     } catch (error: any) {
       console.error('Error toggling queue:', error);
-      toast.error('Failed to update queue');
+      toast.error('Failed to update queue status.');
+      // Revert optimistic update
+      setPromptCategories(originalCategories);
     } finally {
-      setLoading(prev => ({ ...prev, [`queue-${categoryId}`]: false }));
+       setLoading(prev => ({ ...prev, [`queue-${categoryId}`]: false }));
     }
-  };
+  }, [user, supabase, promptCategories, currentRole, sharerId]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -317,22 +209,14 @@ export default function TopicsTableAllClient({
     }
   };
 
-  const getCompletionStatus = useCallback((category: PromptCategory): CompletionStatus => {
-    const totalPrompts = category.prompts.length;
-    const completedPrompts = category.prompts.filter(p => 
-      Array.isArray(p.PromptResponse) && p.PromptResponse.length > 0
-    ).length;
-    
-    const ratio = `${completedPrompts}/${totalPrompts}`;
+  const getCompletionStatus = useCallback((category: ExtendedPromptCategory): CompletionStatus => {
+    const total = category.totalPromptCount ?? 0;
+    const completed = category.completedPromptCount ?? 0;
+    const ratio = `${completed}/${total}`;
 
-    if (completedPrompts === 0) {
-      return { status: 'Not Started', ratio };
-    }
-
-    if (completedPrompts === totalPrompts) {
-      return { status: 'Completed', ratio };
-    }
-
+    if (total === 0) return { status: 'Not Started', ratio: '0/0' }; 
+    if (completed === 0) return { status: 'Not Started', ratio };
+    if (completed === total) return { status: 'Completed', ratio };
     return { status: 'In Progress', ratio };
   }, []);
 
@@ -353,9 +237,7 @@ export default function TopicsTableAllClient({
       if (isActive) {
         return prev.filter(f => f !== filter);
       } else {
-        // If we're adding a filter, replace the current filters with just this one
-        // This ensures we only have one filter active at a time for URL simplicity
-        return [filter];
+        return [...prev, filter];
       }
     });
   };
@@ -390,41 +272,54 @@ export default function TopicsTableAllClient({
   }, [activeFilters, router, searchParams]);
 
   const filteredCategories = useMemo(() => {
-    return promptCategories
-      .filter(category => {
-        const matchesSearch = category.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          category.description?.toLowerCase().includes(searchQuery.toLowerCase());
-        
-        const matchesTheme = themeFilter === 'all' || category.theme === themeFilter;
-        const matchesStatus = statusFilter === 'all' || getCompletionStatus(category).status.toLowerCase() === statusFilter;
-        
-        const matchesFilters = activeFilters.length === 0 || activeFilters.every(filter => {
-          switch (filter) {
-            case 'favorites':
-              return category.isFavorite;
-            case 'queue':
-              return category.isInQueue;
-            case 'has-responses':
-              return category.prompts.some(p => Array.isArray(p.PromptResponse) && p.PromptResponse.length > 0);
-            default:
-              return false;
-          }
-        });
-
-        return matchesSearch && matchesStatus && matchesTheme && matchesFilters;
-      })
-      .sort((a, b) => {
-        if (sortField === 'topic') {
-          return sortAsc 
-            ? a.category.localeCompare(b.category)
-            : b.category.localeCompare(a.category);
-        } else {
-          return sortAsc
-            ? (a.theme || '').localeCompare(b.theme || '')
-            : (b.theme || '').localeCompare(a.theme || '');
+    let filtered = promptCategories.filter((category: ExtendedPromptCategory) => {
+      const matchesSearch = category.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        category.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesTheme = themeFilter === 'all' || category.theme === themeFilter;
+      
+      // Use completedPromptCount for status calculation
+      const total = category.totalPromptCount ?? 0;
+      const completed = category.completedPromptCount ?? 0;
+      let status: 'not-started' | 'in-progress' | 'completed' = 'not-started';
+      if (total > 0) {
+        if (completed === total) status = 'completed';
+        else if (completed > 0) status = 'in-progress';
+      }
+      const matchesStatus = statusFilter === 'all' || status === statusFilter.toLowerCase();
+      
+      // Check if all active filters are met
+      const matchesFilters = activeFilters.length === 0 || activeFilters.every(filter => {
+        switch (filter) {
+          case 'favorites':
+            return category.isFavorite;
+          case 'queue':
+            return category.isInQueue;
+          case 'has-responses':
+            // Use the pre-calculated count from the server
+            return (category.completedPromptCount ?? 0) > 0;
+          default:
+            return true; // Should not happen with validated filters
         }
       });
-  }, [promptCategories, searchQuery, statusFilter, themeFilter, activeFilters, sortField, sortAsc, getCompletionStatus]);
+
+      return matchesSearch && matchesStatus && matchesTheme && matchesFilters;
+    });
+
+    filtered = filtered.sort((a: ExtendedPromptCategory, b: ExtendedPromptCategory) => {
+      if (sortField === 'topic') {
+        return sortAsc 
+          ? a.category.localeCompare(b.category)
+          : b.category.localeCompare(a.category);
+      } else {
+        return sortAsc
+          ? (a.theme || '').localeCompare(b.theme || '')
+          : (b.theme || '').localeCompare(a.theme || '');
+      }
+    });
+
+    return filtered;
+  }, [promptCategories, searchQuery, statusFilter, themeFilter, activeFilters, sortField, sortAsc]);
 
   const themes = useMemo(() => {
     const uniqueThemes = new Set(
@@ -442,6 +337,9 @@ export default function TopicsTableAllClient({
       .map((word: string) => word.charAt(0) + word.slice(1).toLowerCase())
       .join(' ');
   };
+
+  // Log the sharerId available in this component scope *before* the return statement
+  console.log(`[TopicsTableAllClient Scope] sharerId: ${sharerId}`);
 
   return (
     <div className="space-y-4">
@@ -471,8 +369,8 @@ export default function TopicsTableAllClient({
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="in progress">In Progress</SelectItem>
-              <SelectItem value="not started">Not Started</SelectItem>
+              <SelectItem value="in-progress">In Progress</SelectItem>
+              <SelectItem value="not-started">Not Started</SelectItem>
             </SelectContent>
           </Select>
 
@@ -545,7 +443,26 @@ export default function TopicsTableAllClient({
         </div>
       </div>
 
-      {currentViewMode === 'table' ? (
+      {loading.initialLoad ? (
+        <div className="flex items-center justify-center p-12">
+          <div className="text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1B4332] border-t-transparent mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading topics...</p>
+          </div>
+        </div>
+      ) : filteredCategories.length === 0 ? (
+        <div className="flex flex-col items-center justify-center p-12 text-center">
+          <div className="mb-4 text-muted-foreground">
+            <ListPlus className="h-12 w-12 mx-auto mb-2 opacity-50" />
+            <h3 className="text-lg font-medium">No topics found</h3>
+          </div>
+          <p className="text-sm text-muted-foreground max-w-md">
+            {activeFilters.length > 0 || searchQuery 
+              ? "Try changing your filters or search query." 
+              : "No topics are available yet."}
+          </p>
+        </div>
+      ) : currentViewMode === 'table' ? (
         <div className="w-full">
           <div className="w-full rounded-lg border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
             <div className="w-full overflow-auto">
@@ -554,7 +471,7 @@ export default function TopicsTableAllClient({
                   <tr className="transition-colors hover:bg-muted/50">
                     <th 
                       onClick={() => handleSort('topic')} 
-                      className="h-12 px-4 text-left align-middle font-medium cursor-pointer hover:bg-gray-50"
+                      className="h-12 px-2 sm:px-4 text-left align-middle font-medium cursor-pointer hover:bg-gray-50"
                     >
                       <div className="flex items-center gap-2">
                         Topic
@@ -562,7 +479,7 @@ export default function TopicsTableAllClient({
                       </div>
                     </th>
                     <th 
-                      className="h-12 px-4 text-left align-middle font-medium hidden md:table-cell cursor-pointer hover:bg-gray-50"
+                      className="h-12 px-2 sm:px-4 text-left align-middle font-medium hidden md:table-cell cursor-pointer hover:bg-gray-50"
                       onClick={() => handleSort('theme')}
                     >
                       <div className="flex items-center gap-2">
@@ -570,8 +487,8 @@ export default function TopicsTableAllClient({
                         <ArrowUpDown className="h-4 w-4" />
                       </div>
                     </th>
-                    <th className="h-12 px-4 text-left align-middle font-medium">Status</th>
-                    <th className="h-12 px-4 text-right align-middle font-medium">Actions</th>
+                    <th className="h-12 px-2 sm:px-4 text-left align-middle font-medium">Status</th>
+                    <th className="h-12 px-2 sm:px-4 text-right align-middle font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -586,15 +503,15 @@ export default function TopicsTableAllClient({
                           setIsPromptListOpen(true);
                         }}
                       >
-                        <td className="p-4 align-middle font-medium">
+                        <td className="p-2 sm:p-4 align-middle font-medium">
                           {category.category}
                         </td>
-                        <td className="p-4 align-middle text-muted-foreground hidden md:table-cell">
+                        <td className="p-2 sm:p-4 align-middle text-muted-foreground hidden md:table-cell">
                           {formatThemeName(category.theme || '')}
                         </td>
-                        <td className="p-4 align-middle">
+                        <td className="p-2 sm:p-4 align-middle">
                           <div className="flex items-center gap-2">
-                            <Badge variant={getStatusBadgeVariant(status)}>
+                            <Badge variant={getStatusBadgeVariant(status)} className="hidden sm:inline-flex">
                               {status.status}
                             </Badge>
                             <span className="text-xs text-muted-foreground">
@@ -602,84 +519,181 @@ export default function TopicsTableAllClient({
                             </span>
                           </div>
                         </td>
-                        <td className="p-4 align-middle text-right">
-                          <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleFavorite(category.id);
-                                }}
-                                className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
-                                disabled={loading[`favorite-${category.id}`]}
-                              >
-                                <svg 
-                                  className={cn(
-                                    "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
-                                    category.isFavorite 
-                                      ? "fill-[#1B4332] text-[#1B4332]" 
-                                      : "text-gray-400 hover:text-[#8fbc55] hover:fill-[#8fbc55]"
-                                  )}
-                                  viewBox="0 0 24 24" 
-                                  fill="none" 
-                                  stroke="currentColor" 
-                                  strokeWidth="2" 
-                                  strokeLinecap="round" 
-                                  strokeLinejoin="round"
-                                >
-                                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                                </svg>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleQueue(category.id);
-                                }}
-                                className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
-                                disabled={loading[`queue-${category.id}`]}
-                              >
-                                <svg 
-                                  className={cn(
-                                    "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
-                                    category.isInQueue 
-                                      ? "text-[#1B4332]" 
-                                      : "text-gray-400 hover:text-[#8fbc55]"
-                                  )}
-                                  viewBox="0 0 24 24" 
-                                  fill="none" 
-                                  stroke="currentColor" 
-                                  strokeWidth="3" 
-                                  strokeLinecap="round" 
-                                  strokeLinejoin="round"
-                                >
-                                  <line x1="12" y1="5" x2="12" y2="19" />
-                                  <line x1="5" y1="12" x2="19" y2="12" />
-                                </svg>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  setSelectedCategory(category);
-                                  setIsPromptListOpen(true);
-                                }}
-                                className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-[#8fbc55] hover:text-white rounded-full"
-                              >
-                                <ListOrdered className="h-5 w-5 md:h-6 md:w-6 text-[#1B4332]" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => router.push(`/role-${currentRole.toLowerCase()}/topics/${category.id}`)}
-                                className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-[#8fbc55] hover:text-white rounded-full"
-                              >
-                                <ArrowRight className="h-5 w-5 md:h-6 md:w-6 text-[#1B4332] stroke-[3]" />
-                              </Button>
-                            </div>
+                        <td className="p-2 sm:p-4 align-middle text-right">
+                          <div className="flex items-center justify-end gap-1 sm:gap-2" onClick={e => e.stopPropagation()}>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      console.log(`[Table Icon Fav Click] Category ID: ${category.id}, Role: ${currentRole}, Sharer ID: ${sharerId}`);
+                                      toggleFavorite(category.id);
+                                    }}
+                                    className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
+                                    disabled={loading[`fav-${category.id}`]}
+                                  >
+                                    {loading[`fav-${category.id}`] ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <svg 
+                                        className={cn(
+                                          "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
+                                          category.isFavorite 
+                                            ? "fill-[#1B4332] text-[#1B4332]" 
+                                            : "text-gray-400 hover:text-[#8fbc55] hover:fill-[#8fbc55]"
+                                        )}
+                                        viewBox="0 0 24 24" 
+                                        fill="none" 
+                                        stroke="currentColor" 
+                                        strokeWidth="2" 
+                                        strokeLinecap="round" 
+                                        strokeLinejoin="round"
+                                      >
+                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                      </svg>
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{category.isFavorite ? "Remove from favorites" : "Add to favorites"}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      console.log(`[Table Icon Queue Click] Category ID: ${category.id}, Role: ${currentRole}, Sharer ID: ${sharerId}`);
+                                      toggleQueue(category.id);
+                                    }}
+                                    className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
+                                    disabled={loading[`queue-${category.id}`]}
+                                  >
+                                    {loading[`queue-${category.id}`] ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <svg 
+                                        className={cn(
+                                          "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
+                                          category.isInQueue 
+                                            ? "text-[#1B4332]"
+                                            : "text-gray-400 hover:text-[#8fbc55]"
+                                        )}
+                                        viewBox="0 0 24 24" 
+                                        fill="none" 
+                                        stroke="currentColor" 
+                                        strokeWidth="3" 
+                                        strokeLinecap="round" 
+                                        strokeLinejoin="round"
+                                      >
+                                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                      </svg>
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{category.isInQueue ? "Remove from queue" : "Add to queue"}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedCategory(category);
+                                      setIsPromptListOpen(true);
+                                    }}
+                                    className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
+                                  >
+                                    <svg 
+                                      className="w-[18px] h-[18px] md:w-[20px] md:h-[20px] text-[#1B4332] hover:text-[#8fbc55] transition-colors"
+                                      viewBox="0 0 24 24" 
+                                      fill="none" 
+                                      stroke="currentColor" 
+                                      strokeWidth="3" 
+                                      strokeLinecap="round" 
+                                      strokeLinejoin="round"
+                                    >
+                                      <line x1="8" y1="6" x2="21" y2="6"></line>
+                                      <line x1="8" y1="12" x2="21" y2="12"></line>
+                                      <line x1="8" y1="18" x2="21" y2="18"></line>
+                                      <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                                      <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                                      <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                                    </svg>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>View prompts</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      // Construct the correct path based on role
+                                      let path = '';
+                                      const topicId = category.id;
+                                      if (currentRole === 'EXECUTOR') {
+                                        // Ensure sharerId exists for executor route
+                                        if (!sharerId) {
+                                          console.error('[TopicsTable] Navigation failed: sharerId is missing for EXECUTOR role.');
+                                          toast.error('Cannot navigate: Missing sharer context.')
+                                          return;
+                                        }
+                                        path = `/role-executor/${sharerId}/topics/${topicId}`;
+                                      } else if (currentRole === 'SHARER') {
+                                        // SHARER path does not need sharerId
+                                        path = `/role-sharer/topics/${topicId}`;
+                                      } else {
+                                        console.warn('[TopicsTable] Navigation failed: Unknown currentRole:', currentRole);
+                                        toast.error('Cannot navigate: Unknown user role.')
+                                        return;
+                                      }
+                                      console.log('[TopicsTable] Navigating to:', path);
+                                      router.push(path);
+                                    }}
+                                    className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
+                                  >
+                                     <svg 
+                                      className="w-[18px] h-[18px] md:w-[20px] md:h-[20px] text-[#1B4332] hover:text-[#8fbc55] transition-colors"
+                                      viewBox="0 0 24 24" 
+                                      fill="none" 
+                                      stroke="currentColor" 
+                                      strokeWidth="3" 
+                                      strokeLinecap="round" 
+                                      strokeLinejoin="round"
+                                    >
+                                      <path d="M5 12h14" />
+                                      <path d="m12 5 7 7-7 7" />
+                                    </svg>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Go to topic</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </div>
                         </td>
                       </tr>
@@ -692,21 +706,22 @@ export default function TopicsTableAllClient({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredCategories.map((category) => (
+          {filteredCategories.map((category: ExtendedPromptCategory) => (
             <TopicCard
               key={category.id}
               promptCategory={category}
-              onFavoriteClick={(e: React.MouseEvent<Element>) => {
+              currentRole={currentRole}
+              relationshipId={relationshipId}
+              sharerId={sharerId}
+              onFavoriteClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 toggleFavorite(category.id);
               }}
-              onQueueClick={(e: React.MouseEvent<Element>) => {
+              onQueueClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 toggleQueue(category.id);
-              }}
-              onClick={() => {
-                setSelectedCategory(category);
-                setIsPromptListOpen(true);
               }}
             />
           ))}
@@ -716,13 +731,19 @@ export default function TopicsTableAllClient({
       {selectedCategory && (
         <PromptListPopup
           promptCategory={selectedCategory}
+          sharerId={sharerId}
           isOpen={isPromptListOpen}
           onClose={() => {
             setSelectedCategory(null);
             setIsPromptListOpen(false);
           }}
+          currentRole={currentRole}
         />
       )}
     </div>
   );
-} 
+}
+
+// Export the memoized component
+const TopicsTableAllClient = React.memo(TopicsTableAllClientComponent);
+export default TopicsTableAllClient; 

@@ -694,4 +694,215 @@ export default function Header() {
 4. **Detailed Logging**: Comprehensive logging for debugging authentication flows
 5. **Consistent Experience**: Prevents authentication state mismatches across the application
 
-This enhanced session verification system provides a solid foundation for authentication in the Telloom application, ensuring that users have a consistent experience while maintaining security best practices. 
+This enhanced session verification system provides a solid foundation for authentication in the Telloom application, ensuring that users have a consistent experience while maintaining security best practices.
+
+### 11.9 Multi-Level Authentication Caching
+
+To improve performance and reduce strain on the Supabase backend, we've implemented a multi-level caching system for authentication:
+
+#### API-Level Session Caching
+
+The `/api/auth/session` endpoint now implements an in-memory cache to reduce redundant database queries:
+
+```typescript
+// app/api/auth/session/route.ts
+import { NextResponse } from 'next/server';
+import { createRouteHandlerClient } from '@/utils/supabase/route-handler';
+import { cookies } from 'next/headers';
+
+// Simple in-memory cache for session checks
+interface SessionCacheEntry {
+  userId: string | null;
+  email: string | null;
+  timestamp: number;
+}
+
+const sessionCache = new Map<string, SessionCacheEntry>();
+const SESSION_CACHE_TTL = 60 * 1000; // 1 minute cache TTL
+
+export async function GET() {
+  try {
+    console.log('[API] GET /api/auth/session - Checking server-side session');
+    
+    // Get a unique identifier for the current request
+    const cookieStore = cookies();
+    
+    // Use combined cookie values as a cache key
+    const cookieEntries = [...cookieStore.getAll()]
+      .filter(cookie => cookie.name.includes('supabase'))
+      .map(cookie => `${cookie.name}:${cookie.value.substring(0, 20)}`);
+    
+    const cacheKey = cookieEntries.join('|');
+    const now = Date.now();
+    
+    // Check the cache first if we have cookies
+    if (cacheKey) {
+      const cachedSession = sessionCache.get(cacheKey);
+      if (cachedSession && now - cachedSession.timestamp < SESSION_CACHE_TTL) {
+        console.log('[API] Using cached session data');
+        return NextResponse.json({ 
+          session: cachedSession.userId ? {
+            user: {
+              id: cachedSession.userId,
+              email: cachedSession.email,
+            }
+          } : null 
+        });
+      }
+    }
+    
+    // Cache miss or expired, check with Supabase
+    const supabase = createRouteHandlerClient({ cookies });
+    
+    // ... existing authentication logic ...
+    
+    // Cache the result if we have a cache key
+    if (cacheKey) {
+      sessionCache.set(cacheKey, { 
+        userId: user?.id || null, 
+        email: user?.email || null,
+        timestamp: now 
+      });
+    }
+    
+    return NextResponse.json({ 
+      session: user ? {
+        user: {
+          id: user.id,
+          email: user.email,
+        }
+      } : null 
+    });
+  } catch (error) {
+    console.error('[API] Unexpected error in session endpoint:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+```
+
+#### Client-Side Session Caching
+
+The `useAuth` hook also implements caching to further reduce API calls:
+
+```typescript
+// hooks/useAuth.tsx
+// Session caching implementation
+type CachedSession = {
+  data: any;
+  timestamp: number;
+};
+
+let sessionCache: CachedSession | null = null;
+const SESSION_CACHE_TTL = 60000; // 1 minute cache TTL
+
+const getCachedSession = async (fetchFn: () => Promise<any>): Promise<any> => {
+  const now = Date.now();
+  
+  // Return from cache if valid
+  if (sessionCache && now - sessionCache.timestamp < SESSION_CACHE_TTL) {
+    console.log('[AUTH_PROVIDER] Using cached session data');
+    return sessionCache.data;
+  }
+  
+  // Cache expired or doesn't exist, fetch fresh data
+  console.log('[AUTH_PROVIDER] Fetching fresh session data');
+  const data = await fetchFn();
+  
+  // Update cache
+  sessionCache = {
+    data,
+    timestamp: now
+  };
+  
+  return data;
+};
+
+const invalidateSessionCache = (): void => {
+  console.log('[AUTH_PROVIDER] Session cache invalidated');
+  sessionCache = null;
+};
+
+// Updated checkServerSession function 
+const checkServerSession = async () => {
+  try {
+    // Use our cached session implementation
+    const data = await getCachedSession(async () => {
+      console.log('[AUTH_PROVIDER] Checking server-side session');
+      const response = await fetch('/api/auth/session', {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        console.log('[AUTH_PROVIDER] Server session check failed');
+        return { session: null };
+      }
+      
+      return await response.json();
+    });
+    
+    // Rest of the function remains the same...
+  } catch (error) {
+    console.error('[AUTH_PROVIDER] Error checking server session:', error);
+  }
+};
+```
+
+#### Optimized Session Check Frequency
+
+The interval for checking sessions has been increased to reduce server load:
+
+```typescript
+// In SupabaseListener.tsx
+useEffect(() => {
+  console.log('[SUPABASE_LISTENER] Setting up server session check interval');
+  
+  // Check server session immediately
+  checkServerSession();
+  
+  // Set up interval to check server session every 2 minutes (increased from 30 seconds)
+  const intervalId = setInterval(() => {
+    console.log('[SUPABASE_LISTENER] Checking server session (interval)');
+    checkServerSession();
+  }, 120000); // 2 minutes
+  
+  return () => {
+    console.log('[SUPABASE_LISTENER] Clearing server session check interval');
+    clearInterval(intervalId);
+  };
+}, [checkServerSession]);
+```
+
+#### Cache Invalidation During Role Transitions
+
+When users switch roles, we invalidate the cache to ensure fresh data:
+
+```typescript
+// In role selection component
+async function handleRoleSelection(role: string) {
+  // Invalidate cache to ensure fresh session data with new role
+  invalidateSessionCache();
+  
+  // Wait for role transition UI
+  setIsRoleTransition(true);
+  
+  // Update role cookie
+  await setRoleCookie(role);
+  
+  // Navigate to new role route
+  router.push(`/role-${role.toLowerCase()}`);
+}
+```
+
+#### Benefits of Multi-Level Caching
+
+This multi-level caching approach provides several advantages:
+
+1. **Reduced Database Load**: Minimizes authentication queries to Supabase
+2. **Improved Performance**: Faster page transitions and less UI jitter
+3. **Better User Experience**: Fewer loading states during navigation
+4. **Lower API Costs**: Significantly reduces API calls to Supabase Auth
+5. **Role Consistency**: Better handling of role transitions 
+6. **Detailed Logging**: Enhanced debugging for authentication flows
+
+This caching system maintains security while addressing performance bottlenecks, particularly in role-based features that require frequent authentication checks. 

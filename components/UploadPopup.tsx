@@ -22,6 +22,7 @@ interface UploadPopupProps {
   onUploadSuccess: (muxId: string) => Promise<void>;
   showSuccessView?: boolean;
   muxPlaybackId?: string;
+  targetSharerId: string;
 }
 
 export function UploadPopup({
@@ -31,7 +32,8 @@ export function UploadPopup({
   promptId,
   onUploadSuccess,
   showSuccessView = false,
-  muxPlaybackId
+  muxPlaybackId,
+  targetSharerId
 }: UploadPopupProps) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -61,12 +63,13 @@ export function UploadPopup({
           ) : (
             <UploadInterface
               promptId={promptId}
-              onUploadSuccess={async (playbackId) => {
+              onUploadSuccess={async (videoId, playbackId) => {
                 if (onUploadSuccess) {
                   await onUploadSuccess(playbackId);
                 }
               }}
               promptText={promptText}
+              targetSharerId={targetSharerId}
             />
           )}
         </div>

@@ -645,3 +645,310 @@ try {
 
 - **Issue 4: Client/Server Mismatch**  
   Solution: Use proper 'use client' directives and keep params handling server-side
+
+## Centralized Helper Functions & JWT-Based Access Control
+
+To provide a consistent and centralized way of managing permissions throughout Telloom's database access and application logic, we rely on a set of helper functions that use JWT values and database role data. These functions include but are not limited to:
+
+- **`public.has_sharer_access(sharer_id uuid)`**  
+  Checks whether the current user (via `auth.uid()`) is the owner of the sharer profile or an executor assigned to that sharer.
+
+- **`public.has_listener_access(sharer_id uuid)`**  
+  Checks whether the current user is an approved listener for a given sharer (by verifying that an entry exists in the ProfileListener table with hasAccess = true).
+
+- **`public.is_admin()`** (or its overload with a user ID)  
+  Returns true if the current user is an administrator. The function inspects the JWT claims (via `auth.jwt()`) and/or the metadata in the auth.users table (such as the "role" key or the is_super_admin flag).
+
+- **JWT Functions:**  
+  Functions like `auth.uid()`, `auth.role()`, `get_sharer_id_from_jwt()`, and `is_sharer_from_jwt()` extract values directly from the signed JWT claims. This ensures that the access logic is based on a central source of truth.
+
+### How to Use These Helper Functions
+
+#### In RLS Policies:
+
+Every RLS policy uses these helper functions in its USING and WITH CHECK clauses. For example, a policy for selecting a prompt response might include:
+
+```sql
+USING ( is_admin() OR has_sharer_access("profileSharerId") OR has_listener_access("profileSharerId") )
+```
+
+This pattern ensures that if the user is an admin, has sharer or executor access, or is an approved listener, then the operation is allowed.
+
+#### In Application Code:
+
+When fetching data (e.g., via Supabase RPC calls), the app should use JWT-based helper functions to determine the current user's role and permissions, for example:
+
+```typescript
+const { data, error } = await supabase.rpc('get_executor_for_user', { user_id: user.id });
+const hasAccess = data?.executor_relationships?.some(rel => rel.sharerId === sharerId);
+```
+
+Similarly, UI components should use these centralized checks to conditionally render content.
+
+### Benefits:
+
+- **Consistency:** Changing access rules now only requires updating the helper functions.
+- **Security:** Centralized, JWT-driven access logic ensures a single trusted source controls permissions.
+- **Maintainability:** Reduces duplicated code and keeps role-check logic isolated from business logic.
+
+## Role-Based Routes in Next.js Implementation
+
+When implementing role-based routes in the Telloom application, follow these patterns to ensure proper access control and data flow:
+
+### 1. Role Selection Flow
+
+```
+/select-role → /role-executor → /role-executor/[id]
+```
+
+- Use a dedicated route for role selection when users have multiple roles
+- Store selected role in cookies for persistence across sessions
+- Implement proper redirects based on available roles
+
+### 2. Role-Specific Components Structure
+
+For each role (SHARER, EXECUTOR, LISTENER), establish a consistent component structure:
+
+```
+/app/(authenticated)/
+  ├── role-executor/                # Main executor dashboard listing all sharers
+  │   ├── page.tsx                  # Lists all sharers for which user is executor
+  │   └── [id]/                     # Dynamic routes for specific sharer management
+  │       ├── page.tsx              # Sharer-specific dashboard for executor
+  │       ├── layout.tsx            # Layout with access control for this sharer
+  │       └── topics/               # Content management for this sharer
+  │
+  ├── role-sharer/                  # Content creation, invitations, settings
+  │   └── page.tsx
+  │
+  └── role-listener/                # Content viewing and interactions
+      └── page.tsx
+```
+
+### 3. Access Validation in Layout Components
+
+- Place access control logic in layout.tsx files for each role-specific section
+- Use RPC functions (which use the central helper functions) to verify permissions:
+
+```typescript
+// role-executor/[id]/layout.tsx
+export default async function ExecutorSharerLayout({ params, children }: Props) {
+  const resolvedParams = await Promise.resolve(params);
+  const sharerId = resolvedParams.id;
+  
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  // Validate executor relationship with this sharer using RPC which internally uses has_sharer_access() helper
+  const { data, error } = await supabase.rpc(
+    'get_executor_for_user',
+    { user_id: user.id }
+  );
+  
+  // Check if user has relationship with this sharer
+  const hasAccess = data?.executor_relationships?.some(
+    (rel: any) => rel.sharerId === sharerId
+  );
+  
+  if (!hasAccess) {
+    redirect('/role-executor');
+  }
+  
+  return <>{children}</>;
+}
+```
+
+### 4. Content Page Implementation
+
+- In page.tsx components, focus on data fetching and presentation
+- Use RPC functions to avoid direct RLS pitfalls and leverage JWT-based helper functions:
+
+```typescript
+// role-executor/page.tsx
+async function RoleExecutorPageContent() {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Get relationships using RPC function
+  const { data: executorData } = await supabase.rpc(
+    'get_executor_for_user', 
+    { user_id: user.id }
+  );
+  
+  const relationships = executorData?.executor_relationships || [];
+  
+  // Render relationships list
+  return (
+    <div>
+      {relationships.map(relationship => (
+        <ExecutorSharingCard key={relationship.id} executorRelationship={relationship} />
+      ))}
+    </div>
+  );
+}
+```
+
+### 5. Role Transition Handling
+
+When users switch between roles:
+
+- Set a role transition flag for smooth UI transitions
+- Update cookies to persist the new role
+- Clear the flag after navigation completes
+
+```typescript
+// In role selection component
+async function handleRoleSelection(role: string) {
+  setIsRoleTransition(true);
+  await setRoleCookie(role);
+  router.push(`/role-${role.toLowerCase()}`);
+}
+
+// In listener component after navigation completes
+useEffect(() => {
+  clearRoleTransition();
+}, []);
+```
+
+### 6. Development Guidelines for Roles
+
+- Keep each role's functionality in its dedicated directory structure
+- Use shared components for common UI elements
+- Place RPC function definitions in SQL migration files
+- Document all database functions with clear comments
+- Test role transitions thoroughly with multiple user scenarios
+
+## Supabase Authentication and Client Creation in Next.js
+
+When working with Supabase in the Telloom app, follow these guidelines to ensure proper authentication and client creation:
+
+### 1. Server-Side Client Creation
+
+For server components, always use the server-side client creation approach:
+
+```typescript
+// utils/supabase/server.ts
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+
+export function createClient() {
+  const cookieStore = cookies();
+  
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name, value, options) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name, options) {
+          cookieStore.set({ name, value: '', ...options });
+        },
+      },
+    }
+  );
+}
+```
+
+### 2. Client-Side Client Creation
+
+For client components, use the client-side approach:
+
+```typescript
+// utils/supabase/client.ts
+import { createBrowserClient } from '@supabase/ssr';
+
+export function createClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
+```
+
+### 3. Authentication in Server Components
+
+In server components, always get the user like this:
+
+```typescript
+// In a server component (.tsx/.jsx file)
+import { createClient } from '@/utils/supabase/server';
+
+export default async function ServerComponent() {
+  const supabase = createClient();
+  const { data: { user }, error } = await supabase.auth.getUser();
+  
+  if (error || !user) {
+    redirect('/login');
+  }
+  
+  // Continue with authenticated logic
+}
+```
+
+### 4. IMPORTANT: NEVER USE SUPABASE AUTH HELPERS
+
+Supabase Auth Helpers package is deprecated and should NEVER be used. Instead:
+
+- ✅ Use `createServerClient` from '@supabase/ssr' for server components
+- ✅ Use `createBrowserClient` from '@supabase/ssr' for client components
+- ❌ Never import or use anything from '@supabase/auth-helpers-*'
+
+### 5. Access Control Patterns
+
+- For public pages, allow anonymous access
+- For authenticated pages, verify user exists
+- For role-specific pages, verify user role
+
+```typescript
+// Role verification in server component
+const { data } = await supabase
+  .from('ProfileRole')
+  .select('role')
+  .eq('profileId', user.id);
+
+const hasRole = data?.some(role => role.role === 'EXECUTOR');
+if (!hasRole) {
+  redirect('/select-role');
+}
+```
+
+### 6. Error Handling for Authentication
+
+Always include proper error handling for authentication failures:
+
+```typescript
+try {
+  const { data: { user }, error } = await supabase.auth.getUser();
+  
+  if (error) {
+    console.error('Authentication error:', error.message);
+    redirect('/login?error=auth_failed');
+  }
+  
+  if (!user) {
+    redirect('/login');
+  }
+} catch (error) {
+  console.error('Unexpected authentication error:', error);
+  redirect('/login?error=unexpected');
+}
+```
+
+## Summary of Updates Based on Helper Functions and JWT
+
+- **Centralized Access & JWT Usage:**  
+  All table-level policies should leverage helper functions (e.g., `has_sharer_access()`, `has_listener_access()`, `is_admin()`) that use JWT data via functions such as `auth.uid()` and `auth.jwt()`. This centralization ensures that changes to role definitions or access rules are made only in one place.
+
+- **Consistent Use of JWT Claims:**  
+  Database functions such as `get_sharer_id_from_jwt()` and `is_sharer_from_jwt()` provide consistent extraction of JWT claims. Update your RLS policies and application code to utilize these functions for role-based access control.
+
+- **Base Tables and Access Patterns:**
+  The foundation tables (`ProfileSharer`, `ProfileExecutor`, etc.) should use direct checks rather than composite helper functions to avoid potential infinite recursion issues.
+
+- **RPC Functions for Complex Queries:**
+  Use RPC functions with `SECURITY DEFINER` for complex relationship queries to bypass RLS safely while maintaining security boundaries.

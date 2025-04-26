@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createClient } from '@/utils/supabase/client';
-import { FileText, Tag, X, Edit, Check, ChevronLeft, ChevronRight, PlusCircle, Loader2, ImageOff, Download, Trash2 } from 'lucide-react';
+import { FileText, Tag, X, Edit, Check, ChevronLeft, ChevronRight, PlusCircle, Loader2, ImageOff, Download, Trash2, FileWarning } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from "@/components/ui/badge";
 import { PersonRelation, PersonTag, PromptResponseAttachmentPersonTag as PromptResponseAttachmentPersonTagType } from '@/types/models';
@@ -38,6 +38,7 @@ import NextImage from 'next/image';
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
 import { urlCache } from '@/utils/url-cache';
 import { useAuth } from '@/hooks/useAuth';
+import { useQuery } from '@tanstack/react-query';
 
 // Remove the local PersonRelation constant and update the type
 type PersonRelationType = PersonRelation;
@@ -48,10 +49,12 @@ export interface Attachment {
   displayUrl?: string;
   fileType: string;
   fileName: string;
+  title: string | null;
   description: string | null;
-  dateCaptured: string | null;
+  dateCaptured: Date | null;
   yearCaptured: number | null;
   PersonTags: PersonTag[];
+  profileSharerId?: string;
 }
 
 interface PromptResponseAttachmentPersonTag {
@@ -80,7 +83,6 @@ interface AttachmentDialogProps {
   onPrevious?: () => void;
   hasNext?: boolean;
   hasPrevious?: boolean;
-  signedUrl?: string;
   onSave?: (attachment: Attachment) => Promise<void>;
   onDelete?: (attachmentId: string) => Promise<void>;
   onDownload?: (attachment: Attachment) => Promise<void>;
@@ -94,31 +96,57 @@ export function AttachmentDialog({
   onPrevious,
   hasNext,
   hasPrevious,
-  signedUrl: initialSignedUrl,
   onSave,
   onDelete,
-  onDownload
+  onDownload,
 }: AttachmentDialogProps) {
   const supabase = createClient();
   const { user, loading: authLoading } = useAuth();
+
+  // Add logging for received props
+  useEffect(() => {
+    // console.log('[AttachmentDialog] Props Received:', { ... }); // REMOVE
+  }, [isOpen, onDownload, onSave, onDelete, hasNext, hasPrevious]);
+
   const [isEditing, setIsEditing] = useState(false);
   const [editingAttachment, setEditingAttachment] = useState<Attachment | null>(null);
-  const [imageLoading, setImageLoading] = useState(true);
-  const [signedUrl, setSignedUrl] = useState<string | undefined>(initialSignedUrl);
-  const [isLoading, setIsLoading] = useState(true);
+  const [currentSignedUrl, setCurrentSignedUrl] = useState<string | null>(null);
+  const [isUrlLoading, setIsUrlLoading] = useState(true);
   const [isAddingNewTag, setIsAddingNewTag] = useState(false);
   const [newTagName, setNewTagName] = useState('');
-  const [newTagRelation, setNewTagRelation] = useState<PersonRelation | ''>('');
+  const [newTagRelation, setNewTagRelation] = useState<PersonRelation | ''>( '');
   const [existingTags, setExistingTags] = useState<PersonTag[]>([]);
   const [selectedTags, setSelectedTags] = useState<PersonTag[]>([]);
   const [profileSharerId, setProfileSharerId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // <<< NEW LOGGING >>>
+  console.log(`[AttachmentDialog RENDER START] isOpen: ${isOpen}, Incoming attachment prop ID: ${attachment?.id}`);
+  if (isOpen && attachment) {
+     console.log(`[AttachmentDialog RENDER START] Incoming attachment prop details:`, JSON.stringify(attachment, null, 2));
+  }
+
   // Reset state when attachment changes
   useEffect(() => {
+    console.log(`[AttachmentDialog useEffect attachment] Running effect. Attachment prop ID: ${attachment?.id}`); // Log start
     if (attachment) {
+      // <<< REMOVE LOGGING HERE >>>
+      // console.log('[AttachmentDialog useEffect attachment] Running effect. Attachment ID:', attachment.id);
+      // console.log('[AttachmentDialog useEffect attachment] attachment.PersonTags:', attachment.PersonTags);
+
+      // <<< NEW LOGGING >>>
+      console.log('[AttachmentDialog useEffect attachment] Prop details:', JSON.stringify(attachment, null, 2));
+
+      setProfileSharerId(attachment.profileSharerId || null);
+
       const personTags = attachment.PersonTags || [];
+      // <<< REMOVE LOGGING HERE >>>
+      // console.log('[AttachmentDialog useEffect attachment] personTags variable before setting state:', personTags);
+
+      // <<< NEW LOGGING >>>
+      console.log('[AttachmentDialog useEffect attachment] Extracted PersonTags from prop:', JSON.stringify(personTags, null, 2));
+
       const safeAttachment: Attachment = {
         ...attachment,
         description: attachment.description || null,
@@ -126,190 +154,157 @@ export function AttachmentDialog({
         yearCaptured: attachment.yearCaptured || null,
         PersonTags: personTags
       };
+      // <<< NEW LOGGING >>>
+      console.log('[AttachmentDialog useEffect attachment] Setting editingAttachment state to:', JSON.stringify(safeAttachment, null, 2));
       setEditingAttachment(safeAttachment);
-      setSignedUrl(initialSignedUrl);
-      setImageLoading(!initialSignedUrl);
+      // <<< NEW LOGGING >>>
+      console.log('[AttachmentDialog useEffect attachment] Setting selectedTags state to:', JSON.stringify(personTags, null, 2));
       setSelectedTags(personTags);
-      setIsEditing(false); // Reset editing state
-      setIsLoading(true); // Set loading to true when a new attachment is loaded
+
+      setIsEditing(false); // Ensure edit mode is reset when attachment changes
+      // <<< NEW LOGGING >>>
+      console.log('[AttachmentDialog useEffect attachment] Reset isEditing to false.');
+    } else {
+        console.log('[AttachmentDialog useEffect attachment] Attachment prop is null, skipping state update.');
     }
-  }, [attachment, initialSignedUrl]);
+  }, [attachment]); // Keep dependency array as is
 
-  // Debug log for isLoading state changes
-  useEffect(() => {
-    console.log('[AttachmentDialog] isLoading state changed:', isLoading);
-  }, [isLoading]);
-
-  // Combine user and profile data fetching into a single effect
+  // Fetch existing PersonTags when the relevant profileSharerId is available
   useEffect(() => {
     let mounted = true;
-    
-    async function fetchData() {
-      if (!isOpen || !attachment?.id) return;
+    async function fetchTags() {
+      if (!isOpen || !profileSharerId) return;
 
       try {
-        const supabase = createClient();
-        
-        // Get user and profile data first
-        if (authLoading) return;
-        if (!user || !mounted) return;
-
-        // Get profile data
-        const { data: profileSharer, error: profileError } = await supabase
-          .from('ProfileSharer')
-          .select('id')
-          .eq('profileId', user.id)
-          .single();
-
-        if (profileError) throw profileError;
-        if (profileSharer && mounted) {
-          setProfileSharerId(profileSharer.id);
-        }
-
-        // Fetch attachment data with all related information
-        const { data: attachmentData, error: attachmentError } = await supabase
-          .from('PromptResponseAttachment')
-          .select(`
-            *,
-            PromptResponseAttachmentPersonTag (
-              PersonTag (
-                id,
-                name,
-                relation,
-                profileSharerId
-              )
-            )
-          `)
-          .eq('id', attachment.id)
-          .single();
-
-        if (attachmentError) throw attachmentError;
-        if (!mounted) return;
-
-        // Fetch all available tags for this profile
         const { data: tags, error: tagsError } = await supabase
           .from('PersonTag')
           .select('*')
-          .eq('profileSharerId', profileSharer.id);
+          .eq('profileSharerId', profileSharerId);
 
         if (tagsError) throw tagsError;
-        if (!mounted) return;
-
-        if (tags) {
+        if (mounted && tags) {
           setExistingTags(tags);
         }
-
-        // Process attachment data
-        if (attachmentData) {
-          const personTags = attachmentData.PromptResponseAttachmentPersonTag
-            ?.map((pt: { PersonTag: PersonTag }) => pt.PersonTag)
-            .filter(Boolean) || [];
-
-          const processedAttachment: Attachment = {
-            ...attachmentData,
-            PersonTags: personTags,
-            description: attachmentData.description || null,
-            dateCaptured: attachmentData.dateCaptured || null,
-            yearCaptured: attachmentData.yearCaptured || null
-          };
-
-          setEditingAttachment(processedAttachment);
-          setSelectedTags(personTags);
-        }
       } catch (error) {
-        console.error('Error fetching data:', error);
-        toast.error('Failed to load data');
+        console.error('Error fetching PersonTags:', error);
+        toast.error('Failed to load existing tags');
       } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
+        // Handle loading state if needed
       }
     }
 
-    fetchData();
+    fetchTags();
     return () => { mounted = false; };
-  }, [isOpen, attachment?.id, user, authLoading]);
+  }, [isOpen, profileSharerId, supabase]);
 
   // Optimize URL handling
   useEffect(() => {
-    let mounted = true;
+    let isMounted = true;
+    const fetchUrl = async () => {
+      // Log at the beginning of the effect execution
+      console.log(`[AttachmentDialog useEffect URL] Running effect. Attachment ID: ${attachment?.id}, File URL: ${attachment?.fileUrl}`);
 
-    async function getSignedUrl() {
-      if (!attachment?.fileUrl || signedUrl) return;
+      if (!attachment || !attachment.fileUrl) {
+        console.warn('[AttachmentDialog useEffect URL] Cannot fetch URL: Attachment or fileUrl missing.');
+        setCurrentSignedUrl(null);
+        setIsUrlLoading(false);
+        setError('Invalid file path');
+        return;
+      }
+
+      setIsUrlLoading(true);
+      setCurrentSignedUrl(null); // Reset previous URL
+
+      let filePath: string | null = null;
+      const originalFileUrl = attachment.fileUrl;
+
+      // Extract file path logic (same as before)
+      if (originalFileUrl && originalFileUrl.startsWith('http')) {
+          try {
+              const urlObject = new URL(originalFileUrl);
+              const pathSegments = urlObject.pathname.split('/attachments/');
+              if (pathSegments.length > 1) {
+                  filePath = pathSegments[1];
+              } else {
+                  console.warn(`[AttachmentDialog] Could not extract path from old URL format: ${originalFileUrl}`);
+              }
+          } catch (e) {
+              console.warn(`[AttachmentDialog] Error parsing old URL: ${originalFileUrl}`, e);
+          }
+      } else if (originalFileUrl) {
+          filePath = originalFileUrl;
+      } else {
+           console.warn(`[AttachmentDialog] fileUrl is missing for attachment ${attachment.id}`);
+      }
+
+      if (!filePath || typeof filePath !== 'string' || filePath.trim() === '') {
+        console.error('[AttachmentDialog] Invalid file path determined, cannot fetch signed URL.');
+        setCurrentSignedUrl(null);
+        setIsUrlLoading(false);
+        setError('Invalid file path');
+        return;
+      }
 
       try {
-        const cachedUrl = urlCache.get(attachment.id);
-        if (cachedUrl) {
-          setSignedUrl(cachedUrl);
-          setImageLoading(false);
-          return;
-        }
+        // *** FIX: Use determined filePath directly as it should contain the full path ***
+        const fullStoragePath = filePath; // NEW - Use determined filePath directly
 
-        const filePath = attachment.fileUrl.includes('attachments/') 
-          ? attachment.fileUrl.split('attachments/')[1]
-          : attachment.fileUrl;
-        
-        const { data, error } = await supabase
-          .storage
+        console.log(`[AttachmentDialog] Fetching signed URL for constructed path: ${fullStoragePath}`); // Existing log
+        // *** ADDED LOGGING ***
+
+        const { data, error: urlError } = await supabase.storage
           .from('attachments')
-          .createSignedUrl(filePath, 3600);
+          .createSignedUrl(fullStoragePath, 3600); // 1 hour expiry
 
-        if (!mounted) return;
+        if (!isMounted) return; // Component unmounted during fetch
 
-        if (error) {
-          console.error('Error getting signed URL:', error);
-          setError(true);
-          setImageLoading(false);
-          return;
+        if (urlError) {
+          console.error('[AttachmentDialog] Error getting signed URL:', urlError);
+          setError('Failed to load preview URL');
+          setCurrentSignedUrl(null);
+        } else if (data?.signedUrl) {
+          console.log(`[AttachmentDialog] Successfully fetched signed URL for ${fullStoragePath}`);
+          setCurrentSignedUrl(data.signedUrl);
+          setError(null);
+        } else {
+           console.warn('[AttachmentDialog] createSignedUrl returned no error but no URL.');
+           setError('Could not get preview URL');
+           setCurrentSignedUrl(null);
         }
-
-        if (data?.signedUrl) {
-          urlCache.set(attachment.id, data.signedUrl, 3500);
-          setSignedUrl(data.signedUrl);
-          setError(false);
+      } catch (catchError) {
+        console.error('[AttachmentDialog] Unexpected error in fetchUrl:', catchError);
+        if (isMounted) {
+             setError('Error loading preview');
+             setCurrentSignedUrl(null);
         }
-      } catch (error) {
-        console.error('Error getting signed URL:', error);
-        setError(true);
       } finally {
-        if (mounted) {
-          setImageLoading(false);
+        if (isMounted) {
+          setIsUrlLoading(false);
         }
       }
-    }
+    };
 
-    // Only fetch if we don't have a signed URL and there's a fileUrl
-    if (!signedUrl && attachment?.fileUrl) {
-      getSignedUrl();
-    }
-    return () => { mounted = false; };
-  }, [attachment?.id, attachment?.fileUrl, signedUrl, supabase]);
+    fetchUrl();
+
+    return () => {
+      console.log(`[AttachmentDialog useEffect URL] Cleanup effect. Attachment ID was: ${attachment?.id}`);
+      isMounted = false;
+    };
+  }, [attachment?.id, attachment?.fileUrl, supabase, profileSharerId]); // Keep dependencies
 
   const removeTag = useCallback((tagId: string) => {
     setSelectedTags(prev => prev.filter(tag => tag.id !== tagId));
   }, []);
 
-  useEffect(() => {
-    const fetchProfileSharerId = async () => {
-      const supabase = createClient();
-      if (user) {
-        const { data: profile } = await supabase
-          .from('ProfileSharer')
-          .select('id')
-          .eq('profileId', user.id)
-          .single();
-        if (profile) {
-          setProfileSharerId(profile.id);
-        }
-      }
-    };
-    fetchProfileSharerId();
-  }, [user]);
-
   const handleAddNewTag = async () => {
-    if (!newTagName || !newTagRelation || !profileSharerId) return;
+    if (!newTagName || !newTagRelation || !profileSharerId) {
+      toast.error("Missing name, relation, or sharer context for new tag.");
+      return;
+    }
 
+    setIsAddingNewTag(true);
     const supabase = createClient();
+
     const { data: newTag, error } = await supabase
       .from('PersonTag')
       .insert({
@@ -322,6 +317,7 @@ export function AttachmentDialog({
 
     if (error) {
       toast.error('Failed to create new tag');
+      setIsAddingNewTag(false);
       return;
     }
 
@@ -334,110 +330,27 @@ export function AttachmentDialog({
     }
   };
 
-  const handleSave = useCallback(async () => {
-    if (!editingAttachment || !onSave) return;
-
-    try {
-      setIsLoading(true);
-      const supabase = createClient();
-
-      // Update attachment metadata
-      const { error: updateError } = await supabase
-        .from('PromptResponseAttachment')
-        .update({
-          description: editingAttachment.description,
-          dateCaptured: editingAttachment.dateCaptured,
-          yearCaptured: editingAttachment.yearCaptured
-        })
-        .eq('id', editingAttachment.id);
-
-      if (updateError) throw updateError;
-
-      // Remove existing tags
-      const { error: deleteError } = await supabase
-        .from('PromptResponseAttachmentPersonTag')
-        .delete()
-        .eq('promptResponseAttachmentId', editingAttachment.id);
-
-      if (deleteError) throw deleteError;
-
-      // Add new tags
-      if (selectedTags.length > 0) {
-        const { error: tagError } = await supabase
-          .from('PromptResponseAttachmentPersonTag')
-          .insert(
-            selectedTags.map(tag => ({
-              promptResponseAttachmentId: editingAttachment.id,
-              personTagId: tag.id
-            }))
-          );
-
-        if (tagError) throw tagError;
-      }
-
-      const updatedAttachment: Attachment = {
+  const handleSave = async () => {
+    if (onSave && editingAttachment) {
+      const attachmentToSave: Attachment = {
         ...editingAttachment,
-        PersonTags: selectedTags
+        PersonTags: selectedTags, // Use the current selectedTags state
       };
-
-      // Call onSave without awaiting to prevent dialog close
-      onSave(updatedAttachment);
-      
-      // Refetch the data to ensure we have the latest state
-      const { data: refreshedData, error: refreshError } = await supabase
-        .from('PromptResponseAttachment')
-        .select(`
-          *,
-          PromptResponseAttachmentPersonTag (
-            PersonTag (
-              id,
-              name,
-              relation,
-              profileSharerId
-            )
-          )
-        `)
-        .eq('id', editingAttachment.id)
-        .single();
-
-      if (!refreshError && refreshedData) {
-        const personTags = refreshedData.PromptResponseAttachmentPersonTag
-          ?.map((pt: { PersonTag: PersonTag }) => pt.PersonTag)
-          .filter(Boolean) || [];
-
-        const processedAttachment: Attachment = {
-          ...refreshedData,
-          PersonTags: personTags,
-          description: refreshedData.description || null,
-          dateCaptured: refreshedData.dateCaptured || null,
-          yearCaptured: refreshedData.yearCaptured || null
-        };
-
-        setEditingAttachment(processedAttachment);
-        setSelectedTags(personTags);
-      }
-
+      // <<< NEW LOGGING >>>
+      console.log('[AttachmentDialog handleSave] Saving attachment with data:', JSON.stringify(attachmentToSave, null, 2));
+      await onSave(attachmentToSave);
       setIsEditing(false);
-      toast.success('Changes saved successfully');
-    } catch (error) {
-      console.error('Error saving attachment:', error);
-      toast.error('Failed to save changes');
-    } finally {
-      setIsLoading(false);
     }
-  }, [editingAttachment, onSave, selectedTags]);
+  };
 
   const handleClose = useCallback(() => {
-    if (!isLoading) {
-      setIsEditing(false);
-      setEditingAttachment(null);
-      onClose();
-    }
-  }, [onClose, isLoading]);
+    setIsEditing(false);
+    setEditingAttachment(null);
+    onClose();
+  }, [onClose]);
 
   // Handle navigation
   const handleNavigation = async (direction: 'next' | 'previous') => {
-    setImageLoading(true);
     if (direction === 'next' && onNext) {
       onNext();
     } else if (direction === 'previous' && onPrevious) {
@@ -461,6 +374,11 @@ export function AttachmentDialog({
 
   if (!attachment) return null;
 
+  const showLoadingState = isUrlLoading;
+
+  // <<< MOVED LOGGING HERE >>>
+  console.log(`[AttachmentDialog RENDER TAGS] Rendering ${selectedTags.length} tags from state:`, JSON.stringify(selectedTags, null, 2));
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={() => {
@@ -468,9 +386,15 @@ export function AttachmentDialog({
         setIsEditing(false);
         setShowDeleteConfirm(false);
       }}>
-        <DialogContent className="max-w-[95vw] md:max-w-4xl h-[90vh] flex flex-col p-4 md:p-6 mx-auto overflow-y-auto">
+        <DialogContent 
+          className="max-w-[95vw] md:max-w-4xl h-[90vh] flex flex-col p-4 md:p-6 mx-auto overflow-y-auto"
+          aria-describedby="attachment-details-description"
+        >
           <DialogHeader className="sr-only">
             <DialogTitle>View Attachment</DialogTitle>
+            <DialogDescription id="attachment-details-description">
+              View and edit details for the selected attachment.
+            </DialogDescription>
           </DialogHeader>
           <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
             {/* Existing code */}
@@ -482,36 +406,45 @@ export function AttachmentDialog({
             <div className="w-full lg:h-full flex flex-col">
               {/* Content Container */}
               <div className="relative bg-gray-100 w-full h-[75vh] lg:h-[78vh] overflow-hidden">
-                {imageLoading && (
+                {showLoadingState ? (
                   <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
                     <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
                   </div>
-                )}
-                {attachment.fileType === 'application/pdf' ? (
-                  <div className="w-full h-full bg-white">
-                    {signedUrl && (
-                      <iframe
-                        src={signedUrl + '#toolbar=0'}
-                        className="w-full h-full"
-                        title="PDF viewer"
-                      />
-                    )}
+                ) : error ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+                    <FileWarning className="h-12 w-12 text-red-400 mb-2" />
+                    <p className="text-sm text-red-500">{error}</p>
                   </div>
-                ) : (
-                  <AttachmentThumbnail 
+                ) : editingAttachment && editingAttachment.fileType.startsWith("image/") && currentSignedUrl ? (
+                  <div className="w-full h-full relative">
+                    <NextImage
+                      src={currentSignedUrl}
+                      alt={editingAttachment.title || editingAttachment.fileName || "Attachment Image"}
+                      fill
+                      className={`object-contain transition-opacity duration-300`}
+                      sizes="(max-width: 768px) 90vw, 45vw"
+                    />
+                  </div>
+                ) : editingAttachment && editingAttachment.fileType === 'application/pdf' && currentSignedUrl ? (
+                  <iframe
+                    src={currentSignedUrl}
+                    title={editingAttachment.fileName || "PDF Document"}
+                    className="w-full h-full border-0"
+                  />
+                ) : editingAttachment ? (
+                  <AttachmentThumbnail
                     attachment={{
-                      ...attachment,
-                      fileUrl: attachment.displayUrl || attachment.fileUrl,
-                      signedUrl: signedUrl || attachment.signedUrl,
-                      dateCaptured: attachment.dateCaptured ? 
-                        (typeof attachment.dateCaptured === 'string' ? 
-                          attachment.dateCaptured : 
-                          new Date(attachment.dateCaptured).toISOString().split('T')[0]) 
-                        : null
+                      ...editingAttachment,
+                      signedUrl: currentSignedUrl ?? undefined,
                     }}
                     size="lg"
-                    className="w-full h-full object-contain"
+                    className="max-w-full max-h-full"
                   />
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+                     <FileWarning className="h-12 w-12 text-gray-400 mb-2" />
+                     <p className="text-sm text-gray-500">No attachment data</p>
+                  </div>
                 )}
               </div>
 
@@ -523,7 +456,7 @@ export function AttachmentDialog({
                       variant="outline"
                       size="sm"
                       onClick={() => onPrevious?.()}
-                      disabled={!hasPrevious || imageLoading}
+                      disabled={!hasPrevious || showLoadingState}
                       className="rounded-full"
                       tabIndex={isEditing ? -1 : 0}
                     >
@@ -536,7 +469,7 @@ export function AttachmentDialog({
                       variant="outline"
                       size="sm"
                       onClick={() => onNext?.()}
-                      disabled={!hasNext || imageLoading}
+                      disabled={!hasNext || showLoadingState}
                       className="rounded-full"
                       tabIndex={isEditing ? -1 : 0}
                     >
@@ -608,13 +541,20 @@ export function AttachmentDialog({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-                  disabled={isLoading}
+                  onClick={() => {
+                    if (isEditing) {
+                      handleSave();
+                    } else {
+                      // console.log('[AttachmentDialog] Edit button clicked'); // REMOVE
+                      setIsEditing(true);
+                    }
+                  }}
+                  disabled={showLoadingState || !onSave} // Disable if onSave is not provided
                   className="rounded-full"
                 >
-                  {isLoading ? (
+                  {showLoadingState ? (
                     <>
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-[#1B4332] mr-2"></div>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" /> 
                       Loading...
                     </>
                   ) : isEditing ? (
@@ -661,16 +601,15 @@ export function AttachmentDialog({
                     <Input
                       id="attachment-date"
                       type="date"
-                      value={editingAttachment?.dateCaptured ? 
-                        (typeof editingAttachment.dateCaptured === 'string' ? 
-                          editingAttachment.dateCaptured : 
-                          new Date(editingAttachment.dateCaptured).toISOString().split('T')[0]) 
-                        : ''}
+                      value={editingAttachment?.dateCaptured instanceof Date
+                               ? editingAttachment.dateCaptured.toISOString().split('T')[0]
+                               : ''}
                       onChange={(e) => setEditingAttachment(prev => {
                         if (!prev) return prev;
+                        const dateValue = e.target.value;
                         return {
                           ...prev,
-                          dateCaptured: e.target.value
+                          dateCaptured: dateValue ? new Date(`${dateValue}T00:00:00Z`) : null
                         };
                       })}
                       disabled={!isEditing}
@@ -818,6 +757,9 @@ export function AttachmentDialog({
                   )}
 
                   <div className="flex flex-wrap gap-2 mt-2">
+                    {/* <<< REMOVE LOGGING HERE >>> */}
+                    {/* {console.log('[AttachmentDialog RENDER] selectedTags:', selectedTags)} */}
+                    {/* <<< NEW LOGGING >>> */}
                     {selectedTags.map(tag => (
                       <Badge
                         key={tag.id}

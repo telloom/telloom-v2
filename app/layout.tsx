@@ -9,6 +9,10 @@ import { Inter } from 'next/font/google';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/hooks/useAuth';
 
+// Set export config
+export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
+
 const inter = Inter({ subsets: ['latin'] });
 
 export const runtime = 'nodejs';

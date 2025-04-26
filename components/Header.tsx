@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
@@ -23,7 +23,6 @@ import { Button } from './ui/button';
 import { UserPlus, Users, UserCircle, Settings, LogOut, SwitchCamera, Bell, BellRing, CircleDot, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserStore } from '@/stores/userStore';
-import { supabase } from '@/utils/supabase/client';
 import InviteModal from './invite/InviteModal';
 import NotificationsBadge from '@/components/notifications/NotificationsBadge';
 import useSWR from 'swr';
@@ -39,7 +38,7 @@ import {
 } from './ui/sheet';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 
-// Add this near the top of the file where we defined the other interfaces
+// Restore NotificationsData interface
 interface NotificationsData {
   notifications: Notification[];
 }
@@ -64,87 +63,30 @@ function useCurrentRole() {
 }
 
 // Define interfaces for type safety
-interface UserRole {
-  role: string;
-  [key: string]: any;
-}
-
 interface Notification {
   id: string;
   [key: string]: any;
 }
 
+/**
+ * Gets initials from a user's name
+ */
+const getInitials = (firstName: string = '', lastName: string = '') => {
+  return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
+};
+
 export default function Header() {
-  const { user, signOut, checkServerSession } = useAuth();
-  const { profile, setProfile } = useUserStore();
+  const { user, loading: authLoading, signOut } = useAuth();
+  const { profile } = useUserStore();
   const router = useRouter();
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [userRoles, setUserRoles] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [signedAvatarUrl, setSignedAvatarUrl] = useState<string | null>(null);
   const currentRole = useCurrentRole();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [isAuthInitialized, setIsAuthInitialized] = useState(true);
-  const pathname = usePathname();
   const isMobile = useMediaQuery('(max-width: 768px)');
-
-  // Check server session when component mounts
-  useEffect(() => {
-    console.log('[HEADER] Checking server session on mount');
-    checkServerSession();
-  }, [checkServerSession]);
-
-  // Check server session when user state changes
-  useEffect(() => {
-    console.log('[HEADER] User state changed:', { hasUser: !!user });
-    if (!user) {
-      checkServerSession();
-    }
-  }, [user, checkServerSession]);
-
-  // Fetch the user's profile and roles when user changes
-  const fetchProfileAndRoles = useCallback(async () => {
-    if (!user) return;
-    
-    setIsLoading(true);
-    try {
-      const [profileResult, rolesResult] = await Promise.all([
-        supabase.from('Profile').select('*').eq('id', user.id).single(),
-        supabase.from('ProfileRole').select('*').eq('profileId', user.id)
-      ]);
-
-      if (!profileResult.data || !rolesResult.data) {
-        setIsLoading(false);
-        return;
-      }
-
-      // Normalize and get signed URL for avatar if it exists
-      if (profileResult.data?.avatarUrl) {
-        const normalizedUrl = normalizeAvatarUrl(profileResult.data.avatarUrl);
-        profileResult.data.avatarUrl = normalizedUrl;
-        
-        const signedUrl = await getSignedAvatarUrl(normalizedUrl);
-        setSignedAvatarUrl(signedUrl);
-      }
-
-      setProfile(profileResult.data);
-      setUserRoles(rolesResult.data.map((r: UserRole) => r.role));
-    } catch (error) {
-      console.error('Error in fetchProfileAndRoles:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user, setProfile]);
-
-  useEffect(() => {
-    if (isAuthInitialized && user) {
-      fetchProfileAndRoles();
-    }
-  }, [isAuthInitialized, user, fetchProfileAndRoles]);
-
-  // Update avatar state when profile changes
+  
   useEffect(() => {
     const updateAvatar = async () => {
       if (profile?.avatarUrl) {
@@ -154,8 +96,8 @@ export default function Header() {
           const signedUrl = await getSignedAvatarUrl(normalizedUrl);
           setSignedAvatarUrl(signedUrl);
         } catch (error) {
-          console.error('Error getting signed URL:', error);
-          setSignedAvatarUrl(normalizedUrl);
+          console.error('[HEADER] Error getting signed avatar URL:', error);
+          setSignedAvatarUrl(normalizedUrl); // Fallback
         }
       } else {
         setAvatarUrl(null);
@@ -163,22 +105,33 @@ export default function Header() {
       }
     };
 
-    updateAvatar();
-  }, [profile?.avatarUrl]); // Only run when avatarUrl changes
+    if (profile) { 
+      console.log('[HEADER] Profile updated, updating avatar.');
+      updateAvatar();
+    } else {
+      console.log('[HEADER] No profile, clearing avatar.');
+      setAvatarUrl(null);
+      setSignedAvatarUrl(null);
+    }
+  }, [profile]);
 
   const handleSignOut = async () => {
     try {
+      console.log('[HEADER] Signing out...');
       await signOut();
-      setProfile(null);
-      router.replace('/login');
+      router.push('/login');
     } catch (error) {
-      console.error('Error during sign out:', error);
+      console.error('Error signing out:', error);
+      toast.error('Failed to sign out. Please try again.');
     }
   };
 
+  const userRoles = profile?.roles?.map(r => r.role) || [];
+  
   const canInvite = userRoles.some(role => ['SHARER', 'EXECUTOR'].includes(role));
 
   const getConnectionsLink = () => {
+    // Determine based on currentRole state derived from pathname
     switch (currentRole) {
       case 'SHARER':
         return '/role-sharer/connections';
@@ -187,7 +140,7 @@ export default function Header() {
       case 'EXECUTOR':
         return '/role-executor/connections';
       default:
-        return '';
+        return ''; // Return empty string if no specific role context
     }
   };
 
@@ -195,7 +148,10 @@ export default function Header() {
   const fetcher = (url: string): Promise<NotificationsData> => fetch(url).then(res => res.json());
 
   // Fetch notifications
-  const { data: notificationsData, mutate: mutateNotifications } = useSWR<NotificationsData>('/api/notifications', fetcher);
+  const { data: notificationsData, mutate: mutateNotifications } = useSWR<NotificationsData>(
+    user ? '/api/notifications' : null, // Only fetch if user is authenticated
+    fetcher
+  );
 
   const recentNotifications = notificationsData?.notifications?.slice(0, 3) || [];
 
@@ -300,6 +256,11 @@ export default function Header() {
       toast.error('Failed to mark notification as read');
     }
   };
+  
+  const renderAuthLoading = authLoading;
+  const renderAuthenticated = !authLoading && user && profile;
+  const renderUnauthenticated = !authLoading && !user;
+  const renderProfileStillLoading = !authLoading && user && !profile;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -309,19 +270,27 @@ export default function Header() {
             <Image
               src="/images/Telloom Logo V1-Horizontal Green.png"
               alt="Telloom Logo"
-              width={128}
-              height={32}
+              width={104}
+              height={26}
               priority={true}
               quality={100}
               style={{
                 width: 'auto',
                 height: 'auto',
-                maxWidth: '128px'
+                maxWidth: 'auto'
               }}
             />
           </Link>
         </div>
-        {user && !isLoading ? (
+        
+        {(renderAuthLoading || renderProfileStillLoading) && (
+          <div className="flex items-center space-x-2">
+            <div className="w-6 h-6 rounded-full border-2 border-[#1B4332] border-t-transparent animate-spin"></div>
+            <span className="text-sm">Loading...</span>
+          </div>
+        )}
+        
+        {renderAuthenticated && (
           <div className="flex items-center space-x-3">
             {canInvite && (
               <Button
@@ -336,7 +305,6 @@ export default function Header() {
             )}
             <div className="flex items-center gap-2">
               {isMobile ? (
-                // Mobile: Sheet for notifications
                 <Sheet open={notificationsOpen} onOpenChange={setNotificationsOpen}>
                   <SheetTrigger asChild>
                     <button 
@@ -387,7 +355,6 @@ export default function Header() {
                   </SheetContent>
                 </Sheet>
               ) : (
-                // Desktop: Dropdown for notifications
                 <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
                   <DropdownMenuTrigger asChild>
                     <button 
@@ -445,12 +412,11 @@ export default function Header() {
                 </DropdownMenu>
               )}
               <span className="text-sm hidden sm:inline">
-                Welcome, {profile?.firstName || user.email}
+                 Welcome, {profile?.firstName || 'User'} 
               </span>
             </div>
             
             {isMobile ? (
-              // Mobile: Sheet for profile menu
               <Sheet open={profileOpen} onOpenChange={setProfileOpen}>
                 <SheetTrigger asChild>
                   <button className="focus:outline-none">
@@ -461,7 +427,6 @@ export default function Header() {
                           alt="Profile"
                           className="object-cover"
                           onError={() => {
-                            // If signed URL fails, fall back to public URL
                             setSignedAvatarUrl(avatarUrl);
                           }}
                         />
@@ -476,7 +441,7 @@ export default function Header() {
                 <SheetContent side="top" className="max-h-[80vh] overflow-y-auto pt-10">
                   <SheetHeader className="flex flex-row items-center justify-between border-b pb-2">
                     <SheetTitle className="text-lg font-semibold text-[#1B4332]">
-                      {profile?.firstName ? `${profile.firstName} ${profile.lastName || ''}` : user.email}
+                       {profile?.firstName ? `${profile.firstName} ${profile.lastName || ''}` : user?.email || 'User'}
                     </SheetTitle>
                     <SheetClose className="rounded-full p-1 hover:bg-[#8fbc55] hover:text-white">
                       <X className="h-5 w-5" />
@@ -523,7 +488,6 @@ export default function Header() {
                 </SheetContent>
               </Sheet>
             ) : (
-              // Desktop: Dropdown for profile menu
               <DropdownMenu open={profileOpen} onOpenChange={setProfileOpen}>
                 <DropdownMenuTrigger>
                   <AvatarComponent className="h-8 w-8">
@@ -533,7 +497,6 @@ export default function Header() {
                         alt="Profile"
                         className="object-cover"
                         onError={() => {
-                          // If signed URL fails, fall back to public URL
                           setSignedAvatarUrl(avatarUrl);
                         }}
                       />
@@ -583,7 +546,9 @@ export default function Header() {
               </DropdownMenu>
             )}
           </div>
-        ) : (
+        )}
+        
+        {renderUnauthenticated && (
           <div>
             <Link href="/login">Login</Link>
           </div>
@@ -599,7 +564,3 @@ export default function Header() {
     </header>
   );
 }
-
-const getInitials = (firstName: string = '', lastName: string = '') => {
-  return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
-};

@@ -59,12 +59,46 @@ export function TopicVideoUploader({
 
       const checkStatus = async () => {
         try {
+          // --- ADDED RLS DEBUG LOGGING ---
+          try {
+            const { data: rlsDebugData, error: rlsDebugError } = await supabase.rpc('debug_rls_helpers');
+            if (rlsDebugError) {
+              console.error('[RLS DEBUG] Error calling debug_rls_helpers RPC:', rlsDebugError);
+            } else {
+              console.log('[RLS DEBUG] debug_rls_helpers RPC Result:', rlsDebugData);
+            }
+          } catch (rpcCatchError) {
+            console.error('[RLS DEBUG] Exception calling debug_rls_helpers RPC:', rpcCatchError);
+          }
+          // --- END ADDED RLS DEBUG LOGGING ---
+
           const { data: video, error } = await supabase
             .from('TopicVideo')
-            .select('muxPlaybackId, status')
+            .select('status, muxPlaybackId, profileSharerId') // Also select profileSharerId for comparison
             .eq('id', videoId)
-            .single();
+            .maybeSingle();
 
+          // --- ADDED LOGGING FOR COMPARISON ---
+          if (video) {
+            console.log(`[TopicVideoUploader poll] Found video record ${videoId}:`, { 
+              status: video.status, 
+              muxPlaybackId: video.muxPlaybackId, 
+              dbProfileSharerId: video.profileSharerId 
+            });
+          } else if (!error) {
+            console.warn(`[TopicVideoUploader poll] Video record ${videoId} not found (yet?). Retrying...`);
+            if (attempts < maxAttempts) {
+              attempts++;
+              await new Promise(resolve => setTimeout(resolve, 5000));
+              return checkStatus();
+            } else {
+              console.error(`[TopicVideoUploader poll] Video record ${videoId} not found after max attempts. Assuming error.`);
+              handleVideoError();
+              return;
+            }
+          }
+          // --- END ADDED LOGGING ---
+          
           if (error) {
             console.error('Error checking video status:', error);
             if (attempts < maxAttempts) {
@@ -77,29 +111,33 @@ export function TopicVideoUploader({
             }
           }
 
-          if (video?.status === 'READY' && video?.muxPlaybackId) {
-            setMuxPlaybackId(video.muxPlaybackId);
-            setProcessingState('ready');
-            if (onUploadSuccess) {
-              await onUploadSuccess(video.muxPlaybackId);
+          if (video) {
+            if (video.status === 'READY' && video.muxPlaybackId) {
+              setMuxPlaybackId(video.muxPlaybackId);
+              setProcessingState('ready');
+              if (onUploadSuccess) {
+                await onUploadSuccess(video.muxPlaybackId);
+              }
+              return;
             }
-            return;
-          }
-
-          if (video?.status === 'ERRORED') {
-            handleVideoError();
-            return;
+  
+            if (video.status === 'ERRORED') {
+              handleVideoError();
+              return;
+            }
           }
 
           if (attempts < maxAttempts) {
             attempts++;
+            console.log(`[TopicVideoUploader poll] Status is ${video?.status}. Retrying check for ${videoId} (Attempt ${attempts})`);
             await new Promise(resolve => setTimeout(resolve, 5000));
             return checkStatus();
           } else {
+            console.error(`[TopicVideoUploader poll] Max polling attempts reached for ${videoId}.`);
             handleVideoError();
           }
-        } catch (error) {
-          console.error('Error polling video status:', error);
+        } catch (catchError) {
+          console.error('Error polling video status (catch block):', catchError);
           if (attempts < maxAttempts) {
             attempts++;
             await new Promise(resolve => setTimeout(resolve, 5000));

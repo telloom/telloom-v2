@@ -12,7 +12,6 @@ export default function Logo() {
           height={40}
           priority={true}
           quality={100}
-          className="mx-auto"
           style={{
             width: 'auto',
             height: 'auto',

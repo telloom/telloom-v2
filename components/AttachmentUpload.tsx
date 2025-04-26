@@ -1,11 +1,9 @@
 /**
  * File: components/AttachmentUpload.tsx
  * Description:
- *  - We retrieve the real lastName/firstName from `Profile`.
- *  - We retrieve the category name from `PromptCategory`.
- *  - We generate a 4-character alphanumeric suffix (like "a0f1").
- *  - Then we create a final filename: "lastname-firstname_category_a0f1.jpg"
- *  - We upload directly to that name and insert the DB row with `fileUrl` = final name.
+ *  - Uploads attachments for a given promptResponseId, associating them with the target Sharer.
+ *  - Fetches Sharer details (name) and prompt category for filename generation.
+ *  - Fetches and manages PersonTags belonging to the Sharer.
  */
 
 'use client';
@@ -17,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createClient } from '@/utils/supabase/client';
-import { Upload, X, Plus, Tag } from 'lucide-react';
+import { Upload, X, Plus, Tag, FileText, FileIcon, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import heic2any from 'heic2any';
 import {
@@ -32,9 +30,12 @@ import { cn } from "@/lib/utils";
 import { PersonRelation, PersonTag } from "@/types/models";
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
 import { useAuth } from '@/hooks/useAuth';
+import type { Database } from '@/lib/database.types'; // Import Database type
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface AttachmentUploadProps {
   promptResponseId: string;
+  targetSharerId: string;
   isOpen: boolean;
   onClose: () => void;
   onUploadSuccess: () => void;
@@ -42,6 +43,7 @@ interface AttachmentUploadProps {
 
 export default function AttachmentUpload({
   promptResponseId,
+  targetSharerId,
   isOpen,
   onClose,
   onUploadSuccess
@@ -81,97 +83,140 @@ export default function AttachmentUpload({
   const [selectedTags, setSelectedTags] = useState<PersonTag[]>([]);
   const [existingTags, setExistingTags] = useState<PersonTag[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   // --------------------------------------------------------------------------
   // On mount (whenever dialog opens), fetch the data:
-  // 1) profileSharerId
-  // 2) profile => firstName, lastName
-  // 3) promptResponse => prompt => promptCategory => category
-  // 4) existing PersonTags for this user
+  // 1) Set profileSharerId from prop
+  // 2) Fetch Sharer's profile => firstName, lastName using targetSharerId
+  // 3) Fetch promptResponse => prompt => promptCategory => category using promptResponseId
+  // 4) Fetch existing PersonTags for the targetSharerId
   // --------------------------------------------------------------------------
   useEffect(() => {
     async function fetchInitialData() {
+      if (!isOpen || !targetSharerId || !user || authLoading) {
+        console.log('[AttachmentUpload] Initial data fetch skipped (dialog closed, targetSharerId missing, or auth not ready).');
+        return;
+      }
+
+      setIsMetadataLoading(true);
+      setIsTagsLoading(true);
+      setProfileSharerId(targetSharerId);
+      console.log(`[AttachmentUpload] Fetching initial data for targetSharerId: ${targetSharerId}, user ID: ${user.id}`);
+      
+      const currentUserSharerId = user.app_metadata?.sharer_id;
+      const isSharerContext = currentUserSharerId === targetSharerId;
+      
+      console.log(`[AttachmentUpload] Current User Sharer ID: ${currentUserSharerId}, Is Sharer Context: ${isSharerContext}`);
+
       try {
         const supabase = createClient();
-        
-        // Check the current user
-        if (authLoading || !user) {
-          console.error('Authentication error: No user found or still loading');
-          return;
+
+        // Fetch Sharer's Profile details (firstName, lastName)
+        if (isSharerContext) {
+          // --- Sharer Context: Use user metadata ---
+          console.log('[AttachmentUpload] Sharer context detected. Using user metadata.');
+          setSharerFirstName(user.user_metadata?.firstName || 'Sharer');
+          setSharerLastName(user.user_metadata?.lastName || '');
+          setError(null); // Clear potential previous errors
+        } else {
+          // --- Executor Context: Use RPC ---
+          console.log('[AttachmentUpload] Executor context detected. Using RPC get_sharer_details_for_executor.');
+        const { data: sharerDetailsData, error: rpcError } = await supabase
+          .rpc('get_sharer_details_for_executor', { p_sharer_id: targetSharerId })
+            .maybeSingle();
+
+        if (rpcError) {
+          console.error(`[AttachmentUpload] RPC Error fetching sharer details for ${targetSharerId}:`, rpcError);
+          setError(`Failed to load sharer data: ${rpcError.message}`);
+          setSharerFirstName('Unknown');
+          setSharerLastName('Sharer');
+        } else if (!sharerDetailsData) {
+          console.error(`[AttachmentUpload] RPC 'get_sharer_details_for_executor' returned no data for targetSharerId: ${targetSharerId}. Check RPC logic or data.`);
+          setError("Could not find the specified Sharer profile via RPC. Access might be denied.");
+          setSharerFirstName('Unknown');
+          setSharerLastName('Sharer');
+        } else {
+          setError(null);
+          console.log(`[AttachmentUpload] Fetched Sharer details via RPC for ${targetSharerId}:`, sharerDetailsData);
+            setSharerFirstName(sharerDetailsData.profile_first_name || 'Unknown');
+            setSharerLastName(sharerDetailsData.profile_last_name || 'Sharer');
+          }
         }
 
-        // Find the ProfileSharer row for that user
-        const { data: sharer, error: sharerErr } = await supabase
-          .from('ProfileSharer')
-          .select('id, profileId')
-          .eq('profileId', user.id)
-          .single();
-
-        if (sharerErr || !sharer) {
-          console.error('No ProfileSharer found for user:', sharerErr);
-          return;
-        }
-        setProfileSharerId(sharer.id);
-
-        // Fetch all available tags for this profile sharer
-        const { data: tags, error: tagsError } = await supabase
-          .from('PersonTag')
-          .select('*')
-          .eq('profileSharerId', sharer.id);
-
-        if (tagsError) {
-          console.error('Error fetching person tags:', tagsError);
-        } else if (tags) {
-          console.log('Fetched person tags:', tags.length);
-          setExistingTags(tags);
+        // Fetch Tags for the target Sharer
+        try {
+           const { data: tags, error: tagsError } = await supabase
+             .from('PersonTag')
+             .select('*')
+             .eq('profileSharerId', targetSharerId);
+           if (tagsError) throw tagsError;
+           if (tags) {
+              console.log(`[AttachmentUpload] Fetched ${tags.length} person tags for sharer ${targetSharerId}.`);
+              setExistingTags(tags);
+           } else {
+              console.log(`[AttachmentUpload] No person tags found for sharer ${targetSharerId}.`);
+              setExistingTags([]);
+           }
+        } catch (tagsError) {
+           console.error(`[AttachmentUpload] Error fetching person tags for sharer ${targetSharerId}:`, tagsError);
+           setExistingTags([]);
+        } finally {
           setIsTagsLoading(false);
         }
 
-        // From that profileId, get firstName + lastName from "Profile"
-        const { data: profile } = await supabase
-          .from('Profile')
-          .select('firstName, lastName')
-          .eq('id', sharer.profileId)
-          .single();
-
-        if (profile) {
-          setSharerFirstName(profile.firstName || 'Unknown');
-          setSharerLastName(profile.lastName || 'User');
-        }
-
-        // Now fetch the PromptResponse -> Prompt -> PromptCategory
-        const { data: responseData, error: respErr } = await supabase
-          .from('PromptResponse')
-          .select(`
-            id,
-            promptId,
-            Prompt(
-              promptCategoryId,
-              PromptCategory(
-                category
+        // Fetch PromptResponse -> Category (using promptResponseId - this part remains the same)
+        try {
+          const { data: responseDataArray, error: respErr } = await supabase
+            .from('PromptResponse')
+            .select(`
+              id,
+              promptId,
+              Prompt(
+                promptCategoryId,
+                PromptCategory(
+                  category
+                )
               )
-            )
-          `)
-          .eq('id', promptResponseId)
-          .single();
+            `)
+            .eq('id', promptResponseId);
 
-        if (respErr || !responseData) {
-          console.error('No PromptResponse found for that ID:', respErr);
-          return;
+          if (respErr) {
+            console.error('[AttachmentUpload] Error fetching PromptResponse:', respErr);
+            throw respErr;
+          }
+
+          if (!responseDataArray || responseDataArray.length === 0) {
+            console.warn('[AttachmentUpload] No PromptResponse found for ID:', promptResponseId, '(Likely RLS issue)');
+            setPromptCategory('untitled');
+          } else {
+            const responseData = responseDataArray[0];
+            const cat = responseData.Prompt?.PromptCategory?.category || 'untitled';
+            console.log(`[AttachmentUpload] Fetched prompt category: ${cat}`);
+            setPromptCategory(cat);
+          }
+        } catch (responseFetchError) {
+          console.error('[AttachmentUpload] Exception during PromptResponse fetch:', responseFetchError);
+          setPromptCategory('untitled');
         }
 
-        // retrieve category from nested data
-        const cat = responseData.Prompt?.PromptCategory?.category || 'untitled';
-        setPromptCategory(cat);
       } catch (e) {
-        console.error('Error fetching initial data:', e);
+        console.error('[AttachmentUpload] Error during initial data fetch:', e);
+        setError(e instanceof Error ? e.message : 'An unexpected error occurred loading data.');
+        // Reset states on general error
+        setSharerFirstName('Error');
+        setSharerLastName('Loading');
+        setExistingTags([]);
+        setPromptCategory('unknown');
+      } finally {
+        setIsMetadataLoading(false); // Ensure metadata loading stops even if tags are still loading or failed
+        // isTagsLoading is handled within its own try/finally
+        console.log('[AttachmentUpload] Finished fetching initial data.');
       }
     }
 
-    if (isOpen) {
-      fetchInitialData();
-    }
-  }, [promptResponseId, isOpen]);
+    fetchInitialData();
+  }, [isOpen, targetSharerId, supabase, promptResponseId, user, authLoading]);
 
   // --------------------------------------------------------------------------
   // Basic slugify for lastName, firstName, category
@@ -277,11 +322,15 @@ export default function AttachmentUpload({
   // Insert new PersonTag record
   // --------------------------------------------------------------------------
   const handleAddNewTag = async () => {
-    if (!newTagName || !newTagRelation || !profileSharerId) return;
-    
+    if (!newTagName || !newTagRelation || !profileSharerId) {
+       toast.error("Missing name, relation, or sharer context for new tag.");
+       console.error('[AttachmentUpload handleAddNewTag] Missing required info:', { newTagName, newTagRelation, profileSharerId });
+       return;
+    }
+
     setIsTagAddLoading(true);
     const supabase = createClient();
-    
+
     try {
       const { data: newTag, error } = await supabase
         .from('PersonTag')
@@ -298,7 +347,7 @@ export default function AttachmentUpload({
         console.error('Error creating tag:', error);
         return;
       }
-      
+
       if (newTag) {
         setSelectedTags((prev) => [...prev, newTag]);
         setExistingTags((prev) => [...prev, newTag]);
@@ -319,23 +368,15 @@ export default function AttachmentUpload({
   // Actually do the upload: final name, then insert
   // --------------------------------------------------------------------------
   const handleUpload = async (shouldClose: boolean = false) => {
-    if (!files.length) return;
+    if (!files.length || !profileSharerId) {
+       toast.error("No file selected or sharer context missing.");
+       return;
+    }
 
     setIsUploading(true);
     const supabase = createClient();
 
     try {
-      // Use the user and authLoading from the top level component
-      if (authLoading || !user) {
-        toast.error('Not authenticated');
-        return;
-      }
-
-      // Make sure we have a valid profileSharerId
-      if (!profileSharerId) {
-        throw new Error('profileSharerId not found yet.');
-      }
-
       // We'll create a new attachment record
       const attachmentId = crypto.randomUUID();
 
@@ -343,32 +384,34 @@ export default function AttachmentUpload({
       const file = files[0];
       const fileExt = file.name.split('.').pop() || 'dat';
 
-      // Build final name from real data
+      // Build final name (which is also the storage path)
       const finalName = generateFinalFilename(
         sharerLastName,
         sharerFirstName,
         promptCategory,
         fileExt
       );
+      const storagePath = finalName; // Explicitly define the path
 
-      console.log('Uploading to path:', finalName);
+      console.log(`[AttachmentUpload] Uploading file '${file.name}' to storage path: '${storagePath}' for sharer ${profileSharerId}`);
+
       const { error: uploadError } = await supabase
         .storage
         .from('attachments')
-        .upload(finalName, file);
+        .upload(storagePath, file); // Upload using the path
 
       if (uploadError) {
         throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
       }
 
-      // Insert DB row with the same final name
+      // Insert DB row using the storage path for fileUrl
       const attachmentRecord = {
         id: attachmentId,
         promptResponseId,
         profileSharerId,
-        fileUrl: finalName,
+        fileUrl: storagePath, // <-- STORE THE PATH HERE
         fileType: file.type,
-        fileName: finalName,
+        fileName: file.name, // Keep original filename for display/download purposes if needed
         fileSize: file.size,
         description: description || null,
         dateCaptured: dateCaptured || null,
@@ -450,16 +493,40 @@ export default function AttachmentUpload({
   // --------------------------------------------------------------------------
   // Render
   // --------------------------------------------------------------------------
+  if (error) {
+      return (
+          <Dialog open={isOpen} onOpenChange={onClose}>
+              <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+                  <DialogHeader className="pt-6 px-6 pb-4 border-b">
+                      <DialogTitle>Error Loading Upload</DialogTitle>
+                  </DialogHeader>
+                  <div className="flex-1 flex items-center justify-center p-6">
+                      <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>Loading Failed</AlertTitle>
+                          <AlertDescription>{error}</AlertDescription>
+                      </Alert>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-4 border-t">
+                      <Button variant="outline" onClick={onClose} className="rounded-full">
+                          Close
+                      </Button>
+                  </div>
+              </DialogContent>
+          </Dialog>
+      );
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
         className="max-w-2xl max-h-[90vh] flex flex-col"
-        aria-describedby="upload-dialog-description"
+        aria-describedby="attachment-upload-description"
       >
-        <DialogHeader>
-          <DialogTitle>Upload Files</DialogTitle>
-          <DialogDescription id="upload-dialog-description">
-            Add images or PDFs to your response. You can add descriptions and tag people in them.
+        <DialogHeader className="pt-6 px-6 pb-4 border-b">
+          <DialogTitle>Upload Attachments</DialogTitle>
+          <DialogDescription id="attachment-upload-description">
+            Upload images or PDFs related to this response. Add optional details and tags.
           </DialogDescription>
         </DialogHeader>
 
@@ -512,9 +579,8 @@ export default function AttachmentUpload({
                   onClick={() => {
                     setFiles([]);
                     previews.forEach(preview => {
-                      if (preview !== 'pdf') {
-                        URL.revokeObjectURL(preview);
-                      }
+                      // No need to check for 'pdf' here, revoke all object URLs
+                      URL.revokeObjectURL(preview);
                     });
                     setPreviews([]);
                   }}
@@ -526,19 +592,24 @@ export default function AttachmentUpload({
               <div className="max-w-md mx-auto">
                 <div className="relative group">
                   <div className="rounded-lg overflow-hidden bg-gray-100 border h-[300px] flex items-center justify-center p-4">
-                    <AttachmentThumbnail
-                      attachment={{
-                        id: 'preview',
-                        fileUrl: previews[0],
-                        fileType: files[0].type,
-                        fileName: files[0].name,
-                        description: null,
-                        dateCaptured: null,
-                        yearCaptured: null
-                      }}
-                      size="lg"
-                      className="w-full h-full"
-                    />
+                    {/* Direct Preview Rendering Logic */}
+                    {previews[0] && files[0].type.startsWith('image/') ? (
+                      <img 
+                        src={previews[0]} 
+                        alt={`Preview of ${files[0].name}`} 
+                        className="max-w-full max-h-full object-contain" 
+                      />
+                    ) : previews[0] && files[0].type === 'application/pdf' ? (
+                      <div className="flex flex-col items-center text-gray-500">
+                        <FileText className="h-16 w-16 mb-2" />
+                        <span>PDF Selected</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center text-gray-500">
+                         <FileIcon className="h-16 w-16 mb-2" />
+                         <span>File Selected</span>
+                      </div>
+                    )}
                   </div>
                   <p className="text-xs text-gray-500 mt-1 text-center">
                     {files[0].name}

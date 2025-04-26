@@ -1,188 +1,215 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { supabase, getUser, invalidateUserCache } from '@/utils/supabase/client';
-import type { User, AuthChangeEvent } from '@supabase/supabase-js';
+import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js';
+import { getProfileSafely } from '@/utils/supabase/client-helpers';
+import { useUserStore } from '@/stores/userStore'; // Import useUserStore
+import type { Profile } from '@/types/models'; // Import the canonical Profile type
 
-// Define the shape of our auth context
+// Remove the local Profile interface definition
+// interface Profile {
+//   id: string; 
+//   fullName: string | null;
+//   displayName: string | null;
+//   email: string | null;
+//   firstName: string | null;
+//   lastName: string | null;
+//   avatarUrl: string | null;
+//   phone: string | null;
+//   isAdmin: boolean | null;
+//   createdAt: string | null; 
+//   updatedAt: string | null;
+// }
+
+// Define the shape of our auth context using the imported Profile type
 interface AuthContextType {
   user: User | null;
-  loading: boolean;
-  refreshUser: () => Promise<void>;
+  session: Session | null;
+  profile: Profile | null; // Use imported Profile type
+  loading: boolean; // Combined loading state
+  refreshUser: () => Promise<User | null>;
   signOut: () => Promise<void>;
-  checkServerSession: () => Promise<void>;
+  setUser: (user: User | null) => void; // Keep for potential external use
 }
 
 // Create the auth context with default values
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  session: null,
+  profile: null, // Default to null
   loading: true,
-  refreshUser: async () => {},
+  refreshUser: async () => null,
   signOut: async () => {},
-  checkServerSession: async () => {},
+  setUser: () => {},
 });
 
 // Provider component that wraps the app and makes auth available
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(null);
+  const { profile, setProfile } = useUserStore();
+  const [loading, setLoading] = useState(true); // Represents initial auth check + profile load
   
-  // Function to refresh user data
-  const refreshUser = async () => {
-    try {
-      console.log('[AUTH_PROVIDER] Refreshing user data');
-      // Invalidate cache to ensure fresh data
-      invalidateUserCache();
-      const user = await getUser();
-      console.log('[AUTH_PROVIDER] User refresh result:', { hasUser: !!user });
-      setUser(user);
-    } catch (error) {
-      console.error('[AUTH_PROVIDER] Error refreshing user:', error);
-      setUser(null);
+  // Function to fetch profile data for a given user ID
+  const fetchProfileForUser = useCallback(async (userId: string) => {
+    if (!userId) {
+      setProfile(null); // Use setProfile from store
+      return;
     }
-  };
-  
-  // Function to check server-side session
-  const checkServerSession = async () => {
+    console.log(`[AUTH_PROVIDER] Fetching profile for user: ${userId.substring(0,8)}`);
     try {
-      console.log('[AUTH_PROVIDER] Checking server-side session');
-      const response = await fetch('/api/auth/session', {
-        method: 'GET',
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        console.log('[AUTH_PROVIDER] Server session check failed');
-        return;
-      }
-      
-      const data = await response.json();
-      console.log('[AUTH_PROVIDER] Server session check result:', { hasSession: !!data.session });
-      
-      if (data.session) {
-        // If server has a session but client doesn't, refresh the client
-        if (!user) {
-          console.log('[AUTH_PROVIDER] Server has session but client doesn\'t, refreshing user');
-          await refreshUser();
-        }
+      const profileData = await getProfileSafely(userId);
+      if (profileData) {
+        console.log('[AUTH_PROVIDER] Profile data fetched successfully');
+        setProfile(profileData as Profile); // Use setProfile from store (type should now match)
       } else {
-        // If server doesn't have a session but client does, clear client
-        if (user) {
-          console.log('[AUTH_PROVIDER] Server has no session but client does, clearing user');
-          setUser(null);
-        }
+        console.warn('[AUTH_PROVIDER] No profile data found for user:', userId);
+        setProfile(null); // Use setProfile from store
       }
     } catch (error) {
-      console.error('[AUTH_PROVIDER] Error checking server session:', error);
+      console.error('[AUTH_PROVIDER] Error fetching profile:', error);
+      setProfile(null); // Use setProfile from store
     }
-  };
+  }, [setProfile]); // Add setProfile from store to dependency array
+
+  // Function to refresh user data using Supabase methods
+  const refreshUser = useCallback(async (): Promise<User | null> => {
+    console.log('[AUTH_PROVIDER] Refreshing user data via supabase.auth.getUser()');
+    setLoading(true);
+    setProfile(null); // Clear profile in store while refreshing
+    try {
+      const { data: { user: refreshedUser }, error } = await supabase.auth.getUser();
+      if (error) {
+        console.error('[AUTH_PROVIDER] Error during getUser for refresh:', error);
+        setUser(null);
+        setSession(null);
+        setProfile(null); // Clear profile in store
+        return null;
+      }
+      
+      setUser(refreshedUser);
+      // Refresh session state as well
+      const { data: { session: refreshedSession } } = await supabase.auth.getSession();
+      setSession(refreshedSession);
+      
+      // Fetch profile if user exists after refresh
+      if (refreshedUser) {
+        await fetchProfileForUser(refreshedUser.id);
+      }
+       console.log('[AUTH_PROVIDER] User refresh complete:', { 
+        hasUser: !!refreshedUser,
+        userId: refreshedUser?.id?.substring(0, 8),
+      });
+      return refreshedUser;
+    } catch (error) {
+      console.error('[AUTH_PROVIDER] Unexpected error refreshing user:', error);
+      setUser(null);
+      setSession(null);
+      setProfile(null); // Clear profile in store
+      return null;
+    } finally {
+      setLoading(false); // Loading finishes after user and profile fetch attempts
+    }
+  }, [fetchProfileForUser, setProfile]); // Add setProfile to dependency array
   
   // Function to sign out
   const signOut = async () => {
     try {
       console.log('[AUTH_PROVIDER] Signing out user');
-      // Call the API endpoint to clear cookies
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      
-      // Sign out from Supabase
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('[AUTH_PROVIDER] Error signing out:', error);
+      } else {
+        // Clear state immediately upon successful sign out
       setUser(null);
-      invalidateUserCache();
-      console.log('[AUTH_PROVIDER] User signed out successfully');
+        setSession(null);
+        setProfile(null); // Clear profile in store
+        invalidateUserCache(); // Invalidate client-side cache if needed
+        console.log('[AUTH_PROVIDER] User signed out successfully, state cleared.');
+      }
     } catch (error) {
-      console.error('[AUTH_PROVIDER] Error signing out:', error);
+      console.error('[AUTH_PROVIDER] Unexpected error during sign out:', error);
+      setUser(null);
+      setSession(null);
+      setProfile(null); // Clear profile in store
     }
   };
 
   useEffect(() => {
-    console.log('[AUTH_PROVIDER] Initializing auth state');
-    let mounted = true;
+    console.log('[AUTH_PROVIDER] Initializing auth state listener');
+    setLoading(true);
+    let profileFetchInitiated = false;
 
-    // Initial user verification
-    const verifyUser = async () => {
-      try {
-        console.log('[AUTH_PROVIDER] Verifying user');
-        const user = await getUser();
-        console.log('[AUTH_PROVIDER] User verification result:', { hasUser: !!user });
-        
-        if (mounted) {
-          setUser(user);
-        }
-      } catch (error: any) {
-        // Handle AuthSessionMissingError specifically
-        if (error.name === 'AuthSessionMissingError' || error.message?.includes('Auth session missing')) {
-          console.log('[AUTH_PROVIDER] No auth session found, user is not authenticated');
-          // This is an expected state for unauthenticated users, not an error
-        } else {
-          console.error('[AUTH_PROVIDER] Error verifying user:', error);
-        }
-        
-        if (mounted) {
-          setUser(null);
-        }
-      } finally {
-        if (mounted) {
-          console.log('[AUTH_PROVIDER] Setting loading to false');
-          setLoading(false);
-        }
-      }
-    };
+    // Get initial session/user state reliably
+    supabase.auth.getSession().then(async ({ data: { session: initialSession } }) => {
+      console.log('[AUTH_PROVIDER] Initial getSession result:', { hasSession: !!initialSession });
+      setSession(initialSession);
+      const initialUser = initialSession?.user ?? null;
+      setUser(initialUser);
 
-    verifyUser();
-    
-    // Check server session after initial verification
-    const checkSession = async () => {
-      await verifyUser();
-      if (mounted) {
-        await checkServerSession();
+      if (initialUser) {
+        profileFetchInitiated = true;
+        await fetchProfileForUser(initialUser.id);
       }
-    };
-    
-    checkSession();
-
-    // Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent) => {
-      console.log('[AUTH_PROVIDER] Auth state changed:', event);
-      
-      if (!mounted) return;
-
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        console.log('[AUTH_PROVIDER] User signed in or token refreshed');
-        invalidateUserCache();
-        await verifyUser();
-      }
-      if (event === 'SIGNED_OUT') {
-        console.log('[AUTH_PROVIDER] User signed out');
-        setUser(null);
-        setLoading(false);
-        invalidateUserCache();
-      }
+      // Only set loading false after initial auth check AND potential profile fetch are done
+      setLoading(false); 
+    }).catch(error => {
+      console.error('[AUTH_PROVIDER] Error fetching initial session:', error);
+      setLoading(false); // Ensure loading stops on error
     });
 
-    // Cleanup function
-    return () => {
-      console.log('[AUTH_PROVIDER] Cleaning up auth effect');
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, changedSession) => {
+      console.log('[AUTH_PROVIDER] Auth state changed:', { event, hasSession: !!changedSession });
+      setSession(changedSession);
+      const changedUser = changedSession?.user ?? null;
+      
+      // Read profile from store for comparison
+      const currentProfile = useUserStore.getState().profile;
+      setUser(changedUser);
+      
+      // Fetch profile when user signs in or session is restored
+      if (changedUser && (!currentProfile || changedUser.id !== currentProfile?.id)) { 
+         // Ensure we don't double-fetch if initial fetch is still running
+         if (!profileFetchInitiated || event !== 'INITIAL_SESSION') { 
+            console.log('[AUTH_PROVIDER] Auth change detected, fetching profile...');
+            setLoading(true); // Set loading true during profile fetch triggered by auth change
+            await fetchProfileForUser(changedUser.id); // Use stable function
+            setLoading(false);
+         }
+      } else if (!changedUser) {
+        // Clear profile if user signs out
+        setProfile(null); // Use stable function from store
+      }
+      profileFetchInitiated = false; // Reset flag after handling
+    });
 
-  // Provide the auth context value
-  const value = {
+    return () => {
+      console.log('[AUTH_PROVIDER] Unsubscribing auth listener');
+      subscription?.unsubscribe();
+    };
+  }, [fetchProfileForUser]); 
+
+  // Provide the auth context value to children
+  const value: AuthContextType = {
     user,
+    session,
+    profile, // Expose profile from store
     loading,
     refreshUser,
     signOut,
-    checkServerSession,
+    setUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// Custom hook to use the auth context
+// Hook to use the auth context
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 } 

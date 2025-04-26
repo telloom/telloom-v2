@@ -1,0 +1,1 @@
+CREATE OR REPLACE FUNCTION get_prompt_responses_by_sharer(sharer_id UUID) RETURNS JSON AS $$ DECLARE result JSON; BEGIN WITH prompt_data AS (SELECT pr.* FROM "PromptResponse" pr WHERE pr."profileSharerId" = sharer_id) SELECT COALESCE(json_agg(pd.*), '[]'::json) INTO result FROM prompt_data pd; RETURN result; END; $$ LANGUAGE plpgsql SECURITY DEFINER;

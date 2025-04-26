@@ -24,7 +24,6 @@ export interface UIAttachment {
   fileSize: number | null;
   title: string | null;
   description: string | null;
-  estimatedYear: number | null;
   dateCaptured: Date | null;  // Keep as Date for comparison
   yearCaptured: number | null;
   
@@ -100,7 +99,6 @@ export function toUIAttachment(attachment: PromptResponseAttachment & { signedUr
     fileSize: attachment.fileSize,
     title: attachment.title,
     description: attachment.description,
-    estimatedYear: attachment.estimatedYear,
     dateCaptured: attachment.dateCaptured,
     yearCaptured: attachment.yearCaptured,
     

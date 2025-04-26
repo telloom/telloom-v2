@@ -10,12 +10,17 @@ import {
 } from '@/components/ui/tooltip';
 
 interface ActionButtonProps {
-  icon: 'star' | 'plus' | LucideIcon;
+  icon?: 'star' | 'plus' | LucideIcon;
   isActive?: boolean;
   onClick: (e: React.MouseEvent) => void;
-  tooltip: string;
+  tooltip?: string;
   isLoading?: boolean;
+  loading?: boolean;
   className?: string;
+  variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" | "primary" | null | undefined;
+  size?: "default" | "sm" | "lg" | "icon" | null | undefined;
+  children?: React.ReactNode;
+  disabled?: boolean;
 }
 
 export function ActionButton({
@@ -24,7 +29,12 @@ export function ActionButton({
   onClick,
   tooltip,
   isLoading,
-  className
+  loading,
+  className,
+  variant = "ghost",
+  size = "icon",
+  children,
+  disabled
 }: ActionButtonProps) {
   const Icon = typeof icon === 'string'
     ? icon === 'star'
@@ -32,25 +42,40 @@ export function ActionButton({
       : ListPlus
     : icon;
 
+  // Use either loading or isLoading prop
+  const isButtonLoading = loading || isLoading;
+  
+  // If we don't have an icon but do have children, don't try to render the icon
+  const buttonContent = isButtonLoading ? (
+    <Loader2 className="h-4 w-4 animate-spin" />
+  ) : Icon ? (
+    <Icon
+      className={`h-4 w-4 ${isActive ? 'fill-current' : ''}`}
+    />
+  ) : children;
+
+  const button = (
+    <Button
+      variant={variant}
+      size={size}
+      onClick={onClick}
+      disabled={disabled || isButtonLoading}
+      className={className}
+    >
+      {buttonContent}
+    </Button>
+  );
+
+  // Only wrap in tooltip if tooltip text is provided
+  if (!tooltip) {
+    return button;
+  }
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClick}
-            disabled={isLoading}
-            className={className}
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Icon
-                className={`h-4 w-4 ${isActive ? 'fill-current' : ''}`}
-              />
-            )}
-          </Button>
+          {button}
         </TooltipTrigger>
         <TooltipContent>
           <p>{tooltip}</p>

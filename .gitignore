@@ -50,3 +50,4 @@ secrets.txt
 
 # Webhook logs
 /webhook-logs-testing/
+certificates

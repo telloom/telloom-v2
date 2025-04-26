@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import axios from 'axios';
-import { createClient, getUser } from '@/utils/supabase/server';
+import { createClient } from '@/utils/supabase/server';
 
 if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
   throw new Error('Missing required Mux environment variables');
@@ -39,11 +39,13 @@ type QualityOption = keyof typeof QUALITY_OPTIONS;
 
 export async function POST(request: Request) {
   try {
-    // Get the user
+    // Get the user using the standard pattern
     console.log('Starting authentication check...');
-    const user = await getUser();
-    if (!user?.id) {
-      console.log('Authentication failed: No user ID found');
+    const supabase = createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user?.id) {
+      console.log('Authentication failed:', authError || 'No user ID found');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

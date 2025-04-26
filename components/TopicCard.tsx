@@ -2,9 +2,8 @@
 // This component displays a card for a specific prompt category, showing its progress and allowing navigation to the topic's details page.
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { PromptCategory } from '@/types/models';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,34 +14,107 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { ArrowRight, CheckCircle2, ListOrdered } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import { PromptListPopup } from '@/components/PromptListPopup';
+import type { PromptCategory, Prompt, PromptResponse } from '@/types/models'; // Import canonical types
+
+// Extend PromptCategory to include the counts passed from the server
+interface ExtendedPromptCategory extends PromptCategory {
+  completedPromptCount?: number; // Optional for backward compatibility if needed elsewhere
+  totalPromptCount?: number;   // Optional for backward compatibility if needed elsewhere
+}
 
 interface TopicCardProps {
-  promptCategory: PromptCategory;
+  // Use the extended type
+  promptCategory: ExtendedPromptCategory; 
   onClick?: () => void;
   onFavoriteClick?: (e: React.MouseEvent) => void;
   onQueueClick?: (e: React.MouseEvent) => void;
+  currentRole?: 'SHARER' | 'EXECUTOR';
+  relationshipId?: string;
+  sharerId?: string;
+  // Remove direct count props if they are now part of promptCategory
+  // completedPromptCount?: number;
+  // totalPromptCount?: number;
 }
 
 export default function TopicCard({ 
   promptCategory,
   onClick,
   onFavoriteClick,
-  onQueueClick
+  onQueueClick,
+  currentRole = 'SHARER',
+  relationshipId,
+  sharerId
 }: TopicCardProps) {
   const router = useRouter();
   const [isPromptListOpen, setIsPromptListOpen] = useState(false);
   
-  // Safely handle potentially undefined prompts array
-  const prompts = promptCategory.prompts || [];
-  const completedCount = prompts.filter(p => Array.isArray(p.PromptResponse) && p.PromptResponse.length > 0).length;
-  const totalCount = prompts.length;
+  // Log the sharerId prop received by TopicCard
+  console.log(`[TopicCard Scope] Rendering card for ${promptCategory.category}. Received sharerId: ${sharerId}`);
+
+  // Use counts directly from the extended promptCategory prop
+  // Provide default values (0) if the props are not passed (though they should be)
+  const completedCount = promptCategory.completedPromptCount ?? 0;
+  const totalCount = promptCategory.totalPromptCount ?? 0;
+
+  useEffect(() => {
+    console.log('[TOPICCARD] Rendering card for:', promptCategory.category);
+    console.log('[TOPICCARD] Card has favorite:', promptCategory.isFavorite);
+    console.log('[TOPICCARD] Card has queue:', promptCategory.isInQueue);
+    console.log('[TOPICCARD] Current role:', currentRole, 'sharerId:', sharerId);
+    // Log the counts received from props
+    console.log('[TOPICCARD] Completion stats from props:', { completedCount, totalCount });
+    
+    // Logging the raw prompt array length might still be useful for debugging
+    const prompts = promptCategory.Prompt || []; 
+    console.log('[TOPICCARD] Raw Prompt array length:', prompts.length);
+  }, [promptCategory, currentRole, sharerId, completedCount, totalCount]); // Add counts to dependency array
+  
+  const handleNavigate = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const topicId = promptCategory.id;
+    console.log('[TOPICCARD] Attempting navigation:', { currentRole, sharerId, topicId });
+
+    if (!sharerId) {
+      console.error('[TOPICCARD] Navigation failed: sharerId is missing.');
+      // Optionally, show a toast or error message to the user
+      return; // Prevent navigation without sharerId
+    }
+
+    if (!topicId) {
+      console.error('[TOPICCARD] Navigation failed: topicId is missing.');
+      // Optionally, show a toast or error message to the user
+      return; // Prevent navigation without topicId
+    }
+
+    let path = '';
+    if (currentRole === 'EXECUTOR') {
+      // Ensure sharerId exists for executor route
+      if (!sharerId) {
+        console.error('[TOPICCARD] Navigation failed: sharerId is missing for EXECUTOR role.');
+        return;
+      }
+      path = `/role-executor/${sharerId}/topics/${topicId}`;
+    } else if (currentRole === 'SHARER') {
+      // Correct path for SHARER role - does not need sharerId in URL
+      path = `/role-sharer/topics/${topicId}`;
+    } else {
+      console.warn('[TOPICCARD] Navigation failed: Unknown currentRole:', currentRole);
+      return; // Don't navigate if role is unexpected
+    }
+    
+    console.log('[TOPICCARD] Navigating to:', path);
+    router.push(path);
+  };
 
   return (
     <>
       <Card 
         className="w-full min-h-[150px] border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 relative flex flex-col rounded-2xl"
+        onClick={onClick || handleNavigate}
       >
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start gap-2">
@@ -55,6 +127,7 @@ export default function TopicCard({
               <TooltipProvider>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">
+                    {/* Display counts from props */} 
                     {completedCount}/{totalCount}
                   </span>
                 </div>
@@ -146,10 +219,28 @@ export default function TopicCard({
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => setIsPromptListOpen(true)}
-                      className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-[#8fbc55] rounded-full"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsPromptListOpen(true);
+                      }}
+                      className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
                     >
-                      <ListOrdered className="h-5 w-5 md:h-6 md:w-6 text-[#1B4332]" />
+                      <svg 
+                        className="w-[18px] h-[18px] md:w-[20px] md:h-[20px] text-[#1B4332] hover:text-[#8fbc55] transition-colors"
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="3" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                      >
+                        <line x1="8" y1="6" x2="21" y2="6"></line>
+                        <line x1="8" y1="12" x2="21" y2="12"></line>
+                        <line x1="8" y1="18" x2="21" y2="18"></line>
+                        <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                        <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                        <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                      </svg>
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -164,17 +255,25 @@ export default function TopicCard({
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => router.push(`/role-sharer/topics/${promptCategory.id}`)}
-                      className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-[#8fbc55] rounded-full"
+                      onClick={handleNavigate}
+                      className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
                     >
-                      <ArrowRight className={cn(
-                        "h-5 w-5 md:h-6 md:w-6 transition-colors stroke-[3]",
-                        "text-[#1B4332]"
-                      )} />
+                      <svg 
+                        className="w-[20px] h-[20px] md:w-[22px] md:h-[22px] text-[#1B4332] hover:text-[#8fbc55] transition-colors"
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="4" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                      >
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                      </svg>
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Start recording</p>
+                    <p>{currentRole === 'EXECUTOR' ? 'View topic' : 'Start recording'}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -183,9 +282,11 @@ export default function TopicCard({
         </CardContent>
       </Card>
 
+      {/* Keep the popup rendering logic, ensuring sharerId is passed */}
       {isPromptListOpen && (
         <PromptListPopup
           promptCategory={promptCategory}
+          sharerId={sharerId}
           isOpen={isPromptListOpen}
           onClose={() => setIsPromptListOpen(false)}
         />

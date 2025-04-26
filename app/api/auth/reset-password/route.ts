@@ -30,8 +30,8 @@ export async function POST(req: NextRequest) {
     
     const { password, access_token } = result.data;
     
-    // Create Supabase client
-    const supabase = createClient();
+    // We need the anon client to reset the password
+    const supabase = await createClient();
     
     // Set the access token in the session
     const { error: sessionError } = await supabase.auth.setSession({

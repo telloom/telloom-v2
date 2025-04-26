@@ -1,8 +1,7 @@
-import { createClient } from '@/utils/supabase/server';
+import { createRouteHandlerClient } from '@/utils/supabase/route-handler';
 import { createAdminClient } from '@/utils/supabase/admin';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getUser } from '@/utils/supabase/server';
 
 interface Notification {
   id: string;
@@ -16,71 +15,87 @@ interface Notification {
 }
 
 export async function GET(request: NextRequest) {
+  console.log('[NOTIFICATIONS_API] Starting GET request');
+  
   try {
-    const user = await getUser();
-    if (!user) {
+    const supabase = await createRouteHandlerClient();
+    const adminClient = createAdminClient();
+    
+    // Check authentication
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('[NOTIFICATIONS_API] Authentication error:', authError);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    console.log(`[NOTIFICATIONS_API] Fetching notifications for user: ${user.id}`);
+    
+    // Get the count parameter from URL
+    const url = new URL(request.url);
+    const countOnly = url.searchParams.get('count') === 'true';
+    
+    // Log user metadata for debugging
+    console.log('[NOTIFICATIONS_API] User metadata:', user.app_metadata);
+    
+    // Use RPC function to get role information
+    const { data: roleInfo, error: roleError } = await adminClient.rpc(
+      'get_user_role_emergency',
+      { user_id: user.id }
+    );
 
-    const { searchParams } = new URL(request.url);
-    const sharerId = searchParams.get('sharerId');
-    const countOnly = searchParams.get('count') === 'true';
-
-    console.log('Fetching notifications for user:', user.id, 'sharerId:', sharerId);
-
-    let query = createClient()
+    if (roleError) {
+      console.error('[NOTIFICATIONS_API] Error getting role info:', roleError);
+      return NextResponse.json({ error: 'Failed to check user roles' }, { status: 500 });
+    }
+    
+    console.log('[NOTIFICATIONS_API] User roles:', roleInfo?.roles || []);
+    
+    // Build the base query using admin client to bypass RLS
+    const query = adminClient
       .from('Notification')
       .select(countOnly ? 'id' : '*')
+      .eq('userId', user.id)
       .order('createdAt', { ascending: false });
-
-    if (sharerId) {
-      // When viewing notifications for a specific sharer:
-      // 1. Get notifications where they are the direct recipient (userId)
-      // 2. Get notifications that reference them in the data.sharerId field
-      query = query.or(`userId.eq.${sharerId},data->>'sharerId'.eq.${sharerId}`);
+    
+    // If we're only counting unread notifications, add that filter
+    if (countOnly) {
+      // Get unread notifications
+      const { data: unreadNotifications, error: countError } = await query
+        .eq('isRead', false);
+      
+      if (countError) {
+        console.error('[NOTIFICATIONS_API] Error counting notifications:', countError);
+        return NextResponse.json({ error: 'Failed to count notifications' }, { status: 500 });
+      }
+      
+      const count = unreadNotifications?.length || 0;
+      console.log('[NOTIFICATIONS_API] Returning unread count:', count);
+      return NextResponse.json({ count });
     } else {
-      // When viewing your own notifications, just get ones where you're the recipient
-      query = query.eq('userId', user.id);
+      // Return all notifications with pagination
+      const { data: notifications, error: notificationsError } = await query
+        .limit(50);
+      
+      if (notificationsError) {
+        console.error('[NOTIFICATIONS_API] Error fetching notifications:', notificationsError);
+        return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 });
+      }
+      
+      console.log('[NOTIFICATIONS_API] Found notifications:', notifications?.length || 0);
+      return NextResponse.json(notifications || []);
     }
-
-    // Add filter for unread notifications if counting
-    if (countOnly) {
-      query = query.eq('isRead', false);
-    }
-
-    console.log('Query:', query.toString());
-
-    const { data: notifications, error } = await query;
-
-    if (error) {
-      console.error('Error fetching notifications:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    // Return count if requested
-    if (countOnly) {
-      return NextResponse.json({ unreadCount: notifications?.length || 0 });
-    }
-
-    console.log('Found notifications:', notifications?.length || 0);
-    if (notifications?.length) {
-      console.log('First notification:', notifications[0]);
-    }
-
-    return NextResponse.json({ notifications: notifications || [] });
   } catch (error) {
-    console.error('Error in notifications GET:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('[NOTIFICATIONS_API] Unexpected error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function PATCH(request: Request) {
   try {
     const cookieStore = cookies();
-    const supabase = createClient();
+    const supabase = await createRouteHandlerClient();
+    const adminClient = createAdminClient();
     
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
@@ -99,7 +114,8 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const { error: updateError } = await supabase
+    // Use admin client to bypass RLS
+    const { error: updateError } = await adminClient
       .from('Notification')
       .update({ isRead: true })
       .in('id', ids)
@@ -125,8 +141,12 @@ export async function PATCH(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await getUser();
-    if (!user) {
+    // Use createRouteHandlerClient to get the authenticated user
+    const supabase = await createRouteHandlerClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      console.error('Authentication error in POST:', authError);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

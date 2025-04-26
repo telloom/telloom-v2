@@ -287,10 +287,10 @@ model PromptResponseAttachment {
   fileSize                          Int?
   title                             String?
   description                       String?
-  estimatedYear                     Int?
   uploadedAt                        DateTime                            @default(now()) @db.Timestamptz(6)
   dateCaptured                      DateTime?                           @db.Date
   yearCaptured                      Int?
+  updatedAt                         DateTime                            @default(now()) @db.Timestamptz(6)
   ProfileSharer                     ProfileSharer                       @relation(fields: [profileSharerId], references: [id], onDelete: NoAction)
   PromptResponse                    PromptResponse                      @relation(fields: [promptResponseId], references: [id], onDelete: Cascade)
   PromptResponseAttachmentPersonTag PromptResponseAttachmentPersonTag[]
@@ -390,7 +390,7 @@ model TopicFavorite {
   PromptCategory   PromptCategory   @relation(fields: [promptCategoryId], references: [id], onDelete: Cascade)
   ProfileSharer    ProfileSharer?   @relation(fields: [sharerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@unique([profileId, promptCategoryId])
+  @@unique([profileId, promptCategoryId, role, sharerId], map: "unique_topic_favorite_context")
   @@index([executorId], map: "topic_favorite_executor_idx")
   @@index([role], map: "topic_favorite_role_idx")
   @@index([sharerId], map: "topic_favorite_sharer_idx")
@@ -410,7 +410,7 @@ model TopicQueueItem {
   PromptCategory   PromptCategory   @relation(fields: [promptCategoryId], references: [id], onDelete: Cascade)
   ProfileSharer    ProfileSharer?   @relation(fields: [sharerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@unique([profileId, promptCategoryId])
+  @@unique([profileId, promptCategoryId, role, sharerId], map: "unique_topic_queue_context")
   @@index([executorId], map: "topic_queue_executor_idx")
   @@index([role], map: "topic_queue_role_idx")
   @@index([sharerId], map: "topic_queue_sharer_idx")
@@ -500,7 +500,7 @@ model TopicVideo {
   maxFrameRate         Decimal?               @db.Decimal
   languageCode         String?
   resolutionTier       String?
-  url                  String
+  url                  String?
   metadata             Json?
   airtableRecordId     String?
   createdAt            DateTime?              @default(now()) @db.Timestamptz(6)

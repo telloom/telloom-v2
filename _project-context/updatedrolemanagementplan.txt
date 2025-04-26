@@ -1,0 +1,338 @@
+# Telloom Role Management & Performance Improvement Plan
+
+This document details a step‐by‐step plan for improving role management, performance, and maintainability in the Telloom Next.js + Supabase application. It covers how to leverage JWT tokens, how to update Row-Level Security (RLS) policies, and how to protect role-specific routes with middleware.
+
+---
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [JWT-Based Role Management](#jwt-based-role-management)
+3. [Hybrid RLS Policies](#hybrid-rls-policies)
+4. [Security Definer Helper Functions](#security-definer-helper-functions)
+5. [Route Organization & Dedicated Layouts](#route-organization--dedicated-layouts)
+6. [Middleware for Role Protection](#middleware-for-role-protection)
+7. [Client-Side Role Handling with useAuth](#client-side-role-handling-with-useauth)
+8. [Performance Optimizations](#performance-optimizations)
+9. [Testing and Iteration](#testing-and-iteration)
+10. [Summary of Recommendations](#summary-of-recommendations)
+
+---
+
+## Overview
+
+Telloom users can assume one or more roles:
+- **SHARER:** Creates/manages personal video content and attachments.
+- **LISTENER:** Views content shared by a Sharer.
+- **EXECUTOR:** Oversees a Sharer’s content (with nearly the same privileges as the Sharer).
+- **ADMIN:** Possesses system-wide superuser capabilities.
+
+The roles are stored in the database across several tables:
+- **ProfileRole:** Maps each Profile to one or more roles.
+- **ProfileSharer:** Contains Sharer-specific data.
+- **ProfileListener:** Manages Listener–Sharer relationships.
+- **ProfileExecutor:** Manages Executor–Sharer relationships.
+
+The system must leverage JWT tokens to quickly determine a user’s role while retaining table-based checks for granular, record-specific permissions. Additionally, the UI will provide a “select role” experience if the user’s current active role does not match the role-specific route being accessed.
+
+---
+
+## JWT-Based Role Management
+
+1. **Embedding Role Data in JWT:**  
+   - On signup or role change, update the user’s metadata (e.g., `raw_app_meta_data`) to include their role (or roles).
+   - Ensure the JWT token automatically includes the role as a claim (for example, under `app_meta_data.role`).
+
+2. **Benefits:**  
+   - A fast, stateless verification of the user’s global role.
+   - Reduces the need for expensive joins in RLS policies.
+   - Simplifies client-side role-based UI decisions.
+
+---
+
+## Hybrid RLS Policies
+
+1. **Fast JWT Check:**  
+   - Use an expression like:  
+     ```sql
+     (auth.jwt() ->> 'role')::text = 'SHARER'
+     ```  
+     to allow immediate access when the JWT indicates the required role.
+
+2. **Detailed Permissions via Database Tables:**  
+   - For record-specific access (e.g. an Executor’s permissions based on the linked Sharer record), combine the JWT check with table-based checks or helper functions.
+
+3. **Example Hybrid Policy for a Content Table:**  
+   ```sql
+   CREATE POLICY video_access_policy ON "Video"
+     FOR ALL
+     USING (
+         ((auth.jwt() ->> 'role')::text = 'SHARER')
+         OR public.is_admin()
+         OR public.is_executor_for_sharer("profileSharerId")
+     )
+     WITH CHECK (
+         ((auth.jwt() ->> 'role')::text = 'SHARER')
+         OR public.is_admin()
+         OR public.is_executor_for_sharer("profileSharerId")
+     );
+
+
+
+⸻
+
+Security Definer Helper Functions
+
+Create helper functions to encapsulate permission checks while bypassing RLS on their own queries.
+	1.	is_admin() Function:
+
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM auth.users
+    WHERE id = auth.uid()
+      AND ((raw_app_meta_data->>'role')::text = 'admin'
+        OR COALESCE((raw_app_meta_data->>'is_super_admin')::boolean, false) = true)
+  );
+$$ LANGUAGE sql SECURITY DEFINER;
+
+
+	2.	is_sharer_owner() Function:
+
+CREATE OR REPLACE FUNCTION public.is_sharer_owner(sharer_id uuid)
+RETURNS boolean AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM "ProfileSharer"
+    WHERE id = sharer_id AND "profileId" = auth.uid()
+  );
+$$ LANGUAGE sql SECURITY DEFINER;
+
+
+	3.	is_executor_for_sharer() Function:
+
+CREATE OR REPLACE FUNCTION public.is_executor_for_sharer(sharer_id uuid)
+RETURNS boolean AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM "ProfileExecutor"
+    WHERE "sharerId" = sharer_id AND "executorId" = auth.uid()
+  );
+$$ LANGUAGE sql SECURITY DEFINER;
+
+
+	4.	has_sharer_access() Composite Function:
+
+CREATE OR REPLACE FUNCTION public.has_sharer_access(sharer_id uuid)
+RETURNS boolean AS $$
+  SELECT public.is_admin()
+      OR public.is_sharer_owner(sharer_id)
+      OR public.is_executor_for_sharer(sharer_id);
+$$ LANGUAGE sql SECURITY DEFINER;
+
+
+
+⸻
+
+Route Organization & Dedicated Layouts
+	1.	Next.js App Directory Structure:
+	•	Use app/(authenticated)/layout.tsx as a global authenticated layout (for shared navigation, user context, etc.).
+	•	Create dedicated folders for each role:
+	•	app/(authenticated)/role-sharer/
+	•	app/(authenticated)/role-executor/
+	•	app/(authenticated)/role-listener/
+	•	Each folder may have its own layout (e.g., layout.tsx) to handle role-specific navigation and state.
+	2.	Benefits:
+	•	Improves code separation and clarity.
+	•	Only the inner layout changes when switching roles—minimizing re-renders.
+	•	Shared UI components (like the header or notifications) are kept at the global authenticated level.
+
+⸻
+
+Middleware for Role Protection
+	1.	Implement Next.js Middleware:
+	•	The middleware reads the JWT token (e.g., from a cookie named sb:token) and decodes it.
+	•	It inspects the role claim, then verifies whether the current route is appropriate.
+	•	If a mismatch is found, do not show an error page; instead, redirect to a role-selection page.
+	2.	Example Middleware:
+
+// middleware.ts
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import jwtDecode from 'jwt-decode';
+
+export interface JwtPayload {
+  exp: number;
+  iat: number;
+  sub: string;
+  app_meta_data: { role?: string };
+}
+
+function getJwtPayload(token: string): JwtPayload | null {
+  try {
+    return jwtDecode<JwtPayload>(token);
+  } catch (err) {
+    return null;
+  }
+}
+
+export function middleware(request: NextRequest) {
+  const token = request.cookies.get('sb:token')?.value;
+  const url = request.nextUrl.clone();
+
+  if (!token) return NextResponse.next();
+
+  const payload = getJwtPayload(token);
+  if (!payload) return NextResponse.next();
+
+  const userRole = payload.app_meta_data?.role || '';
+
+  if (url.pathname.startsWith('/(authenticated)/role-sharer')) {
+    if (userRole !== 'SHARER') {
+      url.pathname = '/(authenticated)/select-role';
+      return NextResponse.redirect(url);
+    }
+  }
+  if (url.pathname.startsWith('/(authenticated)/role-executor')) {
+    if (userRole !== 'EXECUTOR') {
+      url.pathname = '/(authenticated)/select-role';
+      return NextResponse.redirect(url);
+    }
+  }
+  if (url.pathname.startsWith('/(authenticated)/role-listener')) {
+    if (userRole !== 'LISTENER') {
+      url.pathname = '/(authenticated)/select-role';
+      return NextResponse.redirect(url);
+    }
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: [
+    '/(authenticated)/role-sharer/:path*',
+    '/(authenticated)/role-executor/:path*',
+    '/(authenticated)/role-listener/:path*',
+  ],
+};
+
+
+	3.	Why Not Block Access Completely?
+– Instead of returning a “Forbidden” error, the middleware should let the route load, and then the UI can present a “Select Role” screen to help the user switch to the appropriate role.
+
+⸻
+
+Client-Side Role Handling with useAuth
+	1.	Implement a Custom Hook:
+– Create a React hook (useAuth) that reads the JWT token from cookies, decodes it (using a library such as jwt-decode), and exposes the user’s ID, email, and role.
+
+// hooks/useAuth.tsx
+'use client';
+
+import { createContext, useContext, useEffect, useState } from 'react';
+import jwtDecode from 'jwt-decode';
+
+export interface AuthState {
+  user: { id: string; email: string; role: string } | null;
+  loading: boolean;
+}
+
+const AuthContext = createContext<AuthState>({ user: null, loading: true });
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [authState, setAuthState] = useState<AuthState>({ user: null, loading: true });
+
+  useEffect(() => {
+    const match = document.cookie.match(new RegExp('(^| )sb:token=([^;]+)'));
+    const token = match ? match[2] : null;
+    if (token) {
+      try {
+        const decoded: any = jwtDecode(token);
+        setAuthState({
+          user: {
+            id: decoded.sub,
+            email: decoded.email,
+            role: decoded.app_meta_data?.role || '',
+          },
+          loading: false,
+        });
+      } catch (error) {
+        console.error('JWT decoding error:', error);
+        setAuthState({ user: null, loading: false });
+      }
+    } else {
+      setAuthState({ user: null, loading: false });
+    }
+  }, []);
+
+  return (
+    <AuthContext.Provider value={authState}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  return useContext(AuthContext);
+}
+
+
+	2.	Integrate at the Root Layout:
+– Wrap your global authenticated layout with <AuthProvider> so that any component can access the authenticated user and their role.
+
+⸻
+
+Performance Optimizations
+	1.	Server-Side Data Fetching:
+– Use Next.js Server Components in role-specific pages to fetch necessary data from Supabase using the server-side client.
+– This ensures the HTML delivered to the browser is populated with user-specific data, increasing page load speed.
+	2.	Optimize Database Queries:
+– Ensure your queries have explicit filters that match your RLS policies (for example, filtering by profileId = auth.uid()).
+– Add appropriate indexes on columns frequently used for joins and filtering.
+	3.	Batch Requests & Caching:
+– When multiple data requests are necessary, use RPC functions or batch queries.
+– Implement caching on the server (Next.js built-in caching in server components) and client (with SWR or React Query) to reduce redundant API calls.
+	4.	Reduce Client Re-Renders:
+– Use memoization (React.memo, useMemo, useCallback) to prevent unnecessary re-renders, particularly in role-specific navigation components.
+
+⸻
+
+Testing and Iteration
+	1.	JWT Verification:
+– Verify using tools like jwt.io that the JWT token contains the expected role claim.
+	2.	Middleware Testing:
+– Test that the middleware correctly redirects users (e.g., a user with a LISTENER role does not access /role-sharer).
+	3.	RLS Policy Checks:
+– Use Supabase’s SQL editor to test policies with simulated JWT claims:
+
+-- Simulate role as 'SHARER'
+SET local jwt.claims.role = 'SHARER';
+SELECT * FROM "Video" WHERE ...;
+
+
+	4.	Integration Tests:
+– Write tests (using Jest or another framework) that simulate authenticated requests with various roles to ensure the UI and data access behave as expected.
+
+⸻
+
+Summary of Recommendations
+	1.	RLS Policies:
+	•	Hybrid Approach: Use a fast JWT check for global role verification while retaining table-based checks (or using helper functions) for detailed, record-specific permission control.
+	•	Example:
+
+USING ( ((auth.jwt() ->> 'role')::text = 'SHARER')
+  OR public.is_admin()
+  OR public.is_executor_for_sharer("profileSharerId") )
+
+
+	2.	Middleware:
+	•	Role Selection UI: Allow role-specific routes to load but show a “Select Role” UI (or redirect to a role selection page) if the user’s active JWT role does not match the route.
+	•	This improves user experience by helping multi-role users select which context they wish to operate in, rather than completely blocking access.
+
+⸻
+
+By following this plan, you will achieve a robust, high-performance role management system in Telloom that leverages JWT tokens for fast verification while still enforcing detailed permissions using database tables and helper functions. This strategy also delivers a smooth, user-friendly navigation experience when switching between roles.
+
+⸻
+
+Reference this document as needed during implementation to ensure consistency in how roles, permissions, and routing are managed in the application.
+

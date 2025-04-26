@@ -32,19 +32,10 @@ export default function ConnectionsPageContent({
   return (
     <div className="container max-w-4xl mx-auto px-4 py-6">
       <div className="mb-8">
-        <BackButton href={`/role-executor/${sharerId}`} label="Back to Sharer" />
         <div className="flex justify-between items-center mt-4">
-          <div className="flex items-center gap-4">
-            <UserAvatar 
-              avatarImageUrl={sharerAvatarUrl}
-              firstName={sharerName.split(' ')[0] || ''}
-              lastName={sharerName.split(' ')[1] || ''}
-              size="h-12 w-12"
-            />
-            <h1 className="text-2xl font-bold">
-              Managing Connections for {sharerName}
-            </h1>
-          </div>
+          <h1 className="text-2xl font-bold">
+            Manage Connections
+          </h1>
           <Button
             onClick={() => setIsInviteModalOpen(true)}
             className="gap-2 rounded-full border-[1px] hover:bg-[#1B4332] hover:text-white transition-colors"

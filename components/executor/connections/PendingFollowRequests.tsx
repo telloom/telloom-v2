@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, Check, X } from 'lucide-react';
+import { Loader2, Check, X, RefreshCw } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 
@@ -26,138 +26,71 @@ export default function PendingFollowRequests({ sharerId, role }: PendingFollowR
   const [requests, setRequests] = useState<FollowRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isPermissionError, setIsPermissionError] = useState(false);
+
+  const fetchRequests = async () => {
+    setIsLoading(true);
+    setError(null);
+    setIsPermissionError(false);
+
+    try {
+      // Use API endpoint instead of direct query
+      const response = await fetch(`/api/connections/follow-requests?sharerId=${sharerId}`);
+      
+      if (response.status === 500) {
+        // Likely a permission error with the FollowRequest table
+        console.warn('Received 500 error from follow requests API, likely permissions issue');
+        setIsPermissionError(true);
+        setError('Unable to access follow requests due to database permissions');
+        return;
+      }
+      
+      if (response.status === 403) {
+        // Check if this is a database permission issue
+        const errorData = await response.json();
+        if (errorData.errorType === 'PERMISSION_DENIED') {
+          console.warn('Received database permission denied error:', errorData);
+          setIsPermissionError(true);
+          setError('Database access restricted: ' + errorData.message);
+          return;
+        }
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch follow requests');
+      }
+      
+      const data = await response.json();
+      setRequests(data.requests || []);
+    } catch (error) {
+      console.error('Error fetching follow requests:', error);
+      setError('Failed to fetch follow requests');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchRequests = async () => {
-      const supabase = createClient();
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const { data, error } = await supabase
-          .from('FollowRequest')
-          .select(`
-            id,
-            createdAt,
-            requestor:Profile (
-              id,
-              email,
-              firstName,
-              lastName
-            )
-          `)
-          .eq('sharerId', sharerId)
-          .eq('status', 'PENDING')
-          .order('createdAt', { ascending: false });
-
-        if (error) throw error;
-
-        setRequests(data || []);
-      } catch (error) {
-        console.error('Error fetching follow requests:', error);
-        setError('Failed to fetch follow requests');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchRequests();
   }, [sharerId]);
 
   const handleApproveRequest = async (requestId: string) => {
     try {
-      const supabase = createClient();
+      // Use API endpoint instead of direct operations
+      const response = await fetch(
+        `/api/connections/follow-requests?requestId=${requestId}&sharerId=${sharerId}&action=approve`, 
+        { method: 'PATCH' }
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to approve request');
+      }
 
-      // Get the request details for notifications
-      const request = requests.find(r => r.id === requestId);
-      if (!request) throw new Error('Request not found');
-
-      // Get the current user (executor) details
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { data: executor } = await supabase
-        .from('Profile')
-        .select('firstName, lastName')
-        .eq('id', user.id)
-        .single();
-
-      // Get the sharer details
-      const { data: sharer } = await supabase
-        .from('ProfileSharer')
-        .select(`
-          Profile!inner (
-            id,
-            firstName,
-            lastName
-          )
-        `)
-        .eq('id', sharerId)
-        .single();
-
-      // First create the ProfileListener record
-      const { error: listenerError } = await supabase
-        .from('ProfileListener')
-        .insert({
-          listenerId: request.requestor.id,
-          sharerId: sharerId,
-          sharedSince: new Date().toISOString(),
-          hasAccess: true,
-        });
-
-      if (listenerError) throw listenerError;
-
-      // Then update the follow request status
-      const { error: statusError } = await supabase
-        .from('FollowRequest')
-        .update({ 
-          status: 'APPROVED',
-          approvedAt: new Date().toISOString()
-        })
-        .eq('id', requestId);
-
-      if (statusError) throw statusError;
-
-      // Create notifications
-      await Promise.all([
-        // Notify the sharer
-        fetch('/api/notifications', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            userId: sharer?.Profile?.id,
-            type: 'FOLLOW_REQUEST',
-            message: `Executor (${executor.firstName} ${executor.lastName}) approved follow request from ${request.requestor.firstName} ${request.requestor.lastName}`,
-            data: {
-              action: 'APPROVED',
-              executorAction: true,
-              requestorId: request.requestor.id
-            }
-          })
-        }),
-        // Notify the requestor
-        fetch('/api/notifications', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            userId: request.requestor.id,
-            type: 'FOLLOW_REQUEST',
-            message: `Your request to follow ${sharer?.Profile?.firstName} ${sharer?.Profile?.lastName} has been approved`,
-            data: {
-              action: 'APPROVED',
-              sharerId: sharerId,
-              role: 'LISTENER'
-            }
-          })
-        })
-      ]);
-
-      setRequests(prev => prev.filter(r => r.id !== requestId));
-      toast.success('Follow request approved');
+      // Remove the approved request from the state
+      setRequests(prev => prev.filter(req => req.id !== requestId));
+      toast.success('Follow request approved successfully');
     } catch (error) {
       console.error('Error approving follow request:', error);
       toast.error('Failed to approve follow request');
@@ -166,89 +99,28 @@ export default function PendingFollowRequests({ sharerId, role }: PendingFollowR
 
   const handleDenyRequest = async (requestId: string) => {
     try {
-      const supabase = createClient();
+      // Use API endpoint instead of direct operations
+      const response = await fetch(
+        `/api/connections/follow-requests?requestId=${requestId}&sharerId=${sharerId}&action=deny`, 
+        { method: 'PATCH' }
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to deny request');
+      }
 
-      // Get the request details for notifications
-      const request = requests.find(r => r.id === requestId);
-      if (!request) throw new Error('Request not found');
-
-      // Get the current user (executor) details
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { data: executor } = await supabase
-        .from('Profile')
-        .select('firstName, lastName')
-        .eq('id', user.id)
-        .single();
-
-      // Get the sharer details
-      const { data: sharer } = await supabase
-        .from('ProfileSharer')
-        .select(`
-          Profile!inner (
-            id,
-            firstName,
-            lastName
-          )
-        `)
-        .eq('id', sharerId)
-        .single();
-
-      // Update the follow request status
-      const { error: statusError } = await supabase
-        .from('FollowRequest')
-        .update({ 
-          status: 'DENIED',
-          deniedAt: new Date().toISOString()
-        })
-        .eq('id', requestId);
-
-      if (statusError) throw statusError;
-
-      // Create notifications
-      await Promise.all([
-        // Notify the sharer
-        fetch('/api/notifications', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            userId: sharer?.Profile?.id,
-            type: 'FOLLOW_REQUEST',
-            message: `Executor (${executor.firstName} ${executor.lastName}) denied follow request from ${request.requestor.firstName} ${request.requestor.lastName}`,
-            data: {
-              action: 'DENIED',
-              executorAction: true,
-              requestorId: request.requestor.id
-            }
-          })
-        }),
-        // Notify the requestor
-        fetch('/api/notifications', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            userId: request.requestor.id,
-            type: 'FOLLOW_REQUEST',
-            message: 'Your follow request has been denied',
-            data: {
-              action: 'DENIED',
-              sharerId: sharerId
-            }
-          })
-        })
-      ]);
-
-      setRequests(prev => prev.filter(r => r.id !== requestId));
-      toast.success('Follow request denied');
+      // Remove the denied request from the state
+      setRequests(prev => prev.filter(req => req.id !== requestId));
+      toast.success('Follow request denied successfully');
     } catch (error) {
       console.error('Error denying follow request:', error);
       toast.error('Failed to deny follow request');
     }
+  };
+
+  const handleRefresh = () => {
+    fetchRequests();
   };
 
   if (isLoading) {
@@ -259,10 +131,39 @@ export default function PendingFollowRequests({ sharerId, role }: PendingFollowR
     );
   }
 
+  if (isPermissionError) {
+    return (
+      <div className="text-center p-6 border-2 border-gray-200 rounded-lg">
+        <p className="text-gray-600 mb-4">
+          Follow requests are unavailable at this time due to a temporary database access issue.
+        </p>
+        <p className="text-sm text-gray-500 mb-4">
+          Our team has been notified and is working to restore access.
+        </p>
+        <Button 
+          variant="outline" 
+          onClick={handleRefresh} 
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Try Again
+        </Button>
+      </div>
+    );
+  }
+
   if (error) {
     return (
-      <div className="text-center text-red-500 p-4">
-        {error}
+      <div className="text-center p-6 border-2 border-gray-200 rounded-lg">
+        <p className="text-red-500 mb-4">{error}</p>
+        <Button 
+          variant="outline" 
+          onClick={handleRefresh} 
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Try Again
+        </Button>
       </div>
     );
   }

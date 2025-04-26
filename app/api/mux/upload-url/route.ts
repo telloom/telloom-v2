@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+import { headers, cookies } from 'next/headers';
 import Mux from '@mux/mux-node';
 import { supabaseAdmin } from '@/utils/supabase/service-role';
-import { getProfile } from '@/lib/auth/profile';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
 if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
   throw new Error('Missing required Mux environment variables');
@@ -15,47 +15,121 @@ const muxClient = new Mux({
 });
 
 export async function POST(request: Request) {
+  console.log('[API /mux/upload-url] Received POST request');
+  let supabase;
+  let cookieStore;
+
   try {
-    // Get headers for auth and CORS
+    cookieStore = cookies();
+    supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          async get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+          set(name: string, value: string, options: CookieOptions) {
+            console.warn('[API /mux/upload-url] Attempted to set cookie in Route Handler (noop for request)', name);
+          },
+          remove(name: string, options: CookieOptions) {
+            console.warn('[API /mux/upload-url] Attempted to remove cookie in Route Handler (noop for request)', name);
+            cookieStore.set({ name, value: '', ...options });
+          },
+        },
+      }
+    );
+    console.log('[API /mux/upload-url] Supabase server client created successfully');
+  } catch (clientError) {
+    console.error('[API /mux/upload-url] FATAL: Failed to create Supabase client:', clientError);
+    // Immediately return JSON error if client creation fails
+    return NextResponse.json(
+      {
+        error: 'Internal Server Error',
+        message: 'Failed to initialize backend service. Please try again later.',
+        // Optionally include more detail in dev
+        // details: clientError instanceof Error ? clientError.message : 'Unknown client creation error'
+      },
+      { status: 500 }
+    );
+  }
+
+  // --- Main try block for the rest of the logic ---
+  try {
+    // Get user session using the successfully created client
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    console.log('[API /mux/upload-url] User fetched:', { userId: user?.id, error: userError?.message });
+
+    if (userError || !user) {
+      console.error('[API /mux/upload-url] Authentication failed:', userError);
+      return NextResponse.json({ error: 'Authentication failed' }, { status: 401 });
+    }
+
+    // Get headers for CORS
     const headersList = await headers();
-    const authHeader = headersList.get('authorization');
     const origin = headersList.get('origin');
     const corsOrigin = origin || process.env.NEXT_PUBLIC_APP_URL || '*';
     
-    if (!authHeader) {
+    // Get request body - Now expect targetSharerId as well
+    const { promptId, targetSharerId } = await request.json();
+
+    if (!promptId || !targetSharerId) {
+      console.warn('[API /mux/upload-url] Missing promptId or targetSharerId in request body');
       return NextResponse.json(
-        { error: 'Missing authorization header' },
-        { status: 401 }
+        { error: 'Missing required promptId or targetSharerId' },
+        { status: 400 }
       );
     }
+    console.log('[API /mux/upload-url] Received:', { promptId, targetSharerId });
 
-    // Get the profile with sharer data
-    const profile = await getProfile(authHeader);
-    if (!profile || !profile.sharerId) {
+    // --- CORRECTED PERMISSION CHECK LOGIC ---
+    // Use the *provided* targetSharerId for checks
+    console.log('[API /mux/upload-url] Checking permissions for user:', user.id, 'against targetSharerId:', targetSharerId);
+
+    const { data: ownerCheck, error: ownerError } = await supabaseAdmin
+      .from('ProfileSharer')
+      .select('id')
+      .eq('id', targetSharerId)      // Check against the targetSharerId
+      .eq('profileId', user.id)    // Is the current user the owner?
+      .maybeSingle();
+
+    const { data: executorCheck, error: executorError } = await supabaseAdmin
+      .from('ProfileExecutor')
+      .select('id')
+      .eq('sharerId', targetSharerId) // Check against the targetSharerId
+      .eq('executorId', user.id)   // Is the current user an executor for this sharer?
+      .maybeSingle();
+
+    if (ownerError || executorError) {
+      console.error('[API /mux/upload-url] Error checking permissions:', { ownerError, executorError });
+      return NextResponse.json({ error: 'Permission check failed' }, { status: 500 });
+    }
+
+    const isOwner = !!ownerCheck;
+    const isExecutor = !!executorCheck;
+
+    if (!isOwner && !isExecutor) {
+      console.warn('[API /mux/upload-url] Permission denied for user:', { userId: user.id, targetSharerId, isOwner, isExecutor });
       return NextResponse.json(
-        { error: 'User is not a sharer' },
+        { error: 'You do not have permission to upload videos for this sharer.' },
         { status: 403 }
       );
     }
 
-    // Get request body
-    const { promptId } = await request.json();
-    if (!promptId) {
-      return NextResponse.json(
-        { error: 'Missing promptId' },
-        { status: 400 }
-      );
-    }
+    console.log('[API /mux/upload-url] User permission granted:', { userId: user.id, targetSharerId, isOwner, isExecutor });
+    // Use the validated targetSharerId for subsequent operations
+    const profileSharerId = targetSharerId;
+    // --- END CORRECTED PERMISSION CHECK LOGIC ---
 
-    // Check if a video already exists for this prompt using admin client
+    // Check if a video already exists for this prompt and *this specific sharer*
     const { data: existingVideos, error: existingError } = await supabaseAdmin
       .from('Video')
       .select('id, status')
       .eq('promptId', promptId)
-      .eq('profileSharerId', profile.sharerId);
+      .eq('profileSharerId', profileSharerId); // Use the validated sharerId
 
     if (existingError) {
-      console.error('Error checking for existing videos:', existingError);
+      console.error('[API /mux/upload-url] Error checking for existing videos:', existingError);
       throw existingError;
     }
 
@@ -64,7 +138,7 @@ export async function POST(request: Request) {
     if (activeVideo) {
       console.log('Found existing active video for prompt:', {
         promptId,
-        profileSharerId: profile.sharerId,
+        profileSharerId,
         existingVideos
       });
       return NextResponse.json(
@@ -86,12 +160,12 @@ export async function POST(request: Request) {
       }
     }
 
-    // Create a new video record first using admin client
+    // Create a new video record for the correct sharer
     const { data: videoRecord, error: insertError } = await supabaseAdmin
       .from('Video')
       .insert({
         promptId,
-        profileSharerId: profile.sharerId,
+        profileSharerId: profileSharerId, // Use the validated sharerId
         status: 'WAITING'
       })
       .select('id')
@@ -118,7 +192,7 @@ export async function POST(request: Request) {
         passthrough: JSON.stringify({
           videoId: videoRecord.id,
           promptId,
-          profileSharerId: profile.sharerId
+          profileSharerId: profileSharerId // Pass the validated sharerId to Mux webhook
         })
       }
     };
@@ -140,9 +214,11 @@ export async function POST(request: Request) {
       .eq('id', videoRecord.id);
 
     if (updateError) {
-      console.error('Error updating video record:', updateError);
+      console.error('Error updating video record with upload ID:', updateError);
       throw updateError;
     }
+
+    console.log('[API /mux/upload-url] Successfully updated video record with Mux upload ID');
 
     // Return the response in the format expected by the frontend
     return NextResponse.json({
@@ -155,9 +231,14 @@ export async function POST(request: Request) {
       }
     });
   } catch (error) {
-    console.error('Error creating upload:', error);
+    // --- Catch block for errors *after* successful client creation ---
+    console.error('[API /mux/upload-url] Error during POST handler (main logic):', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred during processing.';
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      {
+        error: 'Internal Server Error',
+        message: errorMessage,
+      },
       { status: 500 }
     );
   }

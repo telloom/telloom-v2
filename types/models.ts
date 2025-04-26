@@ -44,7 +44,7 @@ export enum Role {
     category: string;
     description: string;
     theme: string | null;
-    prompts: Prompt[];
+    Prompt: Prompt[];
     isFavorite?: boolean;
     isInQueue?: boolean;
   }
@@ -182,6 +182,12 @@ export enum Role {
     lastName: string;
     email: string;
     avatarUrl?: string;
+    phone?: string | null;
+    addressStreet?: string | null;
+    addressUnit?: string | null;
+    addressCity?: string | null;
+    addressState?: string | null;
+    addressZipcode?: string | null;
     createdAt: Date;
     updatedAt: Date;
     roles?: ProfileRole[];

@@ -74,7 +74,8 @@ const US_STATES: USState[] = [
  */
 export async function getUSStates(): Promise<USState[]> {
   try {
-    const supabase = createClient();
+    // Await the creation of the server client
+    const supabase = await createClient();
     
     // Try to fetch states from the database
     const { data, error } = await supabase

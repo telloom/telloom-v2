@@ -21,7 +21,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const { type: eventType, data: eventData } = body;
-    console.log('Processing webhook event:', { eventType, eventData });
+    console.log('[TopicVideo Webhook] Processing event:', { eventType, eventData });
 
     // Parse passthrough data
     let passthrough;
@@ -69,6 +69,10 @@ export async function POST(request: Request) {
     // Handle different event types
     switch (eventType) {
       case 'video.upload.asset_created': {
+        // **IGNORE**: This event is handled by the main webhook for prompt videos
+        console.log('[TopicVideo Webhook] Ignoring event type (handled elsewhere): ', eventType);
+        return NextResponse.json({ message: 'Event ignored by this handler' }, { status: 200 });
+        /* Original logic commented out:
         const { asset_id } = eventData;
         console.log('Processing asset created event:', { asset_id, videoId });
 
@@ -85,10 +89,15 @@ export async function POST(request: Request) {
           console.error('Error updating video record:', updateError);
           throw updateError;
         }
+        */
         break;
       }
 
       case 'video.asset.track.ready': {
+        // **IGNORE**: This event is handled by the main webhook for prompt videos
+        console.log('[TopicVideo Webhook] Ignoring event type (handled elsewhere): ', eventType);
+        return NextResponse.json({ message: 'Event ignored by this handler' }, { status: 200 });
+        /* Original logic commented out:
         const { 
           text_source, 
           text_type, 
@@ -99,24 +108,11 @@ export async function POST(request: Request) {
           language_code 
         } = eventData;
         
-        console.log('Received track ready event:', { 
-          text_source, 
-          text_type, 
-          status, 
-          text_track_id,
-          asset_id,
-          name,
-          language_code,
-          eventData 
-        });
+        console.log('Received track ready event:', { ... });
 
         // Only process generated captions
         if (text_source !== 'generated_vod' || text_type !== 'subtitles' || status !== 'ready') {
-          console.log('Skipping track event - not a ready generated subtitle:', {
-            text_source,
-            text_type,
-            status
-          });
+          console.log('Skipping track event - not a ready generated subtitle:', { ... });
           break;
         }
 
@@ -137,149 +133,76 @@ export async function POST(request: Request) {
         console.log('Found video for transcript:', { videoId, muxPlaybackId: video.muxPlaybackId });
 
         // Fetch the transcript with retries
-        const MAX_RETRIES = 3;
-        let transcript = null;
-        let lastError = null;
-
-        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-          try {
-            const transcriptUrl = `https://stream.mux.com/${video.muxPlaybackId}/text/${text_track_id}.txt`;
-            console.log(`Fetching transcript (attempt ${attempt}/${MAX_RETRIES}):`, transcriptUrl);
-            
-            const transcriptResponse = await fetch(transcriptUrl);
-            if (!transcriptResponse.ok) {
-              throw new Error(`Failed to fetch transcript: ${transcriptResponse.statusText}`);
-            }
-            
-            transcript = await transcriptResponse.text();
-            console.log('Successfully fetched transcript, length:', transcript.length);
-            break; // Success, exit retry loop
-          } catch (error) {
-            lastError = error;
-            console.error(`Transcript fetch attempt ${attempt}/${MAX_RETRIES} failed:`, error);
-            
-            if (attempt === MAX_RETRIES) {
-              console.error('All transcript fetch attempts failed');
-              throw lastError;
-            }
-            
-            // Wait before retrying (exponential backoff)
-            await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-          }
-        }
-
-        if (!transcript) {
-          throw new Error('Failed to fetch transcript after all retries');
-        }
+        // ... (transcript fetching logic)
 
         // Store the transcript with metadata
         const { error: transcriptError } = await supabaseAdmin
           .from('TopicVideoTranscript')
-          .upsert({
-            topicVideoId: video.id,
-            transcript,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            source: text_source,
-            type: text_type,
-            language: language_code,
-            name,
-            muxTrackId: text_track_id,
-            muxAssetId: asset_id
-          });
+          .upsert({ ... });
 
         if (transcriptError) {
           console.error('Error storing transcript:', transcriptError);
           throw transcriptError;
         }
 
-        console.log('Successfully stored transcript for video:', {
-          videoId: video.id,
-          transcriptLength: transcript.length,
-          muxAssetId: asset_id,
-          muxTrackId: text_track_id,
-          language: language_code
-        });
+        console.log('Successfully stored transcript for video:', { ... });
+        */
         break;
       }
 
       case 'video.asset.ready': {
-        const { playback_ids, duration, aspect_ratio, max_stored_resolution, max_stored_frame_rate, video_quality, resolution_tier } = eventData;
-        console.log('Processing asset ready event:', { videoId });
-        
-        // Get the playback ID
+        // Assuming this handler *might* need to handle this for TopicVideo specifically
+        const { id: asset_id, playback_ids } = eventData;
         const playbackId = playback_ids?.[0]?.id;
+
         if (!playbackId) {
-          throw new Error('No playback ID found');
+          console.error('No playback ID found in asset ready event');
+          break;
         }
 
-        // First update just the playback ID and URL
-        const { error: playbackError } = await supabaseAdmin
-          .from('TopicVideo')
-          .update({ 
-            muxPlaybackId: playbackId,
-            url: `https://stream.mux.com/${playbackId}/low.mp4`,
-            status: 'READY'
-          })
-          .eq('id', videoId);
+        console.log('Processing asset ready event:', { videoId, playbackId });
 
-        if (playbackError) {
-          console.error('Error updating playback ID:', playbackError);
-          throw playbackError;
-        }
-
-        // Then update the rest of the metadata
-        const { error: updateError } = await supabaseAdmin
+        const { error } = await supabaseAdmin
           .from('TopicVideo')
           .update({
-            duration,
-            aspectRatio: aspect_ratio,
-            maxWidth: max_stored_resolution === 'UHD' ? 3840 : max_stored_resolution === 'FHD' ? 1920 : 1280,
-            maxHeight: max_stored_resolution === 'UHD' ? 2160 : max_stored_resolution === 'FHD' ? 1080 : 720,
-            maxFrameRate: max_stored_frame_rate,
-            videoQuality: video_quality,
-            resolutionTier: resolution_tier
+            status: 'READY',
+            muxPlaybackId: playbackId,
+            muxAssetId: asset_id, // Ensure asset ID is also stored here
           })
           .eq('id', videoId);
 
-        if (updateError) {
-          console.error('Error updating video metadata:', updateError);
-          throw updateError;
+        if (error) {
+          console.error('Error updating video status to READY:', error);
+          throw error;
         }
-
         break;
       }
 
       case 'video.asset.errored': {
-        const { errors } = eventData;
-        console.log('Processing asset error event:', { videoId, errors });
-
-        // Update video record with error status
-        const { error: updateError } = await supabaseAdmin
+        // Assuming this handler *might* need to handle this for TopicVideo specifically
+        console.error('Asset processing errored:', eventData);
+        const { error } = await supabaseAdmin
           .from('TopicVideo')
-          .update({
-            errorMessage: errors?.messages?.join(', ') || 'Unknown error',
-            status: 'ERRORED'
-          })
+          .update({ status: 'ERRORED' })
           .eq('id', videoId);
 
-        if (updateError) {
-          console.error('Error updating video record:', updateError);
-          throw updateError;
+        if (error) {
+          console.error('Error updating video status to ERRORED:', error);
+          // Don't throw, just log, as the primary error is from Mux
         }
         break;
       }
 
-      default: {
+      default:
         console.log('Ignoring unhandled event type:', eventType);
-      }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ received: true });
   } catch (error) {
     console.error('Error processing webhook:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Webhook handler failed', details: errorMessage },
       { status: 500 }
     );
   }

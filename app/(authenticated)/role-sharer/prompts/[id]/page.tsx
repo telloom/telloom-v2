@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from 'lucide-react';
 import { VideoResponseSection } from '@/components/prompt-response-section/video-response-section';
 import { GetPromptDataResult, GetPromptDataError, Prompt } from '@/types/models';
+import { getEffectiveSharerId } from '@/utils/supabase/role-helpers';
 
 async function getPromptData(promptId: string): Promise<GetPromptDataResult | GetPromptDataError> {
   console.log('getPromptData: Starting to fetch data for prompt ID:', promptId);
@@ -23,26 +24,21 @@ async function getPromptData(promptId: string): Promise<GetPromptDataResult | Ge
     return { error: 'Unauthorized' };
   }
 
-  // Get ProfileSharer record with role validation
+  // Get user roles with role validation
   const { data: userRoles, error: rolesError } = await supabase
     .from('ProfileRole')
     .select('role')
     .eq('profileId', user.id);
 
-  if (rolesError || !userRoles?.some(({ role }: { role: string }) => role === 'SHARER' || role === 'ADMIN')) {
+  if (rolesError || !userRoles?.some(({ role }: { role: string }) => role === 'SHARER' || role === 'EXECUTOR' || role === 'ADMIN')) {
     console.log('getPromptData: Role validation error:', rolesError);
     return { error: 'Unauthorized' };
   }
 
-  // Get ProfileSharer record
-  const { data: profileSharer, error: sharerError } = await supabase
-    .from('ProfileSharer')
-    .select('id')
-    .eq('profileId', user.id)
-    .single();
-
-  if (sharerError || !profileSharer) {
-    console.log('getPromptData: Profile sharer error:', sharerError);
+  // Get effective sharer ID (either the user's own sharer ID or the sharer ID they're executing for)
+  const effectiveSharerId = await getEffectiveSharerId(user.id, supabase);
+  if (!effectiveSharerId) {
+    console.log('getPromptData: Effective sharer ID not found');
     return { error: 'Profile not found' };
   }
 
@@ -122,7 +118,10 @@ async function getPromptData(promptId: string): Promise<GetPromptDataResult | Ge
 
   if (siblingError) {
     console.error('Error fetching sibling prompts:', siblingError);
-    return { prompt: prompt as unknown as Prompt, profileSharer };
+    return { 
+      prompt: prompt as unknown as Prompt, 
+      profileSharer: { id: effectiveSharerId } 
+    };
   }
 
   // Find current prompt index and get previous/next
@@ -132,7 +131,7 @@ async function getPromptData(promptId: string): Promise<GetPromptDataResult | Ge
 
   return { 
     prompt: prompt as unknown as Prompt, 
-    profileSharer,
+    profileSharer: { id: effectiveSharerId },
     siblingPrompts: {
       previousPrompt,
       nextPrompt
