@@ -51,24 +51,28 @@ export default function TopicCard({
   const [isPromptListOpen, setIsPromptListOpen] = useState(false);
   
   // Log the sharerId prop received by TopicCard
-  console.log(`[TopicCard Scope] Rendering card for ${promptCategory.category}. Received sharerId: ${sharerId}`);
+  // console.log(`[TopicCard Scope] Rendering card for ${promptCategory.category}. Received sharerId: ${sharerId}`);
 
   // Use counts directly from the extended promptCategory prop
   // Provide default values (0) if the props are not passed (though they should be)
   const completedCount = promptCategory.completedPromptCount ?? 0;
   const totalCount = promptCategory.totalPromptCount ?? 0;
+  // console.log(`[TOPICCARD] Completion stats from props: {completedCount: ${completedCount}, totalCount: ${totalCount}}`);
+  // console.log(`[TOPICCARD] Raw Prompt array length: ${promptCategory.Prompt?.length}`);
+
+  const progressValue = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   useEffect(() => {
-    console.log('[TOPICCARD] Rendering card for:', promptCategory.category);
-    console.log('[TOPICCARD] Card has favorite:', promptCategory.isFavorite);
-    console.log('[TOPICCARD] Card has queue:', promptCategory.isInQueue);
-    console.log('[TOPICCARD] Current role:', currentRole, 'sharerId:', sharerId);
+    // console.log(`[TOPICCARD] Rendering card for: ${promptCategory.category}`);
+    // console.log(`[TOPICCARD] Card has favorite: ${promptCategory.isFavorite}`);
+    // console.log(`[TOPICCARD] Card has queue: ${promptCategory.isInQueue}`);
+    // console.log(`[TOPICCARD] Current role: ${currentRole} sharerId: ${sharerId}`);
     // Log the counts received from props
-    console.log('[TOPICCARD] Completion stats from props:', { completedCount, totalCount });
+    // console.log(`[TOPICCARD] Completion stats from props: {completedCount: ${completedCount}, totalCount: ${totalCount}}`);
     
     // Logging the raw prompt array length might still be useful for debugging
     const prompts = promptCategory.Prompt || []; 
-    console.log('[TOPICCARD] Raw Prompt array length:', prompts.length);
+    // console.log(`[TOPICCARD] Raw Prompt array length: ${prompts.length}`);
   }, [promptCategory, currentRole, sharerId, completedCount, totalCount]); // Add counts to dependency array
   
   const handleNavigate = (e: React.MouseEvent) => {
@@ -76,16 +80,16 @@ export default function TopicCard({
     e.stopPropagation();
     
     const topicId = promptCategory.id;
-    console.log('[TOPICCARD] Attempting navigation:', { currentRole, sharerId, topicId });
+    // console.log(`[TOPICCARD] Attempting navigation: {currentRole: ${currentRole}, sharerId: ${sharerId}, topicId: ${topicId}}`);
 
     if (!sharerId) {
-      console.error('[TOPICCARD] Navigation failed: sharerId is missing.');
+      // console.error(`[TOPICCARD] Navigation failed: sharerId is missing.`);
       // Optionally, show a toast or error message to the user
       return; // Prevent navigation without sharerId
     }
 
     if (!topicId) {
-      console.error('[TOPICCARD] Navigation failed: topicId is missing.');
+      // console.error(`[TOPICCARD] Navigation failed: topicId is missing.`);
       // Optionally, show a toast or error message to the user
       return; // Prevent navigation without topicId
     }
@@ -94,7 +98,7 @@ export default function TopicCard({
     if (currentRole === 'EXECUTOR') {
       // Ensure sharerId exists for executor route
       if (!sharerId) {
-        console.error('[TOPICCARD] Navigation failed: sharerId is missing for EXECUTOR role.');
+        // console.error(`[TOPICCARD] Navigation failed: sharerId is missing for EXECUTOR role.`);
         return;
       }
       path = `/role-executor/${sharerId}/topics/${topicId}`;
@@ -102,11 +106,11 @@ export default function TopicCard({
       // Correct path for SHARER role - does not need sharerId in URL
       path = `/role-sharer/topics/${topicId}`;
     } else {
-      console.warn('[TOPICCARD] Navigation failed: Unknown currentRole:', currentRole);
+      // console.warn(`[TOPICCARD] Navigation failed: Unknown currentRole: ${currentRole}`);
       return; // Don't navigate if role is unexpected
     }
     
-    console.log('[TOPICCARD] Navigating to:', path);
+    // console.log(`[TOPICCARD] Navigating to: ${path}`);
     router.push(path);
   };
 

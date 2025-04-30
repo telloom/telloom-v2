@@ -2,17 +2,12 @@
 
 import TopicsTableAll from '@/components/TopicsTableAll';
 import { PromptCategory } from '@/types/models';
-import { Button } from '@/components/ui/button';
-import { ChevronLeft } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import UserAvatar from '@/components/UserAvatar';
 
 interface TopicsClientWrapperProps {
   initialPromptCategories: PromptCategory[];
   currentRole: 'EXECUTOR' | 'SHARER';
   relationshipId?: string;
   sharerId: string;
-  sharerName: string;
   sharerAvatarUrl: string | null;
 }
 
@@ -20,18 +15,8 @@ export default function TopicsClientWrapper({
   initialPromptCategories,
   currentRole,
   relationshipId,
-  sharerId,
-  sharerName,
-  sharerAvatarUrl
+  sharerId
 }: TopicsClientWrapperProps) {
-  const router = useRouter();
-
-  // Add debug log for navigation
-  const handleBackClick = () => {
-    console.log('[TOPICS_CLIENT_WRAPPER] Navigating back to:', `/role-executor/${sharerId}`);
-    router.push(`/role-executor/${sharerId}`);
-  };
-
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Remove the BackButton from this component */}

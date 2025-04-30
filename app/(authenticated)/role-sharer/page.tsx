@@ -1,18 +1,25 @@
 // app/role-sharer/page.tsx
 import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
-import TopicsList from '@/components/TopicsList';
 import RandomPrompt from '@/components/RandomPrompt';
 import TopicsAllButton from '@/components/TopicsAllButton';
-import { Prompt, PromptCategory } from '@/types/models';
-import { getEffectiveSharerId, getCompletedPromptsForSharer } from '@/utils/supabase/server';
 import { createAdminClient } from '@/utils/supabase/admin';
+import { BackButton } from '@/components/ui/BackButton';
+import SharerDashboardClient from '@/components/SharerDashboardClient';
 
-// We need to create a modified version of the PromptCategory that includes
-// the completion information needed for the dashboard
-interface ExtendedPromptCategory extends PromptCategory {
-  totalPrompts?: number;
-  completedPrompts?: number;
+// Define the expected structure from the RPC call get_sharer_topic_list
+// This should align with what TopicsList/TopicCard expects
+interface SharerTopicInfo {
+  id: string;
+  category: string;
+  description: string | null;
+  theme: string | null;
+  completedPromptCount: number;
+  totalPromptCount: number;
+  isFavorite: boolean;
+  isInQueue: boolean;
+  // Add prompts if the RPC returns them, otherwise mock/remove
+  Prompt?: any[]; // Adjust type based on actual RPC response if needed
 }
 
 export default async function RoleSharerPage() {
@@ -39,7 +46,8 @@ export default async function RoleSharerPage() {
       console.error('[SERVER] Error getting role info:', roleError);
       return (
         <div className="container mx-auto px-4 py-8">
-          <h1 className="text-3xl font-bold mb-8">Sharer Dashboard</h1>
+          <BackButton />
+          <h1 className="text-3xl font-bold mb-8 mt-4">Sharer Dashboard</h1>
           <p className="text-lg text-red-600 text-center">
             Error checking user role. Please try again later.
           </p>
@@ -60,7 +68,8 @@ export default async function RoleSharerPage() {
         // If they have sharer role but no sharer ID, show an error instead of redirecting
         return (
           <div className="container mx-auto px-4 py-8">
-            <h1 className="text-3xl font-bold mb-8">Sharer Dashboard</h1>
+            <BackButton />
+            <h1 className="text-3xl font-bold mb-8 mt-4">Sharer Dashboard</h1>
             <p className="text-lg text-amber-600 text-center">
               Your sharer profile is incomplete. Please contact support.
             </p>
@@ -69,222 +78,91 @@ export default async function RoleSharerPage() {
       }
     }
 
-    console.log('[SERVER PAGE] Role and sharer ID checks passed. Continuing with data fetching.');
-    console.log('[SERVER PAGE] Effective sharerId:', effectiveSharerId);
+    console.log('[SERVER PAGE] Role and sharer ID checks passed. Using effective sharerId:', effectiveSharerId);
 
-    // Skip UserPreference table query since it doesn't exist
-    console.log('[SERVER PAGE] Skipping user preferences fetch (table does not exist)');
-    
-    // Defaults for user preferences
-    const userPreferences = {
-      theme: 'light',
-      notifications: true
-    };
-
-    // Get user's favorited topics and queued topics with error handling
-    console.log('[SERVER PAGE] Fetching favorite and queued topics');
-    let favorites = [];
-    let queueItems = [];
-    
+    // --- Topics Fetching (remains the same) ---
+    console.log('[SERVER PAGE] Fetching sharer topic list via RPC for user:', user.id);
+    let topicsData: any[] = []; // Use any[] for initial RPC data
+    let topicsFetchError: any = null; 
     try {
-      const [favoritesResult, queueItemsResult] = await Promise.all([
-        supabase
-          .from('TopicFavorite')
-          .select('promptCategoryId')
-          .eq('profileId', user.id),
-        supabase
-          .from('TopicQueueItem')
-          .select('promptCategoryId')
-          .eq('profileId', user.id)
-      ]);
-      
-      favorites = favoritesResult.data || [];
-      queueItems = queueItemsResult.data || [];
-    } catch (error) {
-      console.error('[SERVER] Error fetching favorites/queue:', error);
-      // Continue with empty arrays
-    }
-
-    // Create Sets for efficient lookup
-    const favoritedIds = new Set(favorites?.map(f => f.promptCategoryId) || []);
-    const queuedIds = new Set(queueItems?.map(q => q.promptCategoryId) || []);
-
-    // First, fetch all prompt categories 
-    console.log('[SERVER PAGE] Fetching prompt categories');
-    let categories = [];
-    
-    try {
-      // Query to get categories
-      const { data: categoriesData, error: categoryError } = await supabase
-        .from('PromptCategory')
-        .select(`
-          id,
-          category,
-          description,
-          theme
-        `)
-        .order('category');  // Order by category name instead of orderIndex
-
-      if (categoryError) {
-        console.error('[SERVER] Error fetching prompt categories:', categoryError);
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('get_sharer_topic_list', { p_sharer_profile_id: user.id }); 
+      if (rpcError) {
+        topicsFetchError = rpcError; 
+        console.error('[SERVER] Error fetching sharer topic list via RPC:', topicsFetchError);
+        console.error('[SERVER] Stringified RPC Error:', JSON.stringify(topicsFetchError)); 
       } else {
-        categories = categoriesData || [];
-        console.log('[SERVER] Found', categories.length, 'categories');
+        topicsData = rpcData || [];
+        console.log('[SERVER] Found', topicsData.length, 'topics via RPC');
       }
     } catch (error) {
-      console.error('[SERVER] Unexpected error fetching categories:', error);
+      topicsFetchError = error;
+      console.error('[SERVER] Unexpected error during RPC fetch:', topicsFetchError);
+      console.error('[SERVER] Stringified Unexpected Error:', JSON.stringify(topicsFetchError));
     }
 
-    // Then, fetch all prompts for these categories
-    console.log('[SERVER PAGE] Fetching prompts for categories');
-    let allPrompts = [];
-
-    try {
-      // Get all prompt IDs as an array
-      const categoryIds = categories.map(c => c.id);
-      if (categoryIds.length > 0) {
-        const { data: promptsData, error: promptsError } = await supabase
-          .from('Prompt')
-          .select(`
-            id,
-            promptText,
-            promptType,
-            isContextEstablishing,
-            promptCategoryId
-          `)
-          .in('promptCategoryId', categoryIds);
-
-        if (promptsError) {
-          console.error('[SERVER] Error fetching prompts:', promptsError);
-        } else {
-          allPrompts = promptsData || [];
-          console.log('[SERVER] Found', allPrompts.length, 'prompts across all categories');
-        }
-      }
-    } catch (error) {
-      console.error('[SERVER] Unexpected error fetching prompts:', error);
-    }
-
-    // Use the safe helper function to get completed prompts
-    console.log('[SERVER PAGE] Fetching completed prompts using safe helper function');
-    const completedPromptsData = await getCompletedPromptsForSharer(effectiveSharerId);
-    console.log('[SERVER] Found', completedPromptsData.length, 'completed prompts');
-    
-    // Create a lookup map for completed prompt responses
-    const completedPromptMap = new Map();
-    completedPromptsData.forEach(cp => {
-      if (cp.promptId && cp.promptCategoryId) {
-        completedPromptMap.set(cp.promptId, {
-          videoId: cp.videoId,
-          promptCategoryId: cp.promptCategoryId
-        });
-      }
-    });
-
-    // Transform categories data to adapt to the expected PromptCategory format
-    const transformedCategories: PromptCategory[] = categories.map(category => {
-      // Filter prompts that belong to this category
-      const categoryPrompts = allPrompts.filter(p => p.promptCategoryId === category.id);
-      
-      // Transform each prompt to include PromptResponse array
-      const enhancedPrompts = categoryPrompts.map(prompt => {
-        // Create the base prompt object
-        const promptWithResponses = {
-          id: prompt.id,
-          promptText: prompt.promptText,
-          promptType: prompt.promptType || 'standard',
-          isContextEstablishing: prompt.isContextEstablishing || false,
-          promptCategoryId: prompt.promptCategoryId,
-          PromptCategory: {
-            id: category.id,
-            category: category.category
-          },
-          PromptResponse: [] // Default empty array
-        };
-        
-        // If this prompt has a completed response, add it
-        if (completedPromptMap.has(prompt.id)) {
-          const completionData = completedPromptMap.get(prompt.id);
-          promptWithResponses.PromptResponse = [{
-            id: `resp-${prompt.id}`, // Mock ID since we don't have the actual response ID
-            profileSharerId: effectiveSharerId,
-            summary: null,
-            createdAt: new Date().toISOString(),
-            Video: completionData.videoId ? {
-              id: completionData.videoId,
-              muxPlaybackId: "mock-playback-id", // Mock ID
-              muxAssetId: "mock-asset-id" // Mock ID
-            } : null,
-            PromptResponseAttachment: []
-          }];
-        }
-        
-        return promptWithResponses;
-      });
-
-      return {
-        id: category.id,
-        category: category.category,
-        description: category.description || '',
-        theme: category.theme,
-        Prompt: enhancedPrompts,
-        isFavorite: favoritedIds.has(category.id),
-        isInQueue: queuedIds.has(category.id)
-      };
-    });
-
-    // Log detailed info about what we're passing to the component
-    console.log('[SERVER] Transformed', transformedCategories.length, 'categories for rendering');
-    if (transformedCategories.length > 0) {
-      const sampleCategory = transformedCategories[0];
-      console.log('[SERVER] Sample category structure:', {
-        id: sampleCategory.id,
-        category: sampleCategory.category,
-        promptCount: sampleCategory.Prompt?.length || 0,
-        hasCompletedPrompts: sampleCategory.Prompt?.some(p => p.PromptResponse?.length > 0) || false
-      });
+    // --- Data Transformation ---
+    let allCategories: SharerTopicInfo[] = []; 
+    if (!topicsFetchError) {
+        allCategories = topicsData.map(topic => ({
+            id: topic.id,
+            category: topic.category,
+            description: topic.description || '',
+            theme: topic.theme || '',
+            completedPromptCount: topic.completed_prompt_count ?? 0, 
+            totalPromptCount: topic.total_prompt_count ?? 0,       
+            isFavorite: topic.is_favorite ?? false,                   
+            isInQueue: topic.is_in_queue ?? false,                   
+            Prompt: [] 
+        }));
+        console.log('[SERVER] Transformed', allCategories.length, 'categories from RPC data');
     }
     
-    // Skip fetching random prompt since function doesn't exist
-    console.log('[SERVER PAGE] Skipping random prompt (function does not exist)');
+    // Remove random prompt logic
     const randomPrompt = null;
+    console.log('[SERVER] Data fetching complete, preparing to render client wrapper');
 
-    console.log('[SERVER] Data fetching complete, rendering page');
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
+        <BackButton />
+        
+        <div className="flex justify-between items-center mb-8 mt-4">
           <h1 className="text-3xl font-bold">Sharer Dashboard</h1>
           <TopicsAllButton />
         </div>
         
-        {(!transformedCategories || transformedCategories.length === 0) && !randomPrompt && (
-          <div className="text-center py-8">
-            <p className="text-lg text-gray-600">
-              No data available at the moment. Please try again later.
+        <p className="text-muted-foreground text-base mb-10 max-w-3xl">
+          Explore topics and answer prompts about your life, stories, and perspectives. Add video responses, text summaries, and upload photos or other attachments to enrich your memories.
+        </p>
+
+        {/* --- UI Rendering Logic --- */}
+        
+        {topicsFetchError && (
+          <div className="text-center py-8 px-4 border border-red-300 bg-red-50 rounded-md">
+            <p className="text-lg text-red-700 font-semibold">Could not load topics</p>
+            <p className="text-sm text-red-600 mt-1">
+              There was an issue retrieving topic information. Please try refreshing the page.
             </p>
           </div>
         )}
 
-        {transformedCategories && transformedCategories.length > 0 && (
-          <div className="mb-8">
-            <TopicsList promptCategories={transformedCategories} />
-          </div>
-        )}
-
-        {randomPrompt && (
-          <div className="mt-8">
-            <RandomPrompt prompt={randomPrompt} />
-          </div>
+        {!topicsFetchError && (
+          <SharerDashboardClient 
+            initialCategories={allCategories}
+            sharerId={effectiveSharerId}
+          />
         )}
       </div>
     );
   } catch (error) {
-    console.error('[SERVER] Dashboard - Unexpected error:', error);
+    // This outer catch handles errors *before* the topics fetch (e.g., role check)
+    console.error('[SERVER] Dashboard - Pre-fetch error:', error); 
     return (
       <div className="container mx-auto px-4 py-8">
+        <BackButton />
         <h1 className="text-3xl font-bold mb-8">Sharer Dashboard</h1>
         <p className="text-lg text-gray-600 text-center">
-          Something went wrong. Please try again later.
+          Something went wrong loading the dashboard. Please try again later.
         </p>
       </div>
     );

@@ -1,15 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Loader2, Pencil, Trash2, Check, X, Info } from 'lucide-react';
+import { Loader2, Pencil, Trash2, Check, X, Info, Upload } from 'lucide-react';
 
 import { createClient } from '@/utils/supabase/client';
 import { type Tables } from '@/lib/database.types';
-import { type PromptResponseWithRelations } from '@/lib/types';
+import { type PromptResponse, type Video, type PromptResponseAttachment as ModelAttachment } from '@/types/models';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,56 +26,19 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-import { AttachmentUpload } from '@/components/attachment-upload/AttachmentUpload';
-import { AttachmentGallery } from '@/components/attachment-gallery/AttachmentGallery';
-import { AttachmentDialog } from '@/components/attachment-dialog/AttachmentDialog';
-import { PersonTagSelector } from '@/components/person-tag-selector/PersonTagSelector';
+import { PromptResponseGallery } from '@/components/PromptResponseGallery';
+import { ErrorDisplay } from '@/components/ErrorDisplay';
+import { VideoDownloadButton } from '@/components/video/VideoDownloadButton';
 
-import { updatePromptResponse } from '@/app/actions/prompt-responses';
-import { generateSignedAttachmentUrl } from '@/app/actions/attachments';
+const AttachmentUpload = dynamic(() => import('@/components/AttachmentUpload'), {
+  ssr: false,
+  loading: () => <div className="flex justify-center items-center p-4"><Loader2 className="h-5 w-5 animate-spin text-gray-400" /></div>,
+});
 
-type DbPromptResponseAttachment = Tables<'PromptResponseAttachment'> & {
-  PersonTag?: Pick<Tables<'PersonTag'>, 'id' | 'name' | 'relation'>[];
-};
-type DbVideo = Tables<'Video'>;
-type DbVideoTranscript = Tables<'VideoTranscript'>;
-type DbPersonTag = Tables<'PersonTag'>;
-
-interface UIAttachment {
-  id: string;
-  title: string;
-  description: string | null;
-  fileName: string;
-  fileUrl: string;
-  fileType: string | null;
-  fileSize: number | null;
-  yearCaptured: string | null;
-  uploadedAt: string;
-  signedUrl?: string;
-  promptResponseId: string;
-  profileSharerId: string;
-  PersonTag?: Pick<DbPersonTag, 'id' | 'name' | 'relation'>[]; 
-}
-
-function toUIAttachment(
-  dbAttachment: DbPromptResponseAttachment,
-  signedUrl?: string
-): UIAttachment {
-  return {
-    id: dbAttachment.id,
-    title: dbAttachment.title ?? dbAttachment.fileName,
-    description: dbAttachment.description,
-    fileName: dbAttachment.fileName,
-    fileUrl: dbAttachment.fileUrl,
-    fileType: dbAttachment.fileType,
-    fileSize: dbAttachment.fileSize,
-    yearCaptured: dbAttachment.dateCaptured,
-    uploadedAt: dbAttachment.uploadedAt,
-    signedUrl: signedUrl,
-    promptResponseId: dbAttachment.promptResponseId,
-    profileSharerId: dbAttachment.profileSharerId,
-    PersonTag: dbAttachment.PersonTag || [],
-  };
+interface PromptResponseWithRelations extends PromptResponse {
+  videoId?: string | null;
+  Video?: Video | null;
+  PromptResponseAttachment?: ModelAttachment[] | null;
 }
 
 const videoResponseSchema = z.object({
@@ -90,6 +54,7 @@ interface VideoResponseSectionProps {
   promptText: string;
   response: PromptResponseWithRelations;
   sharerName: string;
+  promptCategoryName: string;
   onSaveSuccess?: (updatedResponse: PromptResponseWithRelations) => void;
 }
 
@@ -98,25 +63,24 @@ export function VideoResponseSection({
   promptText,
   response,
   sharerName,
+  promptCategoryName,
   onSaveSuccess,
 }: VideoResponseSectionProps) {
+  console.log(`[VideoResponseSection] Render. Received promptCategoryName: ${promptCategoryName}`);
+
   const supabase = createClient();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAttachmentUploadOpen, setIsAttachmentUploadOpen] = useState(false);
   const [videoDetails, setVideoDetails] = useState<{
     dateRecorded: string | null;
     transcript: string | null;
   }>({
-    dateRecorded: response.video?.[0]?.dateRecorded ?? null,
-    transcript: response.video?.[0]?.VideoTranscript?.[0]?.transcript ?? null,
+    dateRecorded: response.Video?.dateRecorded ?? null,
+    transcript: response.Video?.VideoTranscript?.[0]?.transcript ?? null,
   });
-  const [attachments, setAttachments] = useState<UIAttachment[]>([]);
-  const [selectedAttachment, setSelectedAttachment] = useState<UIAttachment | null>(
-    null
-  );
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
+  const [galleryKey, setGalleryKey] = useState(Date.now());
 
   const {
     handleSubmit,
@@ -127,203 +91,71 @@ export function VideoResponseSection({
     resolver: zodResolver(videoResponseSchema),
     defaultValues: {
       responseNotes: response.responseNotes ?? '',
-      transcript: videoDetails.transcript ?? '',
-      dateRecorded: videoDetails.dateRecorded ?? '',
+      transcript: response.Video?.VideoTranscript?.[0]?.transcript ?? '',
+      dateRecorded: response.Video?.dateRecorded ?? '',
     },
   });
 
-  const fetchInitialData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const initialAttachments = response.PromptResponseAttachment || [];
-      const attachmentsWithSignedUrls = await Promise.all(
-        initialAttachments.map(async (att) => {
-          const dbAttachment: DbPromptResponseAttachment = att;
-          const signedUrlResult = await generateSignedAttachmentUrl(
-            dbAttachment.fileUrl
-          );
-          if (signedUrlResult.error) {
-            console.error(
-              `Failed to get signed URL for ${dbAttachment.fileName}: ${signedUrlResult.error}`
-            );
-            return toUIAttachment(dbAttachment);
-          }
-          return toUIAttachment(dbAttachment, signedUrlResult.signedUrl);
-        })
-      );
-      setAttachments(attachmentsWithSignedUrls);
-      setVideoDetails({
-        dateRecorded: response.video?.[0]?.dateRecorded ?? null,
-        transcript: response.video?.[0]?.VideoTranscript?.[0]?.transcript ?? null,
-      });
+  useEffect(() => {
       reset({
         responseNotes: response.responseNotes ?? '',
-        transcript:
-          response.video?.[0]?.VideoTranscript?.[0]?.transcript ?? '',
-        dateRecorded: response.video?.[0]?.dateRecorded ?? '',
+      transcript: response.Video?.VideoTranscript?.[0]?.transcript ?? '',
+      dateRecorded: response.Video?.dateRecorded ?? '',
       });
-      setInitialDataLoaded(true);
-    } catch (err) {
-      console.error('Error fetching initial data:', err);
-      setError('Failed to load response details.');
-      toast.error('Failed to load response details.');
-    } finally {
-      setIsLoading(false);
-    }
+    setVideoDetails({
+        dateRecorded: response.Video?.dateRecorded ?? null,
+        transcript: response.Video?.VideoTranscript?.[0]?.transcript ?? null,
+    });
   }, [response, reset]);
-
-  useEffect(() => {
-    if (!initialDataLoaded) {
-      fetchInitialData();
-    }
-  }, [fetchInitialData, initialDataLoaded]);
 
   const handleSave = async (data: VideoResponseFormData) => {
     setIsLoading(true);
     setError(null);
-    console.log('Saving data:', data);
+    console.log('Attempting to save data (backend action commented out):', data);
 
-    try {
-      const updatePayload: Partial<Tables<'PromptResponse'>> & {
-        video_update?: Partial<DbVideo>;
-        transcript_update?: Partial<DbVideoTranscript>;
-      } = {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const updatedResponseMock = {
+      ...response,
         responseNotes: data.responseNotes,
-      };
-
-      if (response.videoId && response.video?.[0]) {
-        const videoId = response.video[0].id;
-        const transcriptId =
-          response.video[0].VideoTranscript?.[0]?.id;
-
-        updatePayload.video_update = {
+      Video: response.Video ? {
+        ...response.Video,
           dateRecorded: data.dateRecorded || null,
-        };
+        VideoTranscript: response.Video.VideoTranscript ? [{
+             ...response.Video.VideoTranscript[0],
+             transcript: data.transcript || null
+        }] : undefined
+      } : undefined
+    } as PromptResponseWithRelations;
 
-        if (transcriptId) {
-          updatePayload.transcript_update = {
-            transcript: data.transcript || null,
-          };
-    } else {
-          console.warn('Transcript does not exist for this video.');
-        }
-      }
-
-      const result = await updatePromptResponse(response.id, updatePayload);
-
-      if (result.error) {
-        throw new Error(result.error);
-      }
-
-      if (result.data) {
-        const updatedResponse = result.data as PromptResponseWithRelations;
-
-        setVideoDetails({
-          dateRecorded: updatedResponse.video?.[0]?.dateRecorded ?? null,
-          transcript:
-            updatedResponse.video?.[0]?.VideoTranscript?.[0]?.transcript ??
-            null,
-        });
-
-        reset({
-          responseNotes: updatedResponse.responseNotes ?? '',
-          transcript:
-            updatedResponse.video?.[0]?.VideoTranscript?.[0]?.transcript ?? '',
-          dateRecorded: updatedResponse.video?.[0]?.dateRecorded ?? '',
-        });
-
-        toast.success('Response updated successfully!');
+    setVideoDetails({ dateRecorded: data.dateRecorded || null, transcript: data.transcript || null});
+    reset(data);
+    toast.success('Response update simulated successfully!');
         setIsEditing(false);
-        onSaveSuccess?.(updatedResponse);
-      } else {
-        throw new Error('No data returned after update.');
-      }
-    } catch (err: any) {
-      console.error('Failed to save response:', err);
-      setError(`Failed to save response: ${err.message}`);
-      toast.error(`Failed to save response: ${err.message}`);
-    } finally {
+    onSaveSuccess?.(updatedResponseMock);
       setIsLoading(false);
-    }
   };
 
   const handleCancel = () => {
     reset({
       responseNotes: response.responseNotes ?? '',
-      transcript: videoDetails.transcript ?? '',
-      dateRecorded: videoDetails.dateRecorded ?? '',
+      transcript: response.Video?.VideoTranscript?.[0]?.transcript ?? '',
+      dateRecorded: response.Video?.dateRecorded ?? '',
     });
     setIsEditing(false);
     setError(null);
   };
 
-  const handleAttachmentUploadSuccess = async (
-    newAttachmentData: DbPromptResponseAttachment
-  ) => {
-    console.log('New attachment uploaded:', newAttachmentData);
-    const signedUrlResult = await generateSignedAttachmentUrl(
-      newAttachmentData.fileUrl
-    );
-    const newUIAttachment = toUIAttachment(
-      newAttachmentData,
-      signedUrlResult.error ? undefined : signedUrlResult.signedUrl
-    );
-
-    if (signedUrlResult.error) {
-      console.error(
-        `Failed to get signed URL for new attachment ${newAttachmentData.fileName}: ${signedUrlResult.error}`
-      );
-      toast.warning(
-        `Attachment ${newAttachmentData.fileName} uploaded, but preview might be unavailable.`
-      );
-    }
-
-    setAttachments((prev) => [...prev, newUIAttachment]);
-    toast.success(`Attachment ${newAttachmentData.fileName} added.`);
+  const handleAttachmentUploadSuccess = () => {
+    console.log('Attachment upload successful.');
+    setIsAttachmentUploadOpen(false);
+    setGalleryKey(Date.now());
+    toast.success(`Attachment added.`);
   };
 
-  const handleAttachmentDelete = (attachmentId: string) => {
-    setAttachments((prev) => prev.filter((att) => att.id !== attachmentId));
-    toast.success('Attachment deleted.');
-    if (selectedAttachment?.id === attachmentId) {
-      setIsDialogOpen(false);
-      setSelectedAttachment(null);
-    }
-  };
-
-  const handleAttachmentUpdate = (updatedAttachment: UIAttachment) => {
-    setAttachments((prev) =>
-      prev.map((att) =>
-        att.id === updatedAttachment.id ? updatedAttachment : att
-      )
-    );
-    setSelectedAttachment(updatedAttachment);
-    toast.success('Attachment details updated.');
-  };
-
-  const handleThumbnailClick = (attachment: UIAttachment) => {
-    console.log('Thumbnail clicked:', attachment);
-    setSelectedAttachment(attachment);
-    setIsDialogOpen(true);
-  };
-
-  if (isLoading && !initialDataLoaded) {
-    return (
-      <div className="flex justify-center items-center h-40">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-        </div>
-    );
-  }
-
-  if (error && !initialDataLoaded) {
-    return (
-      <Alert variant="destructive">
-        <Info className="h-4 w-4" />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    );
-  }
+  // Add logging here to inspect the response prop
+  console.log('[VideoResponseSection] Rendering. Response prop:', JSON.stringify(response, null, 2));
+  console.log('[VideoResponseSection] Checking condition for download button. response.Video:', response.Video);
+  console.log('[VideoResponseSection] Mux Asset ID:', response.Video?.muxAssetId);
 
   return (
     <TooltipProvider>
@@ -339,6 +171,7 @@ export function VideoResponseSection({
                   <Button
                     variant="ghost"
                     size="icon"
+                    type="button"
                     onClick={() => setIsEditing(true)}
                     aria-label="Edit response"
                   >
@@ -359,8 +192,7 @@ export function VideoResponseSection({
                       aria-label="Save changes"
                     >
                       <Check
-                        className={`h-4 w-4 ${
-                          isLoading ? 'animate-spin' : ''
+                        className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''
                         }`}
                       />
                   </Button>
@@ -372,6 +204,7 @@ export function VideoResponseSection({
                 <Button
                   variant="ghost"
                       size="icon"
+                      type="button"
                       onClick={handleCancel}
                       disabled={isLoading}
                       aria-label="Cancel editing"
@@ -393,8 +226,19 @@ export function VideoResponseSection({
               </Alert>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-                <Label htmlFor="dateRecorded">Date Recorded</Label>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="dateRecorded">Date Recorded</Label>
+                  {response.Video?.muxAssetId && (
+                    console.log(`[VideoResponseSection] Rendering VideoDownloadButton. Passing promptCategoryName: ${promptCategoryName}`),
+                    <VideoDownloadButton 
+                      muxAssetId={response.Video.muxAssetId}
+                      videoType="prompt"
+                      userId={response.profileSharerId}
+                      promptCategoryName={promptCategoryName}
+                    />
+                  )}
+                </div>
                 {isEditing ? (
                   <Controller
                     name="dateRecorded"
@@ -469,36 +313,38 @@ export function VideoResponseSection({
         <Separator />
 
         <Card className="border-2 border-gray-100 shadow-none">
-          <CardHeader>
+          <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-4">
             <CardTitle className="text-lg font-semibold">
               Related Attachments
             </CardTitle>
+             <Tooltip>
+               <TooltipTrigger asChild>
+                 <Button
+                   variant="outline"
+                   size="sm"
+                   type="button"
+                   onClick={() => setIsAttachmentUploadOpen(true)}
+                   className="rounded-full"
+                 >
+                   <Upload className="mr-2 h-4 w-4" />
+                   Add Attachment
+                 </Button>
+               </TooltipTrigger>
+               <TooltipContent>Upload new photos or documents</TooltipContent>
+             </Tooltip>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <AttachmentGallery
-              attachments={attachments}
-              onThumbnailClick={handleThumbnailClick}
-            />
-        <AttachmentUpload
-          promptResponseId={response.id}
-              targetSharerId={response.profileSharerId}
-          onUploadSuccess={handleAttachmentUploadSuccess}
-        />
+          <CardContent>
+            <PromptResponseGallery promptResponseId={response.id} galleryKey={galleryKey} />
           </CardContent>
         </Card>
 
-        {selectedAttachment && (
-           <Suspense fallback={<Loader2 className="animate-spin" />}>
-             <AttachmentDialog
-              isOpen={isDialogOpen}
-              onOpenChange={setIsDialogOpen}
-              attachment={selectedAttachment}
-              onUpdate={handleAttachmentUpdate}
-              onDelete={handleAttachmentDelete}
-              sharerId={response.profileSharerId}
-            />
-           </Suspense>
-        )}
+        <AttachmentUpload
+          promptResponseId={response.id}
+              targetSharerId={response.profileSharerId}
+          isOpen={isAttachmentUploadOpen}
+          onClose={() => setIsAttachmentUploadOpen(false)}
+          onUploadSuccess={handleAttachmentUploadSuccess}
+        />
       </form>
     </TooltipProvider>
   );

@@ -1,8 +1,8 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { supabase, getUser, invalidateUserCache } from '@/utils/supabase/client';
-import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js';
+import { supabase, invalidateUserCache } from '@/utils/supabase/client';
+import type { User, Session } from '@supabase/supabase-js';
 import { getProfileSafely } from '@/utils/supabase/client-helpers';
 import { useUserStore } from '@/stores/userStore'; // Import useUserStore
 import type { Profile } from '@/types/models'; // Import the canonical Profile type
@@ -137,23 +137,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    console.log('[AUTH_PROVIDER] Initializing auth state listener');
-    setLoading(true);
-    let profileFetchInitiated = false;
+    let isMounted = true;
+    // console.log('[AUTH_PROVIDER] Initializing auth state listener');
 
-    // Get initial session/user state reliably
-    supabase.auth.getSession().then(async ({ data: { session: initialSession } }) => {
-      console.log('[AUTH_PROVIDER] Initial getSession result:', { hasSession: !!initialSession });
-      setSession(initialSession);
-      const initialUser = initialSession?.user ?? null;
-      setUser(initialUser);
-
-      if (initialUser) {
-        profileFetchInitiated = true;
-        await fetchProfileForUser(initialUser.id);
+    // Initial check for session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (isMounted) {
+        setUser(session?.user ?? null);
+        setLoading(false);
+        // console.log('[AUTH_PROVIDER] Initial getSession result:', { hasSession: !!session });
+        if (session?.user) {
+          // console.log('[AUTH_PROVIDER] Fetching profile for user:', session.user.id);
+          fetchProfileForUser(session.user.id);
+        }
       }
-      // Only set loading false after initial auth check AND potential profile fetch are done
-      setLoading(false); 
     }).catch(error => {
       console.error('[AUTH_PROVIDER] Error fetching initial session:', error);
       setLoading(false); // Ensure loading stops on error
@@ -161,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, changedSession) => {
-      console.log('[AUTH_PROVIDER] Auth state changed:', { event, hasSession: !!changedSession });
+      if (isMounted) {
       setSession(changedSession);
       const changedUser = changedSession?.user ?? null;
       
@@ -172,24 +169,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fetch profile when user signs in or session is restored
       if (changedUser && (!currentProfile || changedUser.id !== currentProfile?.id)) { 
          // Ensure we don't double-fetch if initial fetch is still running
-         if (!profileFetchInitiated || event !== 'INITIAL_SESSION') { 
+           if (!isMounted || event !== 'INITIAL_SESSION') { 
             console.log('[AUTH_PROVIDER] Auth change detected, fetching profile...');
             setLoading(true); // Set loading true during profile fetch triggered by auth change
-            await fetchProfileForUser(changedUser.id); // Use stable function
+              fetchProfileForUser(changedUser.id); // Use stable function
             setLoading(false);
          }
       } else if (!changedUser) {
         // Clear profile if user signs out
         setProfile(null); // Use stable function from store
       }
-      profileFetchInitiated = false; // Reset flag after handling
+      }
     });
 
     return () => {
       console.log('[AUTH_PROVIDER] Unsubscribing auth listener');
+      isMounted = false;
       subscription?.unsubscribe();
     };
-  }, [fetchProfileForUser]); 
+  }, [fetchProfileForUser, setProfile]); 
 
   // Provide the auth context value to children
   const value: AuthContextType = {

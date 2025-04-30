@@ -9,7 +9,6 @@ import ExecutorInvitationCard from '@/components/profile/ExecutorInvitationCard'
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Users } from 'lucide-react';
 import { getSignedAvatarUrl } from '@/utils/avatar';
-import { createAdminClient } from '@/utils/supabase/admin';
 import { BackButton } from '@/components/ui/BackButton';
 
 // Define any additional types needed for local use
@@ -61,9 +60,6 @@ export default async function RoleExecutorPage() {
 
 async function RoleExecutorPageContent() {
   try {
-    // Get our admin client to fetch data safely
-    const adminClient = createAdminClient();
-    
     // Get our regular authenticated client
     const supabase = await createClient();
     
@@ -78,7 +74,6 @@ async function RoleExecutorPageContent() {
     // Get executor relationships
     let executorRelationships: ExecutorRelationship[] = [];
     let executorInvitations: DatabaseInvitation[] = [];
-    let hasExecutorRelationship = false;
 
     try {
       // Use the get_executor_for_user RPC function instead of directly querying tables
@@ -94,7 +89,6 @@ async function RoleExecutorPageContent() {
 
       // Extract the relationships from the response
       executorRelationships = (executorData?.executor_relationships || []) as ExecutorRelationship[];
-      hasExecutorRelationship = executorData?.has_executor_relationship || false;
 
       // Process avatar URLs to get signed URLs
       for (const relationship of executorRelationships) {
@@ -182,7 +176,7 @@ async function RoleExecutorPageContent() {
             </div>
             <h3 className="text-lg font-medium mb-2">No Connections Yet</h3>
             <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">
-              You haven't been added as an executor by any account holders yet. You'll receive an invitation when someone adds you.
+              You haven&apos;t been added as an executor by any account holders yet. You&apos;ll receive an invitation when someone adds you.
             </p>
             <div>
               <Button variant="outline" size="sm" asChild>
@@ -204,7 +198,7 @@ async function RoleExecutorPageContent() {
           </div>
           <h3 className="text-lg font-medium mb-2">Something went wrong</h3>
           <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">
-            We couldn't load your executor profile. Please try again or contact support if the problem persists.
+            We couldn&apos;t load your executor profile. Please try again or contact support if the problem persists.
           </p>
           <div>
             <Button variant="outline" size="sm" asChild>

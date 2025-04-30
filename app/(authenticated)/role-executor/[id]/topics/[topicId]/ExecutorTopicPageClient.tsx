@@ -11,21 +11,10 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { TopicPageContent } from '@/app/(authenticated)/role-sharer/topics/[id]/page';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
-import { Loader2, AlertCircle, Info } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import type { Database } from '@/lib/database.types';
-import dynamic from 'next/dynamic'; // Import dynamic
 import { Attachment, AttachmentDialog } from '@/components/AttachmentDialog';
 import { PersonTag } from '@/types/models'; // <-- Add import for PersonTag
-import { cn } from "@/lib/utils";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { TopicVideoCard } from '@/components/TopicVideoCard'; // Import TopicVideoCard
 import { RecordingInterface as RecordingPopup } from '@/components/RecordingInterface'; // CORRECTED Import RecordingInterface as RecordingPopup
 import { UploadPopup } from '@/components/UploadPopup'; // Import UploadPopup
 import { useAuth } from '@/hooks/useAuth';
@@ -37,12 +26,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { RealtimeChannel } from '@supabase/supabase-js'; // Import RealtimeChannel type
-
-// Dynamically import AttachmentUpload only on the client
-const AttachmentUpload = dynamic(() => import('@/components/AttachmentUpload'), {
-  ssr: false,
-  loading: () => <div className="p-4 text-center">Loading uploader...</div>, // Optional loading state
-});
 
 // --- Type Definitions ---
 type ProfileSharer = Database['public']['Tables']['ProfileSharer']['Row'];
@@ -112,7 +95,7 @@ export default function ExecutorTopicPageClient({ targetSharerId, topicId, initi
   const [promptCategory, setPromptCategory] = useState<TopicPromptCategory | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sharerProfileData, setSharerProfileData] = useState<ProfileSharer | null>(initialSharerProfile || null);
+  const [sharerProfileData] = useState<ProfileSharer | null>(initialSharerProfile || null);
   const [trackingVideoId, setTrackingVideoId] = useState<string | null>(null); // NEW: Track the video ID for Realtime updates
   const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false); // Track initial data load
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
@@ -188,8 +171,6 @@ export default function ExecutorTopicPageClient({ targetSharerId, topicId, initi
     setAreUrlsLoading(true);
     const newSignedUrls: Record<string, string> = {};
     const allUiAttachments: any[] = []; // Use any[]
-    let fetchedCount = 0;
-    let errorCount = 0;
 
     const urlPromises = attachments.map(async (attachment) => {
         const filePath = attachment.fileUrl;
@@ -226,17 +207,15 @@ export default function ExecutorTopicPageClient({ targetSharerId, topicId, initi
             allUiAttachments.push(processedAttachment);
             if (signedUrl) {
                 newSignedUrls[rawDbAttachment.id] = signedUrl;
-                fetchedCount++;
             } else {
                  console.warn(`[Executor fetchAllSignedUrls] Failed signed URL for ${rawDbAttachment.id}. Error: ${error || 'Unknown reason'}`);
-                 errorCount++;
             }
         } else if (result.status === 'rejected') {
             console.error('[Executor fetchAllSignedUrls] Promise rejected:', result.reason);
-            errorCount++;
         }
     });
 
+    console.log(`[fetchAllSignedUrls] Finished fetching. Total Processed: ${allUiAttachments.length}`);
     setGallerySignedUrls(prev => ({ ...prev, ...newSignedUrls }));
     setGalleryAttachments(allUiAttachments);
     setAreUrlsLoading(false);
@@ -513,14 +492,11 @@ export default function ExecutorTopicPageClient({ targetSharerId, topicId, initi
         if (!videoId || !playbackId || !assetId) throw new Error("API did not return necessary Mux IDs after upload.");
         toast.dismiss(uploadToast);
 
-        // Call upsertVideoForPrompt which now handles setting the tracking state
-        // Pass assetId received from the API
-        const dbVideoId = await upsertVideoForPrompt(selectedPrompt.id, undefined, playbackId, assetId);
+        await upsertVideoForPrompt(selectedPrompt.id, undefined, playbackId, assetId);
 
-        // Update popup UI immediately, but don't refresh main data here
         setSuccessPlaybackId(playbackId);
         setShowSuccessView(true);
-        return dbVideoId; // Return the video ID from the DB upsert
+        return videoId; // Return the video ID from the API response
     } catch (error) {
         toast.error(`Failed to save recorded video: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: uploadToast });
         throw error;
@@ -532,26 +508,15 @@ export default function ExecutorTopicPageClient({ targetSharerId, topicId, initi
   const handleUploadFinished = useCallback(async (playbackId: string) => {
       if (!selectedPrompt || !targetSharerId) throw new Error("Missing prompt or sharer context");
       try {
-          // Call upsertVideoForPrompt which now handles setting the trackingVideoId state
-          // We don't have assetId here, Mux webhook will provide it later
-          const dbVideoId = await upsertVideoForPrompt(selectedPrompt.id, undefined, playbackId, undefined);
-
-          // Explicitly refresh main data *before* showing the success view player
-          // This ensures the main UI has the latest data and might give Mux CDN time
+          await upsertVideoForPrompt(selectedPrompt.id, undefined, playbackId, undefined);
           await refreshData(); 
-
-          // Update popup UI immediately, but don't refresh main data here
-          // The main data will refresh via Realtime when the webhook marks the video as READY
           setSuccessPlaybackId(playbackId);
           setShowSuccessView(true);
-
-          // Note: We don't explicitly refreshData() here because the Realtime listener
-          // will trigger it when the video becomes 'READY'. // <-- Comment is now potentially misleading, but keep for now
       } catch (error) {
           console.error("[handleUploadFinished] Error after upsertVideoForPrompt:", error);
           toast.error(`Failed to link uploaded video: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
-  }, [selectedPrompt, targetSharerId, upsertVideoForPrompt, refreshData]); // Added refreshData dependency
+  }, [selectedPrompt, targetSharerId, upsertVideoForPrompt, refreshData]);
 
   const handleCloseRecording = useCallback(() => {
     setIsRecordingPopupOpen(false);
@@ -630,7 +595,7 @@ export default function ExecutorTopicPageClient({ targetSharerId, topicId, initi
         console.error('[ExecutorClient] Error deleting attachment:', error);
         toast.error(`Delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: toastId });
      }
-   }, [supabase, refreshData]);
+   }, []);
 
   // --- Render Logic ---
   if (loading && !promptCategory) {
@@ -698,9 +663,8 @@ export default function ExecutorTopicPageClient({ targetSharerId, topicId, initi
   return (
     <ErrorBoundary
       FallbackComponent={ErrorFallback}
-      onReset={() => fetchData(true)} // Ensure ErrorBoundary reset triggers initial fetch
+      onReset={() => fetchData(true)} 
     >
-      {/* Render TopicPageContent only if promptCategory exists */}
       {promptCategory && (
         <TopicPageContent {...topicPageContentProps} />
       )}

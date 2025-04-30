@@ -33,9 +33,9 @@ export default function ConnectionsPageContent({
     <div className="container max-w-4xl mx-auto px-4 py-6">
       <div className="mb-8">
         <div className="flex justify-between items-center mt-4">
-          <h1 className="text-2xl font-bold">
+            <h1 className="text-2xl font-bold">
             Manage Connections
-          </h1>
+            </h1>
           <Button
             onClick={() => setIsInviteModalOpen(true)}
             className="gap-2 rounded-full border-[1px] hover:bg-[#1B4332] hover:text-white transition-colors"

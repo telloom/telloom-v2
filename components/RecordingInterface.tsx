@@ -279,16 +279,16 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
   // Correct dependencies: Now includes the memoized audio helpers
   }, [selectedResolution, findResolutionByLabel, setupAudioVisualization, cleanupAudioVisualization]);
 
-   useEffect(() => {
+  useEffect(() => {
     // ... initializeDevices ...
     const initializeDevices = async () => {
       // ... device detection ...
       try {
          // ... permission request ...
-         await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-         const devices = await navigator.mediaDevices.enumerateDevices();
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
          // ... filtering devices ...
-         const videoInputs = devices
+        const videoInputs = devices
           .filter(device => device.kind === 'videoinput')
           .map(device => ({
             deviceId: device.deviceId,
@@ -324,8 +324,8 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
              setError("No video input devices found.");
         }
       } catch (err) {
-         console.error('Error accessing media devices:', err);
-         setError('Unable to access camera or microphone. Please check your permissions.');
+        console.error('Error accessing media devices:', err);
+        setError('Unable to access camera or microphone. Please check your permissions.');
       }
     };
     initializeDevices();
@@ -364,14 +364,14 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
       }
 
       mediaRecorderRef.current.onstop = async () => {
-        try {
+    try {
           // Stop all tracks properly
-          if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => {
-              track.stop();
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => {
+          track.stop();
             });
             // No need to remove tracks, just stop them and clear the ref later if needed
-          }
+      }
           cleanupAudioVisualization(); // Cleanup audio viz on stop
 
           // Process chunks from the ref
@@ -405,7 +405,7 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
           setIsPreviewMode(true);
 
           // Configure video element for high-quality playback
-          if (videoRef.current) {
+      if (videoRef.current) {
             videoRef.current.srcObject = null; // Detach the live stream first
             videoRef.current.src = url;
             videoRef.current.muted = false; // Unmute for preview
@@ -414,7 +414,7 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
           }
 
           resolve();
-        } catch (err) {
+    } catch (err) {
           console.error('Error processing stopped recording:', err);
           setError('Failed to process video after stopping. Please try again.');
            // Reset state on error
@@ -468,11 +468,11 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
          await startPreview(selectedVideoDevice, selectedAudioDevice, currentResolution);
          // Add a small delay to ensure the stream is fully ready
          await new Promise(resolve => setTimeout(resolve, 200));
-       }
+      }
 
-       if (!streamRef.current) {
+      if (!streamRef.current) {
          throw new Error('No media stream available after starting preview');
-       }
+      }
       // Clean up any existing recordings
       if (recordedVideoUrl) {
         URL.revokeObjectURL(recordedVideoUrl);
@@ -512,7 +512,7 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
 
       // Log the actual mimeType being used by the browser
       console.log(`[RecordingInterface] MediaRecorder using actual mimeType: ${mediaRecorder.mimeType}`);
-
+      
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -834,47 +834,47 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
               {/* Device & Resolution Selectors - Keep rendered, but disable based on state */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                 {/* Camera */}
-                <div className="flex-1">
+                  <div className="flex-1">
                   <Label htmlFor="camera" className="mb-1 block text-sm font-medium">Camera</Label>
-                  <Select
-                    value={selectedVideoDevice}
+                    <Select
+                      value={selectedVideoDevice}
                     onValueChange={handleVideoDeviceChange}
-                    disabled={isRecording || isPreviewMode || processingState !== 'idle'}
-                  >
+                      disabled={isRecording || isPreviewMode || processingState !== 'idle'}
+                    >
                     <SelectTrigger className="h-10 rounded-lg text-sm">
                       <Camera className="mr-2 h-4 w-4 flex-shrink-0" />
-                      <SelectValue placeholder="Select camera" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {videoDevices.map((device) => (
+                        <SelectValue placeholder="Select camera" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {videoDevices.map((device) => (
                         <SelectItem key={device.deviceId} value={device.deviceId} className="text-sm">
-                          {device.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                            {device.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 {/* Microphone */}
-                <div className="flex-1">
+                  <div className="flex-1">
                   <Label htmlFor="microphone" className="mb-1 block text-sm font-medium">Microphone</Label>
-                  <Select
-                    value={selectedAudioDevice}
+                    <Select
+                      value={selectedAudioDevice}
                     onValueChange={handleAudioDeviceChange}
-                    disabled={isRecording || isPreviewMode || processingState !== 'idle'}
-                  >
+                      disabled={isRecording || isPreviewMode || processingState !== 'idle'}
+                    >
                     <SelectTrigger className="h-10 rounded-lg text-sm">
                       <Mic className="mr-2 h-4 w-4 flex-shrink-0" />
-                      <SelectValue placeholder="Select microphone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {audioDevices.map((device) => (
+                        <SelectValue placeholder="Select microphone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {audioDevices.map((device) => (
                         <SelectItem key={device.deviceId} value={device.deviceId} className="text-sm">
-                          {device.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                            {device.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 {/* Resolution */}
                 <div className="flex-1">
                    <Label htmlFor="resolution" className="mb-1 block text-sm font-medium">Resolution</Label>
@@ -895,65 +895,65 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
                        ))}
                      </SelectContent>
                    </Select>
-                 </div>
+                </div>
               </div>
 
               {/* Video Preview Area */}
               <div className="flex flex-col items-center justify-center flex-1 min-h-0 w-full">
                 <div className="relative w-full max-w-2xl aspect-video bg-black rounded-md overflow-hidden mx-auto">
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted={!isPreviewMode}
-                    controls={isPreviewMode}
-                    controlsList="nodownload"
-                    className={cn(
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted={!isPreviewMode}
+                        controls={isPreviewMode}
+                        controlsList="nodownload"
+                        className={cn(
                       "absolute inset-0 w-full h-full object-cover",
-                      !isPreviewMode && "scale-x-[-1]"
-                    )}
-                    onEnded={() => setIsPlayingPreview(false)}
-                    onError={(e) => {
-                      const error = e.currentTarget.error;
-                      console.error('Video error:', {
-                        code: error?.code,
-                        message: error?.message,
-                        event: e
-                      });
-                      setError(`Error playing video: ${error?.message || 'Please try recording again.'}`);
-                    }}
-                  />
-                  {/* Timer Overlay */}
-                  {isRecording && (
+                          !isPreviewMode && "scale-x-[-1]"
+                        )}
+                        onEnded={() => setIsPlayingPreview(false)}
+                        onError={(e) => {
+                          const error = e.currentTarget.error;
+                          console.error('Video error:', {
+                            code: error?.code,
+                            message: error?.message,
+                            event: e
+                          });
+                          setError(`Error playing video: ${error?.message || 'Please try recording again.'}`);
+                        }}
+                      />
+                      {/* Timer Overlay */}
+                      {isRecording && (
                     <div className="absolute top-2 right-2 bg-black/60 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1 z-10">
                       <Timer className="h-3 w-3 text-red-500 animate-pulse" />
-                      <span className="font-mono">{formatTime(recordingTime)}</span>
-                    </div>
-                  )}
-                  {/* Audio Level Indicator */}
-                  {(isPreviewActive || isRecording) && !isPreviewMode && (
+                          <span className="font-mono">{formatTime(recordingTime)}</span>
+                        </div>
+                      )}
+                      {/* Audio Level Indicator */}
+                      {(isPreviewActive || isRecording) && !isPreviewMode && (
                     <div className="absolute bottom-2 left-2 bg-black/60 text-white px-2 py-1 rounded-full flex items-center gap-1.5 z-10">
-                      <Mic className={cn(
+                          <Mic className={cn(
                         "h-3 w-3",
                         audioLevel > 50 ? "text-green-400" : "text-gray-400",
-                        audioLevel > 50 && "animate-pulse"
-                      )} />
+                            audioLevel > 50 && "animate-pulse"
+                          )} />
                       <div className="w-12 h-1 bg-gray-600 rounded-full overflow-hidden">
-                        <div
+                            <div 
                           className="h-full bg-green-500 transition-all duration-100"
                           style={{ width: `${Math.min(100, (audioLevel / 128) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  {/* Countdown Overlay */}
-                  {countdownValue !== null && (
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {/* Countdown Overlay */}
+                      {countdownValue !== null && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-20">
                       <span className="text-white text-6xl md:text-8xl font-bold animate-pulse">
-                        {countdownValue}
-                      </span>
-                    </div>
-                  )}
+                            {countdownValue}
+                          </span>
+                        </div>
+                      )}
                 </div>
               </div>
 
@@ -994,7 +994,7 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
                     </Button>
                     <Button 
                       onClick={handleComplete}
-                      size="lg"
+                      size="lg" 
                       variant="destructive"
                       className="h-11 px-5 rounded-full text-sm bg-red-600 hover:bg-red-700"
                     >

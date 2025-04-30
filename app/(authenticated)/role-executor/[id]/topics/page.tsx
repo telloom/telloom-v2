@@ -2,31 +2,10 @@ import { createClient } from '@/utils/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import TopicsClientWrapper from './TopicsClientWrapper';
 import { PromptCategory, Prompt } from '@/types/models';
-import { getSignedAvatarUrl } from '@/utils/avatar';
-import { createAdminClient } from '@/utils/supabase/admin';
 import { BackButton } from '@/components/ui/BackButton';
 import { ExecutorSharerHeader } from '@/components/executor/ExecutorSharerHeader';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
-
-// Define a type for the Profile data within the relationship
-interface SharerProfileData {
-  firstName: string | null;
-  lastName: string | null;
-  avatarUrl: string | null;
-}
-
-// Define a type for the Sharer relation within the relationship
-interface SharerRelationData {
-  Profile: SharerProfileData | null; // Profile should be a single object or null
-}
-
-// Define a type for the executor relationship data
-interface ExecutorRelationshipData {
-  id: string;
-  sharerId: string;
-  sharer: SharerRelationData | null; // Sharer relation is a single object or null
-}
 
 // Define a type for the data returned by the RPC function for better type safety
 // Based on the RETURNS TABLE definition in the SQL migration
@@ -92,8 +71,6 @@ export default async function ExecutorTopicsPage({
   const resolvedParams = await Promise.resolve(params);
   const sharerId = resolvedParams.id;
   
-  console.log('[ExecutorTopicsPage] Received Sharer ID parameter:', sharerId);
-  
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -101,8 +78,6 @@ export default async function ExecutorTopicsPage({
     console.error('[ExecutorTopicsPage] No authenticated user found');
     redirect('/login');
   }
-
-  console.log('[ExecutorTopicsPage] Authenticated user ID:', user.id);
 
   // Fetch Sharer details using the helper function
   const sharerProfile = await getSharerProfile(sharerId);
@@ -123,8 +98,6 @@ export default async function ExecutorTopicsPage({
     throw new Error(`Failed to fetch topic list: ${rpcError.message}`);
   }
 
-  console.log('[ExecutorTopicsPage] Data received from RPC:', topicListData?.length);
-
   // Transform data (keep this)
   const transformedCategories: PromptCategory[] = (topicListData as ExecutorTopicListData[] || []).map(rpcData => {
     const prompts: Prompt[] = (Array.isArray(rpcData.prompts) ? rpcData.prompts : []).map((p: any) => ({
@@ -140,7 +113,7 @@ export default async function ExecutorTopicsPage({
       category: rpcData.category,
       description: rpcData.description,
       theme: rpcData.theme,
-      Prompt: prompts,
+      Prompt: prompts, 
       isFavorite: rpcData.is_favorite,
       isInQueue: rpcData.is_in_queue,
       completedPromptCount: rpcData.completed_prompt_count,
@@ -163,16 +136,14 @@ export default async function ExecutorTopicsPage({
         }
       >
         <div className="-mt-4">
-          <TopicsClientWrapper 
-            initialPromptCategories={transformedCategories}
-            currentRole="EXECUTOR"
-            sharerId={sharerId}
-            // Pass necessary sharer info directly from fetched profile
-            sharerName={`${sharerProfile.firstName || ''} ${sharerProfile.lastName || ''}`.trim()}
+    <TopicsClientWrapper 
+      initialPromptCategories={transformedCategories}
+      currentRole="EXECUTOR"
+      sharerId={sharerId}
             // Note: TopicsClientWrapper might need adjustment if it expects a signed URL
             // For now, passing the raw URL. Consider signing within the client wrapper if needed.
             sharerAvatarUrl={sharerProfile.avatarUrl}
-          />
+    />
         </div>
       </Suspense>
     </div>

@@ -9,11 +9,11 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogDescription
+  DialogDescription,
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { PromptCategory, Prompt } from "@/types/models"
-import { X, Video, CheckCircle2, ArrowRight, Loader2 } from "lucide-react"
+import { X, ArrowRight, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRouter } from 'next/navigation'
 import { cn } from "@/lib/utils"
@@ -74,7 +74,7 @@ export function PromptListPopup({
           const promptsWithResponseField = (data || []).map(p => ({ ...p, PromptResponse: [] }));
           setPrompts(promptsWithResponseField as Prompt[]);
         }
-      } catch (err) {
+      } catch {
         console.error('Failed to fetch prompts for popup');
         setPrompts([]);
       } finally {
@@ -176,8 +176,6 @@ export function PromptListPopup({
             <ScrollArea className="h-[calc(65vh-180px)]">
               <div className="space-y-4 pr-4">
                 {sortedPrompts.length > 0 ? sortedPrompts.map((prompt, index) => {
-                  const hasResponse = false;
-                  
                   return (
                     <div 
                       key={prompt.id} 

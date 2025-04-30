@@ -471,4 +471,95 @@ EXCEPTION WHEN OTHERS THEN
   
   RETURN result;
 END;
-$$; 
+$$;
+
+-- Function to generate attachment filename
+CREATE OR REPLACE FUNCTION public.generate_attachment_filename(profile_sharer_id uuid, prompt_response_id uuid, original_filename text, attachment_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  user_name      text;
+  topic_name     text;
+  file_extension text := '.dat'; -- Default extension if none found
+  new_filename_base text;
+  last_dot_pos   integer;
+BEGIN
+  RAISE LOG '[generate_attachment_filename V2] START: profile_sharer_id=%, prompt_response_id=%, original_filename=%, attachment_id=%',
+      profile_sharer_id, prompt_response_id, original_filename, attachment_id;
+
+  -- Reliably extract extension based on the LAST dot
+  last_dot_pos := length(original_filename) - position('.' in reverse(original_filename)) + 1;
+  IF last_dot_pos > 1 AND last_dot_pos < length(original_filename) THEN -- Ensure dot is not first or last char
+    file_extension := substr(original_filename, last_dot_pos);
+  ELSE
+    RAISE LOG '[generate_attachment_filename V2] No valid extension found in original_filename: %. Using default .dat', original_filename;
+    file_extension := '.dat'; -- Keep default if no valid extension
+  END IF;
+  -- Ensure extension starts with a dot
+  IF NOT file_extension LIKE '.%' THEN
+      file_extension := '.' || file_extension;
+  END IF;
+  RAISE LOG '[generate_attachment_filename V2] file_extension: %', file_extension;
+
+  -- Fetch the user's full name (Still might need review, ensure p."fullName" is reliable)
+  -- Consider fetching firstName and lastName separately if fullName isn't guaranteed
+  SELECT p."fullName"
+    INTO user_name
+    FROM "Profile" p
+    JOIN "ProfileSharer" ps ON p.id = ps."profileId"
+   WHERE ps.id = profile_sharer_id; 
+
+  IF user_name IS NULL OR user_name = '' THEN
+    RAISE LOG '[generate_attachment_filename V2] User name not found for profile_sharer_id: %. Using default.', profile_sharer_id;
+    user_name := 'Sharer';
+  ELSE
+    RAISE LOG '[generate_attachment_filename V2] Found user_name: %', user_name;
+  END IF;
+
+  -- Retrieve topic name
+  BEGIN
+    SELECT get_topic_name(prompt_response_id)
+      INTO topic_name;
+  EXCEPTION WHEN OTHERS THEN
+      RAISE LOG '[generate_attachment_filename V2] Error calling get_topic_name for prompt_response_id: %. SQLSTATE: %, SQLERRM: %', prompt_response_id, SQLSTATE, SQLERRM;
+      topic_name := NULL;
+  END;
+
+  IF topic_name IS NULL OR topic_name = '' THEN
+    RAISE LOG '[generate_attachment_filename V2] Topic name not found or error occurred for prompt_response_id: %. Using default.', prompt_response_id;
+    topic_name := 'untitled';
+  ELSE
+     RAISE LOG '[generate_attachment_filename V2] Found topic_name: %', topic_name;
+  END IF;
+
+  -- Build slug base using only reliable components
+  BEGIN
+    WITH name_parts AS (
+      SELECT
+        COALESCE(NULLIF(split_part(user_name, ' ', 1), ''), 'Unknown') AS first_name,
+        COALESCE(NULLIF(split_part(user_name, ' ', -1), ''), 'User')   AS last_name
+    )
+    SELECT
+      slugify(last_name || '-' || first_name) -- slugify user name
+      || '_' || slugify(topic_name) -- slugify topic name
+      || '_' || substring(attachment_id::text, 1, 8) -- Unique ID part
+    INTO new_filename_base
+    FROM name_parts;
+  EXCEPTION WHEN OTHERS THEN
+      RAISE LOG '[generate_attachment_filename V2] Error calling slugify. SQLSTATE: %, SQLERRM: %', SQLSTATE, SQLERRM;
+      new_filename_base := 'error_' || substring(attachment_id::text, 1, 8);
+  END;
+
+  RAISE LOG '[generate_attachment_filename V2] Generated base filename: %', new_filename_base;
+  RAISE LOG '[generate_attachment_filename V2] FINAL filename: %', new_filename_base || file_extension;
+
+  RETURN new_filename_base || file_extension;
+
+EXCEPTION WHEN OTHERS THEN
+  RAISE LOG '[generate_attachment_filename V2] UNEXPECTED ERROR: SQLSTATE: %, SQLERRM: %', SQLSTATE, SQLERRM;
+  RETURN 'error_generating_filename_' || substring(attachment_id::text, 1, 8) || COALESCE(file_extension, '.dat');
+END;
+$function$ 

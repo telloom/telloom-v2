@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RecordingInterface } from '@/components/RecordingInterface';
 import { VideoPopup } from '@/components/VideoPopup';
 import { UploadInterface } from '@/components/UploadInterface';
-import { ArrowLeft, Video as VideoIcon, Play, CheckCircle2, LayoutGrid, Table as TableIcon, Upload, Paperclip, Loader2 } from 'lucide-react';
+import { Video as VideoIcon, Play, CheckCircle2, LayoutGrid, Table as TableIcon, Upload, Paperclip, Loader2 } from 'lucide-react';
 import { Attachment, AttachmentDialog } from '@/components/AttachmentDialog';
 import { Progress } from "@/components/ui/progress";
 import {
@@ -26,14 +26,11 @@ import { toast } from 'sonner';
 import { ErrorBoundary } from 'react-error-boundary';
 import { cn } from "@/lib/utils";
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
-import { MuxPlayer } from '@/components/MuxPlayer';
 import { TopicVideoCard } from '@/components/TopicVideoCard';
-import { useAuth } from '@/hooks/useAuth';
 import { Skeleton } from "@/components/ui/skeleton";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info, AlertCircle } from "lucide-react";
-import type { Database, Json } from '@/lib/database.types';
+import type { Database } from '@/lib/database.types';
 import { PersonTag } from '@/types/models';
 import {
   Tooltip,
@@ -41,6 +38,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { BackButton } from '@/components/ui/BackButton';
 
 // Dynamically import AttachmentUpload only on the client
 const AttachmentUpload = dynamic(() => import('@/components/AttachmentUpload'), {
@@ -49,7 +47,8 @@ const AttachmentUpload = dynamic(() => import('@/components/AttachmentUpload'), 
 });
 
 // Define concrete types based on Database definitions
-type ProfileSharer = Database['public']['Tables']['ProfileSharer']['Row'];
+// Remove unused ProfileSharer type
+// type ProfileSharer = Database['public']['Tables']['ProfileSharer']['Row']; 
 type TopicPromptCategory = Database['public']['Tables']['PromptCategory']['Row'] & {
     Prompt?: TopicPrompt[];
 };
@@ -64,7 +63,6 @@ type TopicPromptResponseAttachment = Database['public']['Tables']['PromptRespons
 type TopicVideo = Database['public']['Tables']['Video']['Row'] & {
     VideoTranscript?: any[];
 };
-type User = import('@supabase/supabase-js').User;
 
 // Define UIAttachment interface locally
 interface LocalUIAttachment extends Omit<TopicPromptResponseAttachment, 'dateCaptured' | 'uploadedAt' | 'updatedAt'> {
@@ -132,35 +130,18 @@ interface TopicPageContentProps {
   areUrlsLoading: boolean;
   galleryAttachments: LocalUIAttachment[];
   setSelectedAttachment: (attachment: LocalUIAttachment | null) => void;
-  setCurrentAttachmentIndex: (index: number) => void;
   selectedAttachment: LocalUIAttachment | null;
-  currentAttachmentIndex: number;
   handleAttachmentSave: (updatedAttachment: LocalUIAttachment) => Promise<void>;
   handleAttachmentDelete: (attachmentId: string) => Promise<void>;
-  handleUploadFinished: (videoId: string, playbackId: string) => Promise<void>;
+  handleUploadFinished: (videoId: string, _playbackId: string) => Promise<void>;
   targetSharerId: string;
-  sharerProfileData?: ProfileSharer | null;
   handleNextAttachment?: () => void;
   handlePreviousAttachment?: () => void;
   hasNext?: boolean;
   hasPrevious?: boolean;
   handleDownloadAttachment?: (attachment: LocalUIAttachment) => Promise<void>;
+  handleDialogSaveWrapper: (attachment: Attachment) => Promise<void>;
 }
-
-// Simple error logging utility
-const logError = (error: any, context: string) => {
-  console.error(`[${context}] Error:`, {
-    message: error?.message,
-    stack: error?.stack,
-    cause: error?.cause,
-    name: error?.name,
-    ...(error?.response && {
-      status: error.response.status,
-      statusText: error.response.statusText,
-      data: error.response.data
-    })
-  });
-};
 
 // Error boundary fallback
 const ErrorFallback = ({ error, resetErrorBoundary }: { error: Error | string; resetErrorBoundary: () => void }) => {
@@ -256,19 +237,17 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
   areUrlsLoading,
   galleryAttachments,
   setSelectedAttachment,
-  setCurrentAttachmentIndex,
   selectedAttachment,
-  currentAttachmentIndex,
-  handleAttachmentSave,
+
   handleAttachmentDelete,
   handleUploadFinished,
   targetSharerId,
-  sharerProfileData,
   handleNextAttachment,
   handlePreviousAttachment,
   hasNext,
   hasPrevious,
-  handleDownloadAttachment
+  handleDownloadAttachment,
+  handleDialogSaveWrapper
 }) => {
   // Add diagnostic log for promptCategory
   console.log('[DIAGNOSTIC] TopicPageContent rendering with promptCategory:',
@@ -329,7 +308,7 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
       // If URLs are loaded, proceed to render thumbnails
       return (
         <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-          {viewableAttachments.map((attachment, index) => {
+          {viewableAttachments.map((attachment) => {
             const signedUrl = gallerySignedUrls[attachment.id];
             if (!signedUrl) {
               console.warn(`[RENDER_GALLERY Attachment ID: ${attachment.id}] Missing signed URL in gallerySignedUrls map after loading!`);
@@ -373,17 +352,15 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                   const latestAttachmentFromState = galleryAttachments.find(ga => ga.id === attachment.id);
 
                   if (latestAttachmentFromState) {
-                    const dialogIndex = galleryAttachments.findIndex(ga => ga.id === attachment.id); // Index remains the same
+                    // Remove the line below
+                    // const dialogIndex = galleryAttachments.findIndex(ga => ga.id === attachment.id); // Index remains the same
                     // --- FIX: Use the object directly from the state array ---
                     setSelectedAttachment(latestAttachmentFromState);
-                    setCurrentAttachmentIndex(dialogIndex);
-                    console.log(`[RENDER_GALLERY] Found latest state version for ID: ${attachment.id}. Setting selectedAttachment.`);
                   } else {
                     console.warn(`Could not find attachment ${attachment.id} in galleryAttachments state for dialog.`);
                     // Fallback logic (unchanged)
                     if (galleryAttachments.length > 0) {
                         setSelectedAttachment(galleryAttachments[0]);
-                        setCurrentAttachmentIndex(0);
                     } else {
                         setSelectedAttachment(null);
                     }
@@ -404,26 +381,7 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
       console.error('Error rendering gallery:', error);
       return <div className="text-red-500 text-xs">Error loading gallery</div>;
     }
-  }, [gallerySignedUrls, areUrlsLoading, galleryAttachments, setSelectedAttachment, setCurrentAttachmentIndex]);
-
-  const handleDialogSave = useCallback(async (dialogAttachment: Attachment) => {
-    const originalUiAttachment = galleryAttachments.find(att => att.id === dialogAttachment.id);
-
-    if (!originalUiAttachment) {
-      console.error(`[handleDialogSave] Original LocalUIAttachment not found for id: ${dialogAttachment.id}`);
-      toast.error("Save failed: Could not find original attachment data.");
-      return;
-    }
-
-    const updatedUiAttachment: LocalUIAttachment = {
-      ...originalUiAttachment,
-      title: dialogAttachment.title,
-      description: dialogAttachment.description,
-      dateCaptured: dialogAttachment.dateCaptured ? new Date(dialogAttachment.dateCaptured) : null,
-    };
-
-    await handleAttachmentSave(updatedUiAttachment);
-  }, [galleryAttachments, handleAttachmentSave]);
+  }, [gallerySignedUrls, areUrlsLoading, galleryAttachments, setSelectedAttachment]);
 
   // Render
   if (!promptCategory) {
@@ -431,8 +389,16 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
     return null;
   }
 
-  const completedCount = promptCategory.Prompt?.filter((p: TopicPrompt) => p.PromptResponse?.length > 0)?.length || 0;
-  const totalCount = promptCategory.Prompt?.length || 0;
+  const totalCount = promptCategory?.Prompt?.length || 0;
+  const completedCount = useMemo(() => {
+    return promptCategory?.Prompt?.filter(
+      (p) =>
+        // Check status on Video, or check for attachments
+        (p.PromptResponse && p.PromptResponse.length > 0 && p.PromptResponse[0].Video?.status === 'READY') || 
+        (p.PromptResponse && p.PromptResponse.length > 0 && p.PromptResponse[0].PromptResponseAttachment && p.PromptResponse[0].PromptResponseAttachment.length > 0)
+    ).length || 0;
+  }, [promptCategory?.Prompt]);
+
   const progressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
   // Sort
@@ -484,401 +450,221 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
   };
 
   return (
-    <div className="py-6 px-4 md:px-6 md:py-8 space-y-4">
-      {/* Header */}
-      <div>
-        {/* 
-        <Button
-          variant="ghost"
-          onClick={() => router.push('/role-sharer/topics')}
-          className="-ml-2 text-gray-600 hover:text-gray-900 rounded-full"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Topics
-        </Button>
-        */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-1">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold">
-              {promptCategory?.category || 'Topic'}
-            </h1>
-            <p className="text-gray-600 mt-1">{promptCategory?.description}</p>
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
+      <TooltipProvider>
+        <div className="container mx-auto px-4 py-6 md:px-6 lg:px-8 max-w-7xl">
+          <div className="mb-6"> 
+            <BackButton />
           </div>
-          <div className="flex items-center gap-3 mt-1 sm:mt-0">
-            <div className="bg-[#8fbc55] text-[#1B4332] px-4 py-1.5 rounded-full text-lg font-semibold">
-              {completedCount}/{totalCount}
-            </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setViewMode(viewMode === 'grid' ? 'table' : 'grid')}
-              className="ml-1"
-            >
-              {viewMode === 'grid' ? (
-                <TableIcon className="h-4 w-4" />
-              ) : (
-                <LayoutGrid className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-        </div>
-        <div className="mt-2">
-          <Progress
-            value={progressPercentage}
-            className="h-2 bg-[#E5E7EB] [&>[role=progressbar]]:bg-[#8fbc55]"
-          />
-        </div>
-      </div>
 
-      {/* FIX: Add categoryName prop back */}
-      <TopicVideoCard
-        promptCategoryId={promptCategory.id}
-        categoryName={promptCategory.category}
-      />
-
-      {/* Content */}
-      {viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          {sortedPrompts.map((prompt: TopicPrompt) => {
-            if (!prompt?.id) return null;
-            const hasResponse = prompt?.PromptResponse?.[0]?.Video?.muxPlaybackId;
-            const rawResponse = hasResponse ? prompt.PromptResponse[0] : null;
-            const promptResponse: TopicPromptResponse | null = rawResponse
-              ? {
-                  id: rawResponse.id,
-                  profileSharerId: rawResponse.profileSharerId,
-                  summary: rawResponse.summary || '',
-                  responseNotes: rawResponse.responseNotes || '',
-                  createdAt: rawResponse.createdAt,
-                  Video: rawResponse.Video,
-                  videoId: rawResponse.videoId,
-                  promptId: rawResponse.promptId,
-                  privacyLevel: rawResponse.privacyLevel || 'private',
-                  updatedAt: rawResponse.updatedAt,
-                  airtableRecordId: rawResponse.airtableRecordId || null,
-                  search_vector: rawResponse.search_vector || null,
-                  PromptResponseAttachment: (rawResponse.PromptResponseAttachment || []).map(
-                    (att: any): TopicPromptResponseAttachment => ({
-                      id: att.id,
-                      promptResponseId: rawResponse.id,
-                      profileSharerId: rawResponse.profileSharerId,
-                      fileUrl: att.fileUrl,
-                      fileType: att.fileType,
-                      fileName: att.fileName,
-                      fileSize: att.fileSize || null,
-                      title: att.title || null,
-                      description: att.description || null,
-
-                      uploadedAt: att.uploadedAt ? new Date(att.uploadedAt).toISOString() : null,
-                      updatedAt: att.updatedAt ? new Date(att.updatedAt).toISOString() : null,
-                      dateCaptured: att.dateCaptured ? new Date(att.dateCaptured).toISOString() : null,
-                      yearCaptured: att.yearCaptured || null,
-                    })
-                  )
-                }
-              : null;
-
-
-            return (
-              areUrlsLoading ? (
-                <LocalPromptCardSkeleton key={`skeleton-${prompt.id}`} />
-              ) : (
-              <Card
-                key={prompt.id}
-                className={cn(
-                  "border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 h-[280px] md:h-[250px] flex flex-col bg-white",
-                  hasResponse && "cursor-pointer"
-                )}
-                onClick={(e) => {
-                  if (
-                    e.target instanceof HTMLElement &&
-                    !e.target.closest('button') &&
-                    hasResponse
-                  ) {
-                    router.push(`/role-sharer/prompts/${prompt.id}`);
-                  }
-                }}
-              >
-                 <CardHeader className="pb-0 flex-none pt-4 px-4 md:pt-6 md:px-6">
-                  <div className="flex flex-col">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        {prompt.isContextEstablishing && (
-                          <div className="mb-1">
-                            <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-[#8fbc55] text-[#1B4332] rounded-full">
-                              Start Here
-                            </span>
-                          </div>
-                        )}
-                        <CardTitle className="text-base leading-tight font-medium text-[#1B4332] group relative">
-                          <span
-                            className="line-clamp-4"
-                            ref={(el) => {
-                              if (el) {
-                                promptRefs.current[prompt.id] = el;
-                              }
-                            }}
-                          >
-                            {prompt.promptText}
-                          </span>
-                          {overflowingPrompts.has(prompt.id) && (
-                            <div className="absolute left-0 top-full z-50 hidden group-hover:block w-full">
-                              <div className="bg-white border-2 border-[#1B4332] rounded-lg p-4 shadow-[4px_4px_0_0_#8fbc55] mt-2 max-w-[300px] text-sm whitespace-normal break-words">
-                                <div className="absolute -top-2 left-4 w-4 h-4 bg-white border-l-2 border-t-2 border-[#1B4332] transform rotate-45" />
-                                {prompt.promptText}
-                              </div>
-                            </div>
-                          )}
-                        </CardTitle>
-                      </div>
-                      {hasResponse && (
-                        <CheckCircle2 className="h-5 w-5 text-[#8fbc55] flex-shrink-0" />
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-                 <div className="flex-grow" />
-                <div className="px-4 pb-4 md:px-6 md:pb-6 space-y-3">
-                  <div className="flex justify-end h-9 items-center">
-                     {renderGallery(promptResponse)}
-                   </div>
-                  {/* Buttons */}
-                  <div className="flex gap-2">
-                    {hasResponse ? (
-                      <>
-                        <Button
-                          onClick={(e) => {
-                             e.stopPropagation();
-                            setSelectedPrompt(prompt);
-                            setIsVideoPopupOpen(true);
-                          }}
-                          size="sm"
-                          className="bg-[#1B4332] hover:bg-[#1B4332]/90 rounded-full flex-1 text-sm font-medium"
-                        >
-                          <Play className="mr-2 h-4 w-4" />
-                          Watch
-                        </Button>
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('[DEBUG] Paperclip button clicked, setting selectedPromptResponse and isAttachmentUploadOpen');
-                            setSelectedPromptResponse(promptResponse);
-                            setIsAttachmentUploadOpen(true);
-                          }}
-                          variant="outline"
-                          size="sm"
-                          className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full flex-1 text-sm font-medium"
-                        >
-                          <Paperclip className="mr-1 h-4 w-4" />
-                          {promptResponse?.PromptResponseAttachment?.length || 0}
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex-1">
-                          <TooltipProvider delayDuration={100}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span tabIndex={0} className="block w-full">
-                                  <Button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                    }}
-                                    variant="outline"
-                                    size="sm"
-                                    className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full w-full text-sm font-medium"
-                                    disabled
-                                    aria-disabled="true"
-                                  >
-                                    <VideoIcon className="mr-2 h-4 w-4" />
-                                    Record
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Feature coming soon</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                        <div className="flex-1">
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedPrompt(prompt);
-                              setIsUploadPopupOpen(true);
-                            }}
-                            variant="outline"
-                            size="sm"
-                            className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full w-full text-sm font-medium"
-                          >
-                            <Upload className="mr-2 h-4 w-4" />
-                            Upload
-                          </Button>
-                        </div>
-                      </>
-                    )}
-                  </div>
+          <div className="py-6 px-4 md:px-6 md:py-8 space-y-4">
+            {/* Header */}
+            <div>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-1">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold">
+                    {promptCategory?.category || 'Topic'}
+                  </h1>
+                  <p className="text-gray-600 mt-1">{promptCategory?.description}</p>
                 </div>
-              </Card>
-              )
-            );
-          })}
-        </div>
-      ) : (
-        <div className="rounded-lg border border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent border-b border-[#1B4332]">
-                <TableHead className="font-bold">Prompt</TableHead>
-                <TableHead
-                  className="font-bold text-center cursor-pointer hover:text-[#8fbc55]"
-                  onClick={() => setSortByStatus(!sortByStatus)}
-                >
-                  Status {sortByStatus ? '↓' : '↑'}
-                </TableHead>
-                <TableHead className="font-bold text-center">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedPrompts.map((prompt: TopicPrompt) => {
-                if (!prompt?.id) return null;
-                if (areUrlsLoading) {
-                  return <LocalPromptTableRowSkeleton key={`skeleton-${prompt.id}`} />;
-                }
-
-                const hasResponse = prompt?.PromptResponse?.[0]?.Video?.muxPlaybackId;
-                const rawResponse = hasResponse ? prompt.PromptResponse[0] : null;
-                const promptResponse: TopicPromptResponse | null = rawResponse
-                  ? {
-                      id: rawResponse.id,
-                      profileSharerId: rawResponse.profileSharerId,
-                      summary: rawResponse.summary || '',
-                      responseNotes: rawResponse.responseNotes || '',
-                      createdAt: rawResponse.createdAt,
-                      Video: rawResponse.Video,
-                      videoId: rawResponse.videoId,
-                      promptId: rawResponse.promptId,
-                      privacyLevel: rawResponse.privacyLevel || 'private',
-                      updatedAt: rawResponse.updatedAt,
-                      airtableRecordId: rawResponse.airtableRecordId || null,
-                      search_vector: rawResponse.search_vector || null,
-                      PromptResponseAttachment: (rawResponse.PromptResponseAttachment || []).map(
-                        (att: any): TopicPromptResponseAttachment => ({
-                          id: att.id,
-                          promptResponseId: rawResponse.id,
-                          profileSharerId: rawResponse.profileSharerId,
-                          fileUrl: att.fileUrl,
-                          fileType: att.fileType,
-                          fileName: att.fileName,
-                          fileSize: att.fileSize || null,
-                          title: att.title || null,
-                          description: att.description || null,
-
-                          uploadedAt: att.uploadedAt ? new Date(att.uploadedAt).toISOString() : null,
-                          updatedAt: att.updatedAt ? new Date(att.updatedAt).toISOString() : null,
-                          dateCaptured: att.dateCaptured ? new Date(att.dateCaptured).toISOString() : null,
-                          yearCaptured: att.yearCaptured || null,
-                        })
-                      )
-                    }
-                  : null;
-
-                return (
-                  <TableRow
-                    key={prompt.id}
-                    className={cn(
-                      "hover:bg-gray-50/50 border-b border-[#1B4332] last:border-0",
-                      hasResponse && "cursor-pointer"
-                    )}
-                    onClick={(e) => {
-                      if (
-                        e.target instanceof HTMLElement &&
-                        !e.target.closest('button') &&
-                        hasResponse
-                      ) {
-                        router.push(`/role-sharer/prompts/${prompt.id}`);
-                      }
-                    }}
+                <div className="flex items-center gap-3 mt-1 sm:mt-0">
+                  <div className="bg-[#8fbc55] text-[#1B4332] px-4 py-1.5 rounded-full text-lg font-semibold">
+                    {completedCount}/{totalCount}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setViewMode(viewMode === 'grid' ? 'table' : 'grid')}
+                    className="ml-1"
                   >
-                    <TableCell className="font-medium">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                        {prompt.isContextEstablishing && (
-                          <span className="inline-flex shrink-0 px-2 py-0.5 text-xs font-medium bg-[#8fbc55] text-[#1B4332] rounded-full w-fit">
-                            Start Here
-                          </span>
-                        )}
-                        <span className="flex-1">{prompt.promptText}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {hasResponse ? (
-                        <CheckCircle2 className="h-6 w-6 text-[#8fbc55] inline-block" />
-                      ) : (
-                        <div className="h-6 w-6" />
+                    {viewMode === 'grid' ? (
+                      <TableIcon className="h-4 w-4" />
+                    ) : (
+                      <LayoutGrid className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-2">
+                <Progress
+                  value={progressPercentage}
+                  className="h-2 bg-[#E5E7EB] [&>[role=progressbar]]:bg-[#8fbc55]"
+                />
+              </div>
+            </div>
+
+            {/* FIX: Add categoryName prop back */}
+            <TopicVideoCard
+              promptCategoryId={promptCategory.id}
+              categoryName={promptCategory.category}
+            />
+
+            {/* Content */}
+            {viewMode === 'grid' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {sortedPrompts.map((prompt: TopicPrompt) => {
+                  if (!prompt?.id) return null;
+                  const hasResponse = prompt?.PromptResponse?.[0]?.Video?.muxPlaybackId;
+                  const rawResponse = hasResponse ? prompt.PromptResponse[0] : null;
+                  const promptResponse: TopicPromptResponse | null = rawResponse
+                    ? {
+                        id: rawResponse.id,
+                        profileSharerId: rawResponse.profileSharerId,
+                        summary: rawResponse.summary || '',
+                        responseNotes: rawResponse.responseNotes || '',
+                        createdAt: rawResponse.createdAt,
+                        Video: rawResponse.Video,
+                        videoId: rawResponse.videoId,
+                        promptId: rawResponse.promptId,
+                        privacyLevel: rawResponse.privacyLevel || 'private',
+                        updatedAt: rawResponse.updatedAt,
+                        airtableRecordId: rawResponse.airtableRecordId || null,
+                        search_vector: rawResponse.search_vector || null,
+                        PromptResponseAttachment: (rawResponse.PromptResponseAttachment || []).map(
+                          (att: any): TopicPromptResponseAttachment => ({
+                            id: att.id,
+                            promptResponseId: rawResponse.id,
+                            profileSharerId: rawResponse.profileSharerId,
+                            fileUrl: att.fileUrl,
+                            fileType: att.fileType,
+                            fileName: att.fileName,
+                            fileSize: att.fileSize || null,
+                            title: att.title || null,
+                            description: att.description || null,
+
+                            uploadedAt: att.uploadedAt ? new Date(att.uploadedAt).toISOString() : null,
+                            updatedAt: att.updatedAt ? new Date(att.updatedAt).toISOString() : null,
+                            dateCaptured: att.dateCaptured ? new Date(att.dateCaptured).toISOString() : null,
+                            yearCaptured: att.yearCaptured || null,
+                          })
+                        )
+                      }
+                    : null;
+
+
+                  return (
+                    areUrlsLoading ? (
+                      <LocalPromptCardSkeleton key={`skeleton-${prompt.id}`} />
+                    ) : (
+                    <Card
+                      key={prompt.id}
+                      className={cn(
+                        "border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 h-[280px] md:h-[250px] flex flex-col bg-white",
+                        hasResponse && "cursor-pointer"
                       )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2 h-9">
-                        {hasResponse ? (
-                          <>
-                            {renderGallery(promptResponse)}
+                      onClick={(e) => {
+                        if (
+                          e.target instanceof HTMLElement &&
+                          !e.target.closest('button') &&
+                          hasResponse
+                        ) {
+                          router.push(`/role-sharer/prompts/${prompt.id}`);
+                        }
+                      }}
+                    >
+                       <CardHeader className="pb-0 flex-none pt-4 px-4 md:pt-6 md:px-6">
+                        <div className="flex flex-col">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              {prompt.isContextEstablishing && (
+                                <div className="mb-1">
+                                  <span className="inline-flex px-2 py-0.5 text-xs font-medium bg-[#8fbc55] text-[#1B4332] rounded-full">
+                                    Start Here
+                                  </span>
+                                </div>
+                              )}
+                              <CardTitle className="text-base leading-tight font-medium text-[#1B4332] group relative">
+                                <span
+                                  className="line-clamp-4"
+                                  ref={(el) => {
+                                    if (el) {
+                                      promptRefs.current[prompt.id] = el;
+                                    }
+                                  }}
+                                >
+                                  {prompt.promptText}
+                                </span>
+                                {overflowingPrompts.has(prompt.id) && (
+                                  <div className="absolute left-0 top-full z-50 hidden group-hover:block w-full">
+                                    <div className="bg-white border-2 border-[#1B4332] rounded-lg p-4 shadow-[4px_4px_0_0_#8fbc55] mt-2 max-w-[300px] text-sm whitespace-normal break-words">
+                                      <div className="absolute -top-2 left-4 w-4 h-4 bg-white border-l-2 border-t-2 border-[#1B4332] transform rotate-45" />
+                                      {prompt.promptText}
+                                    </div>
+                                  </div>
+                                )}
+                              </CardTitle>
+                            </div>
+                            {hasResponse && (
+                              <CheckCircle2 className="h-5 w-5 text-[#8fbc55] flex-shrink-0" />
+                            )}
+                          </div>
+                        </div>
+                      </CardHeader>
+                       <div className="flex-grow" />
+                      <div className="px-4 pb-4 md:px-6 md:pb-6 space-y-3">
+                        <div className="flex justify-end h-9 items-center">
+                           {renderGallery(promptResponse)}
+                         </div>
+                        {/* Buttons */}
+                        <div className="flex gap-2">
+                          {hasResponse ? (
+                            <>
+                              <Button
+                                onClick={(e) => {
+                                   e.stopPropagation();
+                                  setSelectedPrompt(prompt);
+                                  setIsVideoPopupOpen(true);
+                                }}
+                                size="sm"
+                                className="bg-[#1B4332] hover:bg-[#1B4332]/90 rounded-full flex-1 text-sm font-medium"
+                              >
+                                <Play className="mr-2 h-4 w-4" />
+                                Watch
+                              </Button>
+                              <Button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  console.log('[DEBUG] Paperclip button clicked, setting selectedPromptResponse and isAttachmentUploadOpen');
+                                  setSelectedPromptResponse(promptResponse);
+                                  setIsAttachmentUploadOpen(true);
+                                }}
+                                variant="outline"
+                                size="sm"
+                                className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full flex-1 text-sm font-medium"
+                              >
+                                <Paperclip className="mr-1 h-4 w-4" />
+                                {promptResponse?.PromptResponseAttachment?.length || 0}
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex-1">
+                                <TooltipProvider delayDuration={100}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span tabIndex={0} className="block w-full">
                             <Button
                               onClick={(e) => {
-                                e.stopPropagation();
-                                console.log('[DEBUG] Paperclip button clicked, setting selectedPromptResponse and isAttachmentUploadOpen');
-                                setSelectedPromptResponse(promptResponse);
-                                setIsAttachmentUploadOpen(true);
+                                 e.stopPropagation();
                               }}
                               variant="outline"
                               size="sm"
-                              className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full h-9"
-                            >
-                              <Paperclip className="mr-1 h-4 w-4" />
-                              {promptResponse?.PromptResponseAttachment?.length || 0}
-                            </Button>
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedPrompt(prompt);
-                                setIsVideoPopupOpen(true);
-                              }}
-                              size="sm"
-                              className="bg-[#1B4332] hover:bg-[#1B4332]/90 rounded-full h-9"
-                            >
-                              <Play className="mr-2 h-4 w-4" />
-                              Watch
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <div className="flex-1">
-                              <TooltipProvider delayDuration={100}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span tabIndex={0} className="block w-full">
-                                      <Button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                        }}
-                                        variant="outline"
-                                        size="sm"
                                         className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full w-full text-sm font-medium"
                                         disabled
                                         aria-disabled="true"
-                                      >
-                                        <VideoIcon className="mr-2 h-4 w-4" />
-                                        Record
-                                      </Button>
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Feature coming soon</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </div>
-                            <div className="flex-1">
+                            >
+                              <VideoIcon className="mr-2 h-4 w-4" />
+                              Record
+                            </Button>
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Feature coming soon</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </div>
+                              <div className="flex-1">
                               <Button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -887,113 +673,282 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                                 }}
                                 variant="outline"
                                 size="sm"
-                                className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full w-full text-sm font-medium"
+                                  className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full w-full text-sm font-medium"
                               >
                                 <Upload className="mr-2 h-4 w-4" />
                                 Upload
                               </Button>
-                            </div>
-                          </>
-                        )}
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                    </Card>
+                    )
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent border-b border-[#1B4332]">
+                      <TableHead className="font-bold">Prompt</TableHead>
+                      <TableHead
+                        className="font-bold text-center cursor-pointer hover:text-[#8fbc55]"
+                        onClick={() => setSortByStatus(!sortByStatus)}
+                      >
+                        Status {sortByStatus ? '↓' : '↑'}
+                      </TableHead>
+                      <TableHead className="font-bold text-center">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedPrompts.map((prompt: TopicPrompt) => {
+                      if (!prompt?.id) return null;
+                      if (areUrlsLoading) {
+                        return <LocalPromptTableRowSkeleton key={`skeleton-${prompt.id}`} />;
+                      }
+
+                      const hasResponse = prompt?.PromptResponse?.[0]?.Video?.muxPlaybackId;
+                      const rawResponse = hasResponse ? prompt.PromptResponse[0] : null;
+                      const promptResponse: TopicPromptResponse | null = rawResponse
+                        ? {
+                            id: rawResponse.id,
+                            profileSharerId: rawResponse.profileSharerId,
+                            summary: rawResponse.summary || '',
+                            responseNotes: rawResponse.responseNotes || '',
+                            createdAt: rawResponse.createdAt,
+                            Video: rawResponse.Video,
+                            videoId: rawResponse.videoId,
+                            promptId: rawResponse.promptId,
+                            privacyLevel: rawResponse.privacyLevel || 'private',
+                            updatedAt: rawResponse.updatedAt,
+                            airtableRecordId: rawResponse.airtableRecordId || null,
+                            search_vector: rawResponse.search_vector || null,
+                            PromptResponseAttachment: (rawResponse.PromptResponseAttachment || []).map(
+                              (att: any): TopicPromptResponseAttachment => ({
+                                id: att.id,
+                                promptResponseId: rawResponse.id,
+                                profileSharerId: rawResponse.profileSharerId,
+                                fileUrl: att.fileUrl,
+                                fileType: att.fileType,
+                                fileName: att.fileName,
+                                fileSize: att.fileSize || null,
+                                title: att.title || null,
+                                description: att.description || null,
+
+                                uploadedAt: att.uploadedAt ? new Date(att.uploadedAt).toISOString() : null,
+                                updatedAt: att.updatedAt ? new Date(att.updatedAt).toISOString() : null,
+                                dateCaptured: att.dateCaptured ? new Date(att.dateCaptured).toISOString() : null,
+                                yearCaptured: att.yearCaptured || null,
+                              })
+                            )
+                          }
+                        : null;
+
+                      return (
+                        <TableRow
+                          key={prompt.id}
+                          className={cn(
+                            "hover:bg-gray-50/50 border-b border-[#1B4332] last:border-0",
+                            hasResponse && "cursor-pointer"
+                          )}
+                          onClick={(e) => {
+                            if (
+                              e.target instanceof HTMLElement &&
+                              !e.target.closest('button') &&
+                              hasResponse
+                            ) {
+                              router.push(`/role-sharer/prompts/${prompt.id}`);
+                            }
+                          }}
+                        >
+                          <TableCell className="font-medium">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                              {prompt.isContextEstablishing && (
+                                <span className="inline-flex shrink-0 px-2 py-0.5 text-xs font-medium bg-[#8fbc55] text-[#1B4332] rounded-full w-fit">
+                                  Start Here
+                                </span>
+                              )}
+                              <span className="flex-1">{prompt.promptText}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {hasResponse ? (
+                              <CheckCircle2 className="h-6 w-6 text-[#8fbc55] inline-block" />
+                            ) : (
+                              <div className="h-6 w-6" />
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2 h-9">
+                              {hasResponse ? (
+                                <>
+                                  {renderGallery(promptResponse)}
+                                  <Button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      console.log('[DEBUG] Paperclip button clicked, setting selectedPromptResponse and isAttachmentUploadOpen');
+                                      setSelectedPromptResponse(promptResponse);
+                                      setIsAttachmentUploadOpen(true);
+                                    }}
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full h-9"
+                                  >
+                                    <Paperclip className="mr-1 h-4 w-4" />
+                                    {promptResponse?.PromptResponseAttachment?.length || 0}
+                                  </Button>
+                                  <Button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedPrompt(prompt);
+                                      setIsVideoPopupOpen(true);
+                                    }}
+                                    size="sm"
+                                    className="bg-[#1B4332] hover:bg-[#1B4332]/90 rounded-full h-9"
+                                  >
+                                    <Play className="mr-2 h-4 w-4" />
+                                    Watch
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="flex-1">
+                                    <TooltipProvider delayDuration={100}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span tabIndex={0} className="block w-full">
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                              variant="outline"
+                              size="sm"
+                                        className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full w-full text-sm font-medium"
+                                        disabled
+                                        aria-disabled="true"
+                            >
+                              <VideoIcon className="mr-2 h-4 w-4" />
+                              Record
+                            </Button>
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>Feature coming soon</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </div>
+                                  <div className="flex-1">
+                                  <Button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedPrompt(prompt);
+                                      setIsUploadPopupOpen(true);
+                                    }}
+                                    variant="outline"
+                                    size="sm"
+                                      className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full w-full text-sm font-medium"
+                                  >
+                                    <Upload className="mr-2 h-4 w-4" />
+                                    Upload
+                                  </Button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {/* Recording Popup - Pass the new handleSaveForRecordingInterface */}
+            {isRecordingPopupOpen && selectedPrompt && (
+              <VideoPopup
+                open={isRecordingPopupOpen}
+                onClose={handleCloseRecording}
+                promptText={selectedPrompt.promptText}
+                videoId=""
+              >
+                <RecordingInterface
+                  promptId={selectedPrompt.id}
+                  onClose={handleCloseRecording}
+                  onSave={handleSaveForRecordingInterface} // Pass the function that returns Promise<string>
+                />
+              </VideoPopup>
+            )}
+
+            {/* Upload Popup */}
+            {isUploadPopupOpen && selectedPrompt && (
+              <VideoPopup
+                key={`upload-${selectedPrompt.id}`}
+                open={isUploadPopupOpen}
+                onClose={handleCloseUpload}
+                promptText={selectedPrompt.promptText}
+                videoId=""
+              >
+                <UploadInterface
+                  key={`upload-interface-${selectedPrompt.id}-${isUploadPopupOpen}`}
+                  promptId={selectedPrompt.id}
+                  onUploadSuccess={handleUploadFinished}
+                  promptText={selectedPrompt.promptText}
+                  targetSharerId={targetSharerId}
+                />
+              </VideoPopup>
+            )}
+
+            {/* Video Playback Popup (for watchers) */}
+            {selectedPrompt && isVideoPopupOpen && selectedPrompt.PromptResponse?.[0]?.Video?.muxPlaybackId && (
+              <VideoPopup
+                open={isVideoPopupOpen}
+                onClose={() => {
+                  setIsVideoPopupOpen(false);
+                  setSelectedPrompt(null);
+                }}
+                promptText={selectedPrompt.promptText}
+                videoId={selectedPrompt.PromptResponse[0].Video.muxPlaybackId}
+              />
+            )}
+
+            {/* Attachment Upload Dialog */}
+            {selectedPromptResponse && (
+              <AttachmentUpload
+                promptResponseId={selectedPromptResponse.id}
+                isOpen={isAttachmentUploadOpen}
+                onClose={() => {
+                  setIsAttachmentUploadOpen(false);
+                  setSelectedPromptResponse(null);
+                }}
+                 onUploadSuccess={refreshData}
+                 targetSharerId={targetSharerId}
+              />
+            )}
+
+            {/* Attachment View/Edit Dialog - use the wrapper */}
+            {selectedAttachment && galleryAttachments.length > 0 && (
+              <AttachmentDialog
+                isOpen={!!selectedAttachment}
+                onClose={() => setSelectedAttachment(null)}
+                       attachment={selectedAttachment as Attachment}
+                       onSave={handleDialogSaveWrapper}
+                onDelete={handleAttachmentDelete}
+                onNext={handleNextAttachment}
+                onPrevious={handlePreviousAttachment}
+                hasNext={hasNext}
+                hasPrevious={hasPrevious}
+                       onDownload={() => selectedAttachment && handleDownloadAttachment(selectedAttachment)}
+              />
+            )}
+          </div>
         </div>
-      )}
-
-      {/* Recording Popup - Pass the new handleSaveForRecordingInterface */}
-      {isRecordingPopupOpen && selectedPrompt && (
-        <VideoPopup
-          open={isRecordingPopupOpen}
-          onClose={handleCloseRecording}
-          promptText={selectedPrompt.promptText}
-          videoId=""
-        >
-          <RecordingInterface
-            promptId={selectedPrompt.id}
-            onClose={handleCloseRecording}
-            onSave={handleSaveForRecordingInterface} // Pass the function that returns Promise<string>
-          />
-        </VideoPopup>
-      )}
-
-      {/* Upload Popup */}
-      {isUploadPopupOpen && selectedPrompt && (
-        <VideoPopup
-          key={`upload-${selectedPrompt.id}`}
-          open={isUploadPopupOpen}
-          onClose={handleCloseUpload}
-          promptText={selectedPrompt.promptText}
-          videoId=""
-        >
-          <UploadInterface
-            key={`upload-interface-${selectedPrompt.id}-${isUploadPopupOpen}`}
-            promptId={selectedPrompt.id}
-            onUploadSuccess={handleUploadFinished}
-            promptText={selectedPrompt.promptText}
-            targetSharerId={targetSharerId}
-          />
-        </VideoPopup>
-      )}
-
-      {/* Video Playback Popup (for watchers) */}
-      {selectedPrompt && isVideoPopupOpen && selectedPrompt.PromptResponse?.[0]?.Video?.muxPlaybackId && (
-        <VideoPopup
-          open={isVideoPopupOpen}
-          onClose={() => {
-            setIsVideoPopupOpen(false);
-            setSelectedPrompt(null);
-          }}
-          promptText={selectedPrompt.promptText}
-          videoId={selectedPrompt.PromptResponse[0].Video.muxPlaybackId}
-        />
-      )}
-
-      {/* Attachment Upload Dialog */}
-      {selectedPromptResponse && (
-        <AttachmentUpload
-          promptResponseId={selectedPromptResponse.id}
-          isOpen={isAttachmentUploadOpen}
-          onClose={() => {
-            setIsAttachmentUploadOpen(false);
-            setSelectedPromptResponse(null);
-          }}
-           onUploadSuccess={refreshData}
-           targetSharerId={targetSharerId}
-        />
-      )}
-
-      {/* Attachment View/Edit Dialog */}
-      {selectedAttachment && galleryAttachments.length > 0 && (
-        <AttachmentDialog
-          isOpen={!!selectedAttachment}
-          onClose={() => setSelectedAttachment(null)}
-          attachment={{
-             id: selectedAttachment.id,
-             fileUrl: selectedAttachment.fileUrl,
-             fileType: selectedAttachment.fileType,
-             fileName: selectedAttachment.fileName,
-             title: selectedAttachment.title,
-             description: selectedAttachment.description,
-             dateCaptured: selectedAttachment.dateCaptured,
-             yearCaptured: selectedAttachment.yearCaptured,
-             PersonTags: selectedAttachment.PersonTags || [],
-             profileSharerId: selectedAttachment.profileSharerId,
-          }}
-          onSave={handleDialogSave}
-          onDelete={handleAttachmentDelete}
-          onNext={handleNextAttachment}
-          onPrevious={handlePreviousAttachment}
-          hasNext={hasNext}
-          hasPrevious={hasPrevious}
-          onDownload={handleDownloadAttachment ? () => handleDownloadAttachment(selectedAttachment) : undefined}
-        />
-      )}
-    </div>
+      </TooltipProvider>
+    </ErrorBoundary>
   );
 };
 
@@ -1016,20 +971,17 @@ export default function TopicPage() {
   const [isUploadPopupOpen, setIsUploadPopupOpen] = useState<boolean>(false);
   const [isAttachmentUploadOpen, setIsAttachmentUploadOpen] = useState(false);
   const [selectedAttachment, setSelectedAttachment] = useState<LocalUIAttachment | null>(null);
-  const [currentAttachmentIndex, setCurrentAttachmentIndex] = useState<number>(0);
   const [galleryAttachments, setGalleryAttachments] = useState<LocalUIAttachment[]>([]);
   const [gallerySignedUrls, setGallerySignedUrls] = useState<Record<string, string>>({});
   const [areUrlsLoading, setAreUrlsLoading] = useState<boolean>(false);
 
   const [targetSharerId, setTargetSharerId] = useState<string | null>(null);
-  const [sharerProfileData, setSharerProfileData] = useState<ProfileSharer | null>(null);
   const [promptCategory, setPromptCategory] = useState<TopicPromptCategory | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
 
   // Polling state
-  const [pollingVideoId, setPollingVideoId] = useState<string | null>(null);
+  const [, setPollingVideoId] = useState<string | null>(null); // Keep only the setter
   const [pollingIntervalId, setPollingIntervalId] = useState<NodeJS.Timeout | null>(null);
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const POLLING_INTERVAL_MS = 5000; // Check every 5 seconds
@@ -1037,31 +989,20 @@ export default function TopicPage() {
 
   // --- Navigation and Download Handlers (for Sharer) ---
   const handleNextAttachment = useCallback(() => {
-    setCurrentAttachmentIndex((prevIndex) => {
-      const nextIndex = prevIndex + 1;
-      if (nextIndex < galleryAttachments.length) {
+    if (selectedAttachment && galleryAttachments.length > 1) {
+      const currentIndex = galleryAttachments.findIndex(att => att.id === selectedAttachment.id);
+      const nextIndex = (currentIndex + 1) % galleryAttachments.length;
         setSelectedAttachment(galleryAttachments[nextIndex]);
-        return nextIndex;
-      } else {
-        setSelectedAttachment(galleryAttachments[0]);
-        return 0;
       }
-    });
-  }, [galleryAttachments]);
+  }, [selectedAttachment, galleryAttachments]);
 
   const handlePreviousAttachment = useCallback(() => {
-    setCurrentAttachmentIndex((prevIndex) => {
-      const prevIdx = prevIndex - 1;
-      if (prevIdx >= 0) {
-        setSelectedAttachment(galleryAttachments[prevIdx]);
-        return prevIdx;
-      } else {
-        const lastIndex = galleryAttachments.length - 1;
-        setSelectedAttachment(galleryAttachments[lastIndex]);
-        return lastIndex;
-      }
-    });
-  }, [galleryAttachments]);
+    if (selectedAttachment && galleryAttachments.length > 1) {
+      const currentIndex = galleryAttachments.findIndex(att => att.id === selectedAttachment.id);
+      const prevIndex = (currentIndex - 1 + galleryAttachments.length) % galleryAttachments.length;
+      setSelectedAttachment(galleryAttachments[prevIndex]);
+    }
+  }, [selectedAttachment, galleryAttachments]);
 
   const hasNext = useMemo(() => galleryAttachments.length > 1, [galleryAttachments.length]);
   const hasPrevious = useMemo(() => galleryAttachments.length > 1, [galleryAttachments.length]);
@@ -1130,22 +1071,48 @@ export default function TopicPage() {
                return { attachment, signedUrl: null, error: 'Invalid file path' };
           }
 
-           try {
-                // *** FIX: Remove prepending p_sharer_id. Assume filePath contains the correct relative path. ***
-                const fullStoragePath = filePath; 
-               // *** ADDED DEBUGGING ***
-                console.log(`[fetchAllSignedUrls - Sharer] Using storage path: '${fullStoragePath}' for signing.`);
+          // Determine the correct path for signing
+          let storagePath = filePath;
+          if (filePath.startsWith('http')) {
+            // Extract path after the bucket name from the full URL
+            try {
+              const url = new URL(filePath);
+              // Pathname usually starts with /storage/v1/object/public/attachments/
+              // We want the part after the bucket name ('attachments/')
+              const parts = url.pathname.split('/attachments/');
+              if (parts.length > 1) {
+                storagePath = parts[1]; // Get the part after '/attachments/'
+                console.log(`[fetchAllSignedUrls - Sharer] Extracted relative path: '${storagePath}' from full URL: '${filePath}'`);
+              } else {
+                 console.warn(`[fetchAllSignedUrls - Sharer] Could not extract relative path from URL: ${filePath}. Using original path.`);
+              }
+            } catch (parseError) {
+              console.error(`[fetchAllSignedUrls - Sharer] Error parsing URL: ${filePath}`, parseError);
+              // Fallback to using the original path, though it might fail
+            }
+          } else {
+              console.log(`[fetchAllSignedUrls - Sharer] Path is already relative: '${storagePath}'`);
+          }
+
+          try {
+            // *** FIX: Use the extracted storagePath ***
+            console.log(`[fetchAllSignedUrls - Sharer] Using storage path: '${storagePath}' for signing.`);
 
                const { data: signedUrlData, error: signError } = await supabase.storage
                   .from('attachments')
-                  .createSignedUrl(fullStoragePath, 3600);
+              .createSignedUrl(storagePath, 3600); // Use the potentially modified storagePath
 
               if (signError) {
-                  console.error(`[fetchAllSignedUrls] Error creating signed URL for ${fullStoragePath}:`, signError);
-                  return { attachment, signedUrl: null, error: signError.message };
+              // Add more specific logging for 'Object not found'
+              const errorMessage = signError.message || 'Unknown error';
+              console.error(`[fetchAllSignedUrls] Error creating signed URL for path '${storagePath}':`, signError);
+              if (errorMessage.toLowerCase().includes('object not found')) {
+                   console.error(`[fetchAllSignedUrls] DETAIL: The object at path '${storagePath}' was not found in the 'attachments' bucket.`);
+              }
+              return { attachment, signedUrl: null, error: errorMessage };
               }
               if (!signedUrlData?.signedUrl) {
-                   console.warn(`[fetchAllSignedUrls] No signed URL returned for ${fullStoragePath}, though no error reported.`);
+              console.warn(`[fetchAllSignedUrls] No signed URL returned for path '${storagePath}', though no error reported.`);
                    return { attachment, signedUrl: null, error: 'No signed URL returned' };
               }
 
@@ -1271,7 +1238,6 @@ export default function TopicPage() {
          router.push('/login');
           return;
         }
-       setUser(authUser);
        console.log('[TopicPage] User authenticated:', authUser.id);
 
        let effectiveSharerId: string | null = null;
@@ -1281,12 +1247,11 @@ export default function TopicPage() {
            effectiveSharerId = sharerIdFromParams;
        } else {
            console.log('[TopicPage] Sharer context. Fetching Sharer ID via direct query.');
-           // Fetch Sharer ID using a direct query instead of missing RPC
            const { data: ownSharerData, error: sharerFetchError } = await supabase
             .from('ProfileSharer')
-            .select('id') // Select only the ID
-            .eq('profileId', authUser.id) // Match the authenticated user's ID
-            .maybeSingle(); // Expect 0 or 1 result
+            .select('id') 
+            .eq('profileId', authUser.id) 
+            .maybeSingle(); 
 
            if (sharerFetchError) {
              console.error('Error fetching own sharer ID via query:', sharerFetchError);
@@ -1312,11 +1277,11 @@ export default function TopicPage() {
        }
 
        console.log(`[TopicPage] Setting targetSharerId: ${effectiveSharerId}`);
-       setTargetSharerId(effectiveSharerId);
+       setTargetSharerId(effectiveSharerId); // Use the determined effectiveSharerId
 
        // Use topicId obtained from useParams hook
        console.log(`[TopicPage] Fetching initial data for topicId: ${topicId} and sharerId: ${effectiveSharerId}`);
-       await fetchData(topicId, effectiveSharerId);
+       await fetchData(topicId, effectiveSharerId); // Use the determined effectiveSharerId
 
      } catch (err) {
        console.error('[TopicPage] Unexpected error during initialization:', err);
@@ -1325,8 +1290,6 @@ export default function TopicPage() {
         console.log('[TopicPage] Initialization complete.');
         setLoading(false);
      }
-     // Ensure hooks used inside are listed as dependencies if needed, 
-     // though params/searchParams are stable references from hooks
    }, [topicId, sharerIdFromParams, supabase, router, fetchData]); 
 
    const refreshData = useCallback(async () => {
@@ -1345,7 +1308,7 @@ export default function TopicPage() {
 
 
   // Ensure handleVideoComplete remains as it was (handling Mux upload)
-  const handleVideoComplete = useCallback(async (blob: Blob): Promise<string> => {
+    const handleVideoComplete = useCallback(async (blob: Blob): Promise<string> => {
     if (!selectedPrompt || !targetSharerId) {
         throw new Error("Cannot complete video: No prompt selected or Sharer context missing.");
     }
@@ -1405,7 +1368,7 @@ export default function TopicPage() {
         try {
            const muxError = await muxUploadResponse.text(); // Mux might return plain text errors
            errorText += ` - ${muxError}`;
-        } catch (_) { /* Ignore if parsing fails */ }
+        } catch { /* Ignore if parsing fails, remove unused variable */ }
         throw new Error(errorText);
       }
 
@@ -1418,7 +1381,7 @@ export default function TopicPage() {
       // await supabase.from('Video').delete().eq('id', videoId);
       throw error; // Rethrow to be caught by handleRecordingComplete
     }
-  }, [selectedPrompt, targetSharerId, supabase]);
+  }, [selectedPrompt, targetSharerId]);
 
   const handleCloseRecording = useCallback(() => {
     setIsRecordingPopupOpen(false);
@@ -1493,7 +1456,8 @@ export default function TopicPage() {
 
   // Update handleUploadFinished to potentially start polling as well
   // For consistency, although UploadInterface might already handle delay
-  const handleUploadFinished = useCallback(async (videoId: string, playbackId: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleUploadFinished = useCallback(async (videoId: string, _playbackId: string) => {
     if (!targetSharerId) {
         toast.error("Failed to finalize upload: Sharer context missing.");
         return;
@@ -1506,91 +1470,156 @@ export default function TopicPage() {
   }, [refreshData, targetSharerId, startPollingVideoStatus]);
 
   const handleAttachmentSave = useCallback(async (updatedAttachment: LocalUIAttachment) => {
-    if (!updatedAttachment?.id || !targetSharerId) {
-        toast.error("Save failed: Invalid data or Sharer context missing.");
+    if (!updatedAttachment?.id) {
+      toast.error("Cannot save: Attachment ID is missing.");
         return;
     }
-    console.log(`[handleAttachmentSave] Saving attachment ID: ${updatedAttachment.id} for sharer ${targetSharerId}`);
-    const savingToast = toast.loading("Saving attachment details...");
-    try {
-        const dataToUpdate: Partial<TopicPromptResponseAttachment> = {
-            title: updatedAttachment.title,
-            description: updatedAttachment.description,
-            dateCaptured: updatedAttachment.dateCaptured instanceof Date
-                ? updatedAttachment.dateCaptured.toISOString()
-                : null,
-        };
-         const { error: updateError } = await supabase
-             .from('PromptResponseAttachment')
-             .update(dataToUpdate)
-             .eq('id', updatedAttachment.id);
-         if (updateError) throw new Error(`Failed to save: ${updateError.message}`);
-         setGalleryAttachments(prev => prev.map(att => att.id === updatedAttachment.id ? updatedAttachment : att));
-         if (selectedAttachment?.id === updatedAttachment.id) setSelectedAttachment(updatedAttachment);
-         toast.success("Attachment saved!", { id: savingToast });
-    } catch (error) {
-        console.error('[handleAttachmentSave] Error:', error);
-        toast.error(`Save failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: savingToast });
+    console.log(`[TopicPage] Saving attachment: ${updatedAttachment.id}`, updatedAttachment);
+    const saveToast = toast.loading("Saving attachment details...");
+
+    // Optimistic update: Update the galleryAttachments state immediately
+    setGalleryAttachments(prev =>
+      prev.map(att =>
+        att.id === updatedAttachment.id ? updatedAttachment : att
+      )
+    );
+
+    // If the updated attachment is the currently selected one, update that too
+    if (selectedAttachment?.id === updatedAttachment.id) {
+      setSelectedAttachment(updatedAttachment);
     }
-  }, [supabase, targetSharerId, selectedAttachment, galleryAttachments]);
+
+    // Fetch the current user's ID for permission check
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      toast.error('Could not verify user. Please log in again.');
+      // TODO: Revert optimistic update here?
+      throw new Error('User not authenticated');
+    }
+
+    // Prepare parameters for the RPC call with correct names and profile ID
+    const params = {
+      p_attachment_id: updatedAttachment.id,
+      // p_profile_id: user.id, // Not needed for update_attachment_details
+      p_title: updatedAttachment.title,
+      p_description: updatedAttachment.description,
+      p_date_captured: updatedAttachment.dateCaptured ? new Date(updatedAttachment.dateCaptured).toISOString() : null,
+      p_year_captured: updatedAttachment.yearCaptured,
+      p_person_tag_ids: updatedAttachment.PersonTags?.map(tag => tag.id) || []
+    };
+
+    // --- ADDED: Detailed logging of parameters ---
+    console.log("[TopicPage] Calling RPC update_attachment_details with params:", JSON.stringify(params, null, 2));
+
+    try {
+      // --- CORRECTED: Use the correct RPC function name ---
+      const { error } = await supabase.rpc('update_attachment_details', params);
+
+      if (error) {
+        // --- MODIFIED: Log the full error object structure ---
+        console.error('[TopicPage] Error saving attachment via RPC. Full error object:', JSON.stringify(error, null, 2));
+        throw error; // Rethrow the original error
+      }
+
+      console.log(`[TopicPage] Attachment ${updatedAttachment.id} saved successfully.`);
+      toast.success("Attachment details saved!", { id: saveToast });
+
+      // --- ADDED: Refresh data to reflect the saved changes ---
+      await refreshData();
+      // ------------------------------------------------------
+
+    } catch (error) {
+      // --- MODIFIED: Log the full error object structure ---
+      console.error('[TopicPage] Failed to save attachment. Full error object:', JSON.stringify(error, null, 2));
+      // Display a generic message or try to extract info if possible
+      const errorMessage = (error instanceof Error ? error.message : '') || (error as any)?.details || (error as any)?.message || 'Unknown error';
+      toast.error(`Save failed: ${errorMessage}`, { id: saveToast });
+
+      // Revert optimistic update on error
+      // Consider fetching the original state or implementing a more robust revert mechanism
+      // For now, just log the error and let the user know
+      // A full refresh might be needed if the optimistic update was incorrect
+      // refreshData(); // Example: uncomment to force refresh on error
+    }
+  }, [supabase, setGalleryAttachments, refreshData, selectedAttachment, setSelectedAttachment, targetSharerId]); // <-- ADDED targetSharerId
 
   const handleAttachmentDelete = useCallback(async (attachmentId: string) => {
-    if (!attachmentId || !targetSharerId) {
-      toast.error("Delete failed: Invalid ID or Sharer context missing.");
+    if (!attachmentId) {
+      toast.error("Cannot delete: Attachment ID is missing.");
       return;
     }
-    console.log(`[handleAttachmentDelete] Deleting attachment ID: ${attachmentId} for sharer ${targetSharerId}`);
-    const deletingToast = toast.loading("Deleting attachment...");
-    try {
+    console.log(`[TopicPage] Deleting attachment: ${attachmentId}`);
+    const deleteToast = toast.loading("Deleting attachment...");
+
+    // Store the attachment to potentially revert
+    const originalAttachments = [...galleryAttachments];
         const attachmentToDelete = galleryAttachments.find(att => att.id === attachmentId);
-        let storageError = null;
+
+    // Optimistic update
+    setGalleryAttachments(prev => prev.filter(att => att.id !== attachmentId));
+    if (selectedAttachment?.id === attachmentId) {
+        setSelectedAttachment(null); // Clear selection if the deleted item was selected
+    }
+
+    try {
+      const { error } = await supabase.rpc('delete_attachment', { p_attachment_id: attachmentId });
+      if (error) throw error;
+
+      // Also delete from storage
         if (attachmentToDelete?.fileUrl) {
-            const storagePath = `${targetSharerId}/${attachmentToDelete.fileUrl}`;
-            const { error } = await supabase.storage.from('attachments').remove([storagePath]);
-            if (error) {
-                 console.error(`Storage deletion error for ${storagePath}:`, error);
-                 storageError = error;
+          // Extract storage path from fileUrl
+          let storagePath = attachmentToDelete.fileUrl;
+          if (storagePath.startsWith('http')) {
+              try {
+                  const url = new URL(storagePath);
+                  const parts = url.pathname.split('/attachments/'); // Assuming bucket name is 'attachments'
+                  if (parts.length > 1) {
+                      // The actual path in storage is likely after '/object/public/attachments/'
+                      // Need to adjust based on the exact URL structure Supabase provides
+                      // Example: /object/public/attachments/sharer-id/filename.ext -> sharer-id/filename.ext
+                      const objectPath = url.pathname.split('/object/public/attachments/')[1];
+                      if (objectPath) {
+                          storagePath = objectPath;
             }
         }
-        const { error: dbError } = await supabase.from('PromptResponseAttachment').delete().eq('id', attachmentId);
-        if (dbError) throw new Error(`Database delete failed: ${dbError.message}`);
-        let toastMessage = "Attachment deleted.";
+              } catch (parseError) {
+                  console.error(`Error parsing storage URL for deletion: ${attachmentToDelete.fileUrl}`, parseError);
+                  // Proceed with the original path, though it might fail
+              }
+          }
+          console.log(`[TopicPage] Deleting file from storage at path: ${storagePath}`);
+          const { error: storageError } = await supabase.storage.from('attachments').remove([storagePath]);
         if (storageError) {
-           toastMessage += " (Storage cleanup failed)";
-           toast.warning(toastMessage, { id: deletingToast });
-        } else {
-           toast.success(toastMessage, { id: deletingToast });
-        }
-        if (selectedAttachment?.id === attachmentId) setSelectedAttachment(null);
-        await refreshData();
+              console.warn(`[TopicPage] Failed to delete file from storage (might be okay if RPC handled it): ${storageError.message}`);
+              // Don't throw here, as the DB record deletion is the primary goal
+          }
+      }
+
+      toast.success("Attachment deleted.", { id: deleteToast });
     } catch (error) {
-        console.error('[handleAttachmentDelete] Error:', error);
-        toast.error(`Delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: deletingToast });
-    } finally {
-        if (selectedAttachment?.id === attachmentId) setSelectedAttachment(null);
+      console.error('[TopicPage] Error deleting attachment:', error);
+      toast.error(`Deletion failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: deleteToast });
+      // Revert optimistic update
+      setGalleryAttachments(originalAttachments);
     }
-  }, [supabase, targetSharerId, galleryAttachments, selectedAttachment, refreshData]);
+  }, [supabase, galleryAttachments, setGalleryAttachments, selectedAttachment, setSelectedAttachment]);
 
-  // FIX: Create a wrapper for onSave prop of AttachmentDialog
+  // Ensure this function definition exists ONCE here:
   const handleDialogSaveWrapper = useCallback(async (dialogAttachment: Attachment) => {
-    // Find the original full attachment data from state using the ID
     const originalUiAttachment = galleryAttachments.find(att => att.id === dialogAttachment.id);
-
     if (!originalUiAttachment) {
       toast.error("Save failed: Could not find original attachment data.");
       return;
     }
-
-    // Create the updated LocalUIAttachment by merging changes from the dialog
     const updatedUiAttachment: LocalUIAttachment = {
-      ...originalUiAttachment, // Start with the full original object
-      title: dialogAttachment.title, // Update changed fields
+      ...originalUiAttachment, 
+      title: dialogAttachment.title, 
       description: dialogAttachment.description,
       dateCaptured: dialogAttachment.dateCaptured ? new Date(dialogAttachment.dateCaptured) : null,
-      // Add any other fields potentially changed by the dialog if the Attachment type includes them
+      yearCaptured: dialogAttachment.yearCaptured, 
+      PersonTags: dialogAttachment.PersonTags, 
     };
-
-    // Call the main save handler which expects the full LocalUIAttachment
+    console.log('[handleDialogSaveWrapper] Prepared updatedUiAttachment:', updatedUiAttachment);
     await handleAttachmentSave(updatedUiAttachment);
   }, [galleryAttachments, handleAttachmentSave]);
 
@@ -1684,45 +1713,17 @@ export default function TopicPage() {
                 areUrlsLoading={areUrlsLoading}
                 galleryAttachments={galleryAttachments}
                 setSelectedAttachment={setSelectedAttachment}
-                setCurrentAttachmentIndex={setCurrentAttachmentIndex}
                 selectedAttachment={selectedAttachment}
-                currentAttachmentIndex={currentAttachmentIndex}
                 handleAttachmentSave={handleAttachmentSave}
                 handleAttachmentDelete={handleAttachmentDelete}
                 handleUploadFinished={handleUploadFinished}
                 targetSharerId={targetSharerId}
-                sharerProfileData={sharerProfileData}
                 handleNextAttachment={handleNextAttachment}
                 handlePreviousAttachment={handlePreviousAttachment}
                 hasNext={hasNext}
                 hasPrevious={hasPrevious}
                 handleDownloadAttachment={handleDownloadAttachment}
-            />
-        )}
-
-        {selectedAttachment && (
-             <AttachmentDialog
-                 isOpen={!!selectedAttachment}
-                 onClose={() => setSelectedAttachment(null)}
-                 attachment={{
-                      id: selectedAttachment.id,
-                      fileUrl: selectedAttachment.fileUrl,
-                      fileType: selectedAttachment.fileType,
-                      fileName: selectedAttachment.fileName,
-                      title: selectedAttachment.title,
-                      description: selectedAttachment.description,
-                      dateCaptured: selectedAttachment.dateCaptured,
-                      yearCaptured: selectedAttachment.yearCaptured,
-                      PersonTags: selectedAttachment.PersonTags || [],
-                      profileSharerId: selectedAttachment.profileSharerId,
-                   }}
-                 onSave={handleDialogSaveWrapper}
-                 onDelete={handleAttachmentDelete}
-                 onNext={handleNextAttachment}
-                 onPrevious={handlePreviousAttachment}
-                 hasNext={hasNext}
-                 hasPrevious={hasPrevious}
-                 onDownload={() => selectedAttachment && handleDownloadAttachment(selectedAttachment)}
+                handleDialogSaveWrapper={handleDialogSaveWrapper}
              />
         )}
 

@@ -54,27 +54,12 @@ export enum Role {
     promptText: string;
     promptType: string;
     isContextEstablishing: boolean;
-    promptCategoryId: string;
+    promptCategoryId?: string | null;
     PromptCategory?: {
       id: string;
       category: string;
     };
-    PromptResponse: Array<{
-      id: string;
-      profileSharerId: string;
-      summary: string | null;
-      createdAt: string;
-      Video: Video | null;
-      PromptResponseAttachment: Array<{
-        id: string;
-        fileUrl: string;
-        fileType: string;
-        fileName: string;
-        description?: string | null;
-        dateCaptured?: string | null;
-        yearCaptured?: number | null;
-      }>;
-    }>;
+    PromptResponse?: PromptResponse[] | null;
   }
   
   export interface PromptResponseAttachment {

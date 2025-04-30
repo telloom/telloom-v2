@@ -15,9 +15,10 @@ interface PromptActionsProps {
   promptId: string;
   responseId?: string;
   muxPlaybackId?: string;
+  targetSharerId: string;
 }
 
-export function PromptActions({ hasVideo, attachmentCount, promptId, responseId, muxPlaybackId }: PromptActionsProps) {
+export function PromptActions({ hasVideo, attachmentCount, promptId, responseId, muxPlaybackId, targetSharerId }: PromptActionsProps) {
   const [showVideoPopup, setShowVideoPopup] = useState(false);
   const [showRecordingInterface, setShowRecordingInterface] = useState(false);
   const [showUploadPopup, setShowUploadPopup] = useState(false);
@@ -56,6 +57,7 @@ export function PromptActions({ hasVideo, attachmentCount, promptId, responseId,
         {showAttachmentUpload && responseId && (
           <AttachmentUpload
             promptResponseId={responseId}
+            targetSharerId={targetSharerId}
             isOpen={showAttachmentUpload}
             onClose={() => setShowAttachmentUpload(false)}
             onUploadSuccess={() => {}}
@@ -139,6 +141,7 @@ export function PromptActions({ hasVideo, attachmentCount, promptId, responseId,
       {showUploadPopup && (
         <UploadPopup
           promptId={promptId}
+          targetSharerId={targetSharerId}
           open={showUploadPopup}
           onClose={() => setShowUploadPopup(false)}
           promptText="Upload your response"

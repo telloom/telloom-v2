@@ -1,8 +1,9 @@
 import { createClient } from '@/utils/supabase/server';
-import { createAdminClient } from '@/utils/supabase/admin';
+// Remove unused import
+// import { createAdminClient } from '@/utils/supabase/admin';
 import { redirect } from 'next/navigation';
 import TopicsTableAll from '@/components/TopicsTableAll';
-import BackButton from '@/components/BackButton';
+import { BackButton } from '@/components/ui/BackButton';
 import { checkRole, getCompletedPromptsForSharer } from '@/utils/supabase/server';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -112,7 +113,9 @@ export default async function TopicsPage({
     
     return (
       <div className="container max-w-7xl mx-auto px-4 py-8">
-        <BackButton href="/role-sharer" label="Back" />
+        <div className="mb-4">
+            <BackButton />
+        </div>
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-2xl font-bold">All Topics</h1>
         </div>
@@ -145,7 +148,9 @@ export default async function TopicsPage({
       
       return (
         <div className="container max-w-7xl mx-auto px-4 py-8">
-          <BackButton href="/role-sharer" label="Back" />
+          <div className="mb-4">
+            <BackButton />
+          </div>
           <h1 className="text-2xl font-bold">Topics</h1>
           <div className="mt-4 p-4 border border-red-300 bg-red-50 rounded-md">
             <p className="text-red-800">
@@ -163,7 +168,9 @@ export default async function TopicsPage({
       
       return (
         <div className="container max-w-7xl mx-auto px-4 py-8">
-          <BackButton href="/role-sharer" label="Back" />
+          <div className="mb-4">
+            <BackButton />
+          </div>
           <h1 className="text-2xl font-bold">Topics</h1>
           <div className="mt-4 p-4 border border-yellow-300 bg-yellow-50 rounded-md">
             <p className="text-yellow-800">
@@ -181,7 +188,9 @@ export default async function TopicsPage({
     // General error fallback UI
     return (
       <div className="container max-w-7xl mx-auto px-4 py-8">
-        <BackButton href="/role-sharer" label="Back" />
+        <div className="mb-4">
+            <BackButton />
+        </div>
         <h1 className="text-2xl font-bold">Topics</h1>
         <p className="mt-4 text-red-600">
           Something went wrong while loading your topics. Please try refreshing the page.

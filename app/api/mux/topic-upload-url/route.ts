@@ -161,8 +161,10 @@ export async function POST(request: Request) {
       cors_origin: corsOrigin,
       new_asset_settings: {
         playback_policy: ['public'],
-        mp4_support: 'capped-1080p',
-        master_access: 'temporary',
+        static_renditions: [
+          { name: "high.mp4", resolution: "high" },
+          { name: "audio.m4a", resolution: "audio-only" }
+        ],
         input: [{
           generated_subtitles: [{
             language_code: 'en',

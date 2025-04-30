@@ -1,5 +1,4 @@
 // app/role-sharer/layout.tsx
-import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import RoleLayoutLoading from '@/components/RoleLayoutLoading';

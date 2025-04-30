@@ -3,52 +3,13 @@ import { Card } from '@/components/ui/card';
 import { Users, Video } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import UserAvatar from '@/components/UserAvatar';
-import { getSignedAvatarUrl } from '@/utils/avatar';
 import { BackButton } from '@/components/ui/BackButton';
 import { ExecutorSharerHeader } from '@/components/executor/ExecutorSharerHeader';
-import { Suspense } from 'react';
-import { Loader2 } from 'lucide-react';
 
 interface Props {
   params: {
     id: string;
   };
-}
-
-interface Profile {
-  firstName: string | null;
-  lastName: string | null;
-  avatarUrl: string | null;
-}
-
-// Define the type for the relationship data returned by the RPC function
-interface ExecutorRelationship {
-  id: string;
-  sharerId: string;
-  executorId: string;
-  sharer: {
-    id: string;
-    profileId: string;
-    profile: {
-      id: string;
-      firstName: string;
-      lastName: string;
-      email: string;
-      avatarUrl: string | null;
-    }
-  };
-}
-
-// Define RPC result type for get_sharer_details_for_executor
-interface SharerDetailsRpcResult {
-  sharer_id: string;
-  profile_id: string;
-  created_at: string;
-  subscription_status: boolean | null;
-  profile_first_name: string | null;
-  profile_last_name: string | null;
-  profile_avatar_url: string | null;
 }
 
 // Reusable function to get sharer profile (copied from [topicId]/page.tsx for now)

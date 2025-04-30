@@ -21,23 +21,17 @@ import { cn } from '@/lib/utils';
 import { PromptListPopup } from '@/components/PromptListPopup';
 import TopicCard from '@/components/TopicCard';
 import TopicsTableFilters from '@/components/TopicsTableFilters';
-import { ActionButton } from '@/components/action-button';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Search,
-  Star,
   ListPlus,
-  MessageSquare,
-  X,
+
+
   TableIcon,
   LayoutGrid,
   ArrowUpDown,
-  ArrowRight,
-  ListOrdered,
-  StarIcon,
-  BookmarkIcon,
-  Bookmark,
+
   Loader2
 } from 'lucide-react';
 import {
@@ -47,7 +41,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { PromptCategory, Prompt, PromptResponse as CanonicalPromptResponse } from '@/types/models';
+import type { PromptCategory } from '@/types/models';
 
 interface CompletionStatus {
   status: 'Not Started' | 'In Progress' | 'Completed';
@@ -69,23 +63,15 @@ interface TopicsTableAllProps {
   sharerId?: string;
 }
 
-// Type for the actual data returned by the RPC
-interface RpcPromptResponse {
-  id: string;
-  promptId: string;
-  promptCategoryId: string;
-  videoId: string | null;
-}
-
 // Define the component
 function TopicsTableAllClientComponent({ 
   initialPromptCategories,
   currentRole = 'SHARER',
   relationshipId,
-  sharerId
+  sharerId,
 }: TopicsTableAllProps) {
   const supabase = createClient();
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const [promptCategories, setPromptCategories] = useState<ExtendedPromptCategory[]>(initialPromptCategories);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -338,8 +324,10 @@ function TopicsTableAllClientComponent({
       .join(' ');
   };
 
-  // Log the sharerId available in this component scope *before* the return statement
-  console.log(`[TopicsTableAllClient Scope] sharerId: ${sharerId}`);
+  // Log the sharerId when the component mounts or updates
+  useEffect(() => {
+    // console.log(`[TopicsTableAllClient Scope] sharerId: ${sharerId}`);
+  }, [sharerId]);
 
   return (
     <div className="space-y-4">

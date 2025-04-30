@@ -32,6 +32,7 @@ export function MuxPlayer({ playbackId, onEnded }: MuxPlayerProps) {
             videoTitle: "Video Response",
           }}
           onEnded={onEnded}
+          suppressHydrationWarning
         />
       </div>
     </div>

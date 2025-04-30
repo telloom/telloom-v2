@@ -52,19 +52,19 @@ export default function ExecutorSharingCard({ executorRelationship }: ExecutorRe
         </div>
         {/* CardHeader takes full width, centers content vertically */}
         <CardHeader className="pl-6 pt-6 pb-6 pr-16 flex w-full"> {/* Added pl-6, adjusted pr-16, keep pt/pb-6 */}
-          <div className="flex items-center gap-4"> 
-            <Avatar className="h-12 w-12">
-              <AvatarImage src={profile.avatarUrl || ''} alt={displayName} />
+        <div className="flex items-center gap-4">
+          <Avatar className="h-12 w-12">
+            <AvatarImage src={profile.avatarUrl || ''} alt={displayName} />
               <AvatarFallback className="bg-[#1B4332] text-white">{initials || '??'}</AvatarFallback>
-            </Avatar>
-            <div>
+          </Avatar>
+          <div>
               <CardTitle className="text-lg">{displayName || 'Sharer Name'}</CardTitle>
               <CardDescription className="text-sm">{profile.email || 'No email'}</CardDescription>
             </div>
-          </div>
+        </div>
         </CardHeader>
         {/* CardContent remains removed */}
       </Card>
-    </Link>
+          </Link>
   );
 } 

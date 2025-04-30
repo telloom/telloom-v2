@@ -485,6 +485,8 @@ export default function ProfileForm({ initialData, states }: ProfileFormProps) {
         setProfile({
           ...updateResult,
           userId: updateResult.id, // Ensure userId is set if needed by Profile type
+          createdAt: null,
+          updatedAt: null,
         });
         setAvatarPreview(updateResult.avatarUrl);
       } else {

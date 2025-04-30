@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * File: components/AttachmentUpload.tsx
  * Description:
@@ -5,8 +7,6 @@
  *  - Fetches Sharer details (name) and prompt category for filename generation.
  *  - Fetches and manages PersonTags belonging to the Sharer.
  */
-
-'use client';
 
 import { useState, useCallback, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ import AttachmentThumbnail from '@/components/AttachmentThumbnail';
 import { useAuth } from '@/hooks/useAuth';
 import type { Database } from '@/lib/database.types'; // Import Database type
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { v4 as uuidv4 } from 'uuid'; // <-- Import uuid
 
 interface AttachmentUploadProps {
   promptResponseId: string;
@@ -84,6 +85,25 @@ export default function AttachmentUpload({
   const [existingTags, setExistingTags] = useState<PersonTag[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // --- Define resetState --- START
+  const resetState = useCallback(() => {
+    setFiles([]);
+    previews.forEach(preview => URL.revokeObjectURL(preview)); // Revoke old previews
+    setPreviews([]);
+    setFileDescriptions({});
+    setFileDates({});
+    setFileYears({});
+    setDescription('');
+    setDateCaptured('');
+    setYearCaptured('');
+    setSelectedTags([]);
+    setUploadProgress(0);
+    setIsUploading(false); // Ensure uploading state is reset
+    setUploadError(null); // Clear any previous errors
+    console.log('[AttachmentUpload] State reset.');
+  }, [previews]); // Dependency: previews for URL revocation
+  // --- Define resetState --- END
 
   // --------------------------------------------------------------------------
   // On mount (whenever dialog opens), fetch the data:
@@ -368,106 +388,188 @@ export default function AttachmentUpload({
   // Actually do the upload: final name, then insert
   // --------------------------------------------------------------------------
   const handleUpload = async (shouldClose: boolean = false) => {
-    if (!files.length || !profileSharerId) {
-       toast.error("No file selected or sharer context missing.");
+    if (files.length === 0) {
+      toast.error('No files selected for upload.');
+      return;
+    }
+    if (!promptResponseId) {
+      toast.error('Error: Missing prompt response context.');
+      return;
+    }
+    if (!targetSharerId) {
+      toast.error('Error: Missing target sharer ID.');
        return;
     }
 
     setIsUploading(true);
-    const supabase = createClient();
+    setUploadError(null);
+    setUploadProgress(0);
+    let successfulUploads = 0;
+    const totalFiles = files.length;
 
-    try {
-      // We'll create a new attachment record
-      const attachmentId = crypto.randomUUID();
+    const uploadPromises = files.map(async (file, index) => {
+      let processedFile = file;
+      const originalFilename = file.name;
 
-      // e.g. from "myphoto.JPG" => "jpg"
-      const file = files[0];
-      const fileExt = file.name.split('.').pop() || 'dat';
+      console.log(`[AttachmentUpload] Processing file ${index + 1}: ${originalFilename}`);
 
-      // Build final name (which is also the storage path)
-      const finalName = generateFinalFilename(
-        sharerLastName,
-        sharerFirstName,
-        promptCategory,
-        fileExt
-      );
-      const storagePath = finalName; // Explicitly define the path
-
-      console.log(`[AttachmentUpload] Uploading file '${file.name}' to storage path: '${storagePath}' for sharer ${profileSharerId}`);
-
-      const { error: uploadError } = await supabase
-        .storage
-        .from('attachments')
-        .upload(storagePath, file); // Upload using the path
-
-      if (uploadError) {
-        throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
-      }
-
-      // Insert DB row using the storage path for fileUrl
-      const attachmentRecord = {
-        id: attachmentId,
-        promptResponseId,
-        profileSharerId,
-        fileUrl: storagePath, // <-- STORE THE PATH HERE
-        fileType: file.type,
-        fileName: file.name, // Keep original filename for display/download purposes if needed
-        fileSize: file.size,
-        description: description || null,
-        dateCaptured: dateCaptured || null,
-        yearCaptured: yearCaptured ? parseInt(yearCaptured) : null,
-      };
-
-      const { data: inserted, error: insertError } = await supabase
-        .from('PromptResponseAttachment')
-        .insert(attachmentRecord)
-        .select()
-        .single();
-
-      if (insertError) {
-        throw new Error(`Failed to create attachment record: ${insertError.message}`);
-      }
-
-      // Link PersonTags if any
-      if (selectedTags.length > 0) {
-        const { error: tagError } = await supabase
-          .from('PromptResponseAttachmentPersonTag')
-          .insert(
-            selectedTags.map(tag => ({
-              promptResponseAttachmentId: inserted.id,
-              personTagId: tag.id
-            }))
-          );
-
-        if (tagError) {
-          throw new Error(`Failed to link tags: ${tagError.message}`);
+      // Handle HEIC conversion
+      if (file.type === 'image/heic' || file.type === 'image/heif') {
+        try {
+          console.log(`[AttachmentUpload] Converting HEIC: ${originalFilename}`);
+          const conversionToast = toast.loading(`Converting ${originalFilename}...`);
+          const convertedBlob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.8 });
+          processedFile = new File([convertedBlob as Blob], `${originalFilename.split('.')[0]}.jpg`, { type: 'image/jpeg' });
+          toast.success(`Converted ${originalFilename} to JPEG.`, { id: conversionToast });
+          console.log(`[AttachmentUpload] HEIC converted to JPEG: ${processedFile.name}`);
+        } catch (conversionError) {
+          console.error('Error converting HEIC file:', conversionError);
+          toast.error(`Failed to convert ${originalFilename}. Skipping.`);
+          setUploadError(`Failed to convert ${originalFilename}.`);
+          return; // Skip this file
         }
       }
 
-      toast.success('File uploaded successfully');
-      onUploadSuccess();
-      
-      if (shouldClose) {
-        onClose();
-      } else {
-        // Reset form
-        setFiles([]);
-        setPreviews([]);
-        setDescription('');
-        setDateCaptured('');
-        setYearCaptured('');
-        setSelectedTags([]);
-        // Add a toast to indicate the user can add more
-        toast('You can now add another attachment', {
-          description: 'The form has been reset for your next upload'
+      // --- Generate Attachment ID and Filename ---
+      const attachmentId = uuidv4(); // Generate UUID for the new attachment
+      let generatedFilename = '';
+      let filePath = '';
+
+      try {
+        console.log(`[AttachmentUpload] Calling generate_attachment_filename RPC for original: ${originalFilename}, attachmentId: ${attachmentId}`);
+        const { data: filenameData, error: filenameError } = await supabase.rpc(
+          'generate_attachment_filename',
+          {
+            profile_sharer_id: targetSharerId,
+            prompt_response_id: promptResponseId,
+            original_filename: processedFile.name, // Use processed file name for extension etc.
+            attachment_id: attachmentId
+          }
+        );
+
+        if (filenameError || !filenameData) {
+          console.error('[AttachmentUpload] Error generating filename via RPC:', filenameError);
+          toast.error(`Could not generate a unique filename for ${processedFile.name}. Skipping.`);
+          throw new Error('Filename generation failed');
+        }
+
+        generatedFilename = filenameData;
+        filePath = `${targetSharerId}/${generatedFilename}`; // Use the generated filename in the path
+        console.log(`[AttachmentUpload] Generated filename: ${generatedFilename}, Storage path: ${filePath}`);
+
+      } catch (rpcError) {
+        console.error('[AttachmentUpload] Exception during filename generation RPC:', rpcError);
+        setUploadError(`Failed to prepare filename for ${processedFile.name}.`);
+        return; // Skip this file if filename generation fails
+      }
+      // --- End Generate Filename ---
+
+
+      // --- Upload to Storage ---
+      try {
+        console.log(`[AttachmentUpload] Uploading to storage path: ${filePath}`);
+        const { error: uploadError } = await supabase.storage
+        .from('attachments')
+          .upload(filePath, processedFile, { // Use generated filePath
+            cacheControl: '3600',
+            upsert: true, // Consider if upsert is desired or if it should fail on conflict
+          });
+
+      if (uploadError) {
+          console.error(`[AttachmentUpload] Storage upload error for ${generatedFilename}:`, uploadError);
+          throw uploadError;
+        }
+        console.log(`[AttachmentUpload] Successfully uploaded ${generatedFilename} to storage.`);
+
+        // --- Insert into Database ---
+        try {
+          const { error: insertError } = await supabase
+            .from('PromptResponseAttachment')
+            .insert({
+              id: attachmentId, // Use the generated UUID
+              promptResponseId: promptResponseId,
+              profileSharerId: targetSharerId,
+              fileName: generatedFilename, // Use the generated filename
+              fileType: processedFile.type,
+              fileSize: processedFile.size,
+              fileUrl: filePath, // Store the storage path
+              title: generatedFilename.split('.')[0], // Default title from filename
+        description: description || null,
+              dateCaptured: dateCaptured ? new Date(dateCaptured).toISOString() : null, 
+        yearCaptured: yearCaptured ? parseInt(yearCaptured) : null,
+              // uploadedAt and updatedAt are handled by the database
+            });
+
+      if (insertError) {
+            console.error(`[AttachmentUpload] Database insert error for ${generatedFilename}:`, insertError);
+            // Attempt to delete the uploaded file if DB insert fails?
+            // await supabase.storage.from('attachments').remove([filePath]);
+            throw insertError;
+      }
+          console.log(`[AttachmentUpload] Successfully inserted DB record for ${generatedFilename}, ID: ${attachmentId}`);
+
+          // Attach selected tags if any
+      if (selectedTags.length > 0) {
+            const tagLinks = selectedTags.map(tag => ({
+              promptResponseAttachmentId: attachmentId,
+              personTagId: tag.id
+            }));
+        const { error: tagError } = await supabase
+          .from('PromptResponseAttachmentPersonTag')
+              .insert(tagLinks);
+        if (tagError) {
+              console.warn(`[AttachmentUpload] Error linking tags for attachment ${attachmentId}:`, tagError);
+              // Don't fail the entire upload, just log a warning
+            } else {
+              console.log(`[AttachmentUpload] Linked ${selectedTags.length} tags to attachment ${attachmentId}`);
+        }
+      }
+
+          successfulUploads++;
+          setUploadProgress(((successfulUploads) / totalFiles) * 100);
+
+        } catch (dbError) {
+           console.error(`[AttachmentUpload] Database error during insert/tagging for ${generatedFilename}:`, dbError);
+           setUploadError(`Failed to save database record for ${processedFile.name}.`);
+           // Consider cleanup: deleting the successfully uploaded file
+           await supabase.storage.from('attachments').remove([filePath]).catch(cleanupError => {
+               console.error(`[AttachmentUpload] Failed to clean up storage file ${filePath} after DB error:`, cleanupError);
         });
       }
-    } catch (error) {
-      console.error(error);
-      toast.error(error instanceof Error ? error.message : 'Failed to upload file');
-    } finally {
+        // --- End Database Insert ---
+
+      } catch (storageError) {
+        console.error(`[AttachmentUpload] Storage upload failed for ${processedFile.name}:`, storageError);
+        setUploadError(`Upload failed for ${processedFile.name}.`);
+        // No DB record created, so no DB cleanup needed. Storage cleanup might be complex if partial uploads occurred.
+      }
+      // --- End Upload to Storage ---
+
+    });
+
+    await Promise.all(uploadPromises);
+
       setIsUploading(false);
+
+    if (successfulUploads > 0) {
+      toast.success(`${successfulUploads} of ${totalFiles} attachments uploaded successfully.`);
+      onUploadSuccess(); // Refresh data on parent component
+      if (shouldClose || successfulUploads === totalFiles) {
+         console.log('[AttachmentUpload] Upload complete, closing dialog.');
+         onClose(); // Close dialog on full success or explicit request
+         resetState(); // Reset component state
+      }
+    } else if (totalFiles > 0) {
+      toast.error('Attachment upload failed. Please check errors and try again.');
+      // Keep dialog open on failure unless specifically requested to close
     }
+
+    // Reset selected files regardless of success/failure? Or keep them on failure?
+    // setFiles([]);
+    // setPreviews([]);
+    // setFileDescriptions({});
+    // setFileDates({});
+    // setFileYears({});
   };
 
   const removeFile = (index: number) => {

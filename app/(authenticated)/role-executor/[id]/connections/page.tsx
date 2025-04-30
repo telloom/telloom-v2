@@ -2,7 +2,6 @@ import { Suspense } from 'react';
 import { createClient } from '@/utils/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import ConnectionsPageContent from '@/components/executor/connections/ConnectionsPageContent';
-import { getSignedAvatarUrl } from '@/utils/avatar';
 import { BackButton } from '@/components/ui/BackButton';
 import { ExecutorSharerHeader } from '@/components/executor/ExecutorSharerHeader';
 import { Loader2 } from 'lucide-react';
@@ -88,13 +87,13 @@ export default async function SharerExecutorConnectionsPage({ params }: Props) {
           }
         >
           <div className="-mt-4">
-            <ConnectionsPageContent 
-              sharerId={sharerId} 
-              sharerName={sharerName} 
+        <ConnectionsPageContent 
+          sharerId={sharerId} 
+          sharerName={sharerName} 
               sharerAvatarUrl={sharerProfile.avatarUrl} 
-            />
+        />
           </div>
-        </Suspense>
+      </Suspense>
       </div>
     );
   } catch (error) {

@@ -4,29 +4,32 @@ import { Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/utils/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
+import { Profile } from '@/types/models';
 
 interface VideoDownloadButtonProps {
   muxAssetId: string;
   className?: string;
   videoType?: 'prompt' | 'topic';
   userId?: string | null;
-  topicName?: string;
+  promptCategoryName?: string;
 }
 
 export function VideoDownloadButton({ 
   muxAssetId, 
   className,
   videoType = 'prompt',
-  userId,
-  topicName = ''
+  userId: profileSharerId,
+  promptCategoryName = ''
 }: VideoDownloadButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isAvailable, setIsAvailable] = useState(false);
-  const [userProfile, setUserProfile] = useState<{ firstName: string; lastName: string; } | null>(null);
+  const [userProfile, setUserProfile] = useState<Profile | null>(null);
+
+  console.log(`[VideoDownloadButton Render] Received userId prop: ${profileSharerId}`);
 
   useEffect(() => {
-    // Lightweight check if download is available when component mounts
     const checkAvailability = async () => {
+      if (!muxAssetId) return;
       try {
         const response = await fetch('/api/mux/download', {
           method: 'POST',
@@ -42,11 +45,17 @@ export function VideoDownloadButton({
         });
 
         if (!response.ok) {
-          throw new Error('Failed to check download availability');
+          let errorMsg = 'Failed to check download availability';
+          try {
+             const errorData = await response.json();
+             errorMsg = errorData.error || errorMsg;
+          } catch (_) {
+             // Ignore if response is not JSON
+          }
+          throw new Error(errorMsg);
         }
 
         const data = await response.json();
-        // Use the API's availability check for all video types
         setIsAvailable(data.isAvailable);
       } catch (error) {
         console.error('Error checking download availability:', error);
@@ -55,87 +64,79 @@ export function VideoDownloadButton({
     };
 
     checkAvailability();
+
   }, [muxAssetId, videoType]);
 
-  // Fetch user profile when userId changes
   useEffect(() => {
     const fetchUserProfile = async () => {
-      if (!userId) {
-        console.log('No userId provided for profile fetch');
+      if (!profileSharerId) {
+        setUserProfile(null);
         return;
       }
 
       const supabase = createClient();
       try {
-        console.log('Fetching ProfileSharer for userId:', userId);
-        // First get the ProfileSharer record
-        const { data: sharer, error: sharerError } = await supabase
+        const { data: sharerData, error: sharerError } = await supabase
           .from('ProfileSharer')
           .select('profileId')
-          .eq('id', userId)
+          .eq('id', profileSharerId)
           .single();
 
         if (sharerError) {
-          console.error('Error fetching ProfileSharer:', sharerError.message);
+          console.error('Error fetching ProfileSharer to get profileId:', sharerError.message);
+          setUserProfile(null);
+          return;
+        }
+        if (!sharerData?.profileId) {
+          console.error('No profileId found for ProfileSharer ID:', profileSharerId);
+          setUserProfile(null);
           return;
         }
 
-        if (!sharer) {
-          console.error('No ProfileSharer found for userId:', userId);
-          return;
-        }
+        const targetProfileId = sharerData.profileId;
 
-        console.log('Found ProfileSharer with profileId:', sharer.profileId);
-
-        // Then get the Profile information
-        const { data: profile, error: profileError } = await supabase
-          .from('Profile')
-          .select('firstName, lastName')
-          .eq('id', sharer.profileId)
-          .single();
+        const { data: profileData, error: profileError } = await supabase
+          .rpc('get_profile_safe', { target_user_id: targetProfileId });
 
         if (profileError) {
-          console.error('Error fetching Profile:', profileError.message);
+          console.error('Error calling get_profile_safe RPC:', profileError);
+          setUserProfile(null);
           return;
         }
 
-        if (!profile) {
-          console.error('No Profile found for profileId:', sharer.profileId);
+        if (!profileData) {
+          console.error('No profile data returned from get_profile_safe RPC for ID:', targetProfileId);
+          setUserProfile(null);
           return;
         }
 
-        console.log('Successfully fetched profile:', profile);
-        setUserProfile(profile);
+        setUserProfile(profileData as Profile);
+
       } catch (error) {
-        console.error('Error in profile fetch chain:', error);
+        console.error('Error in profile fetch chain (RPC):', error);
+        setUserProfile(null);
       }
     };
 
     fetchUserProfile();
-  }, [userId]);
+  }, [profileSharerId]);
 
   const handleDownload = async () => {
+    if (!muxAssetId) {
+      toast.error('Cannot download: Missing video asset ID.');
+      return;
+    }
+    if (!profileSharerId) {
+      toast.error('Cannot download: User information missing.');
+      return;
+    }
+
+    console.log(`[VideoDownloadButton handleDownload] Check: profileSharerId = ${profileSharerId}`);
+
+    console.log(`[VideoDownloadButton] handleDownload: profileSharerId=${profileSharerId}, promptCategoryName=${promptCategoryName}`);
+
     try {
       setIsLoading(true);
-      
-      // Generate a 4-digit UUID
-      const shortUuid = uuidv4().substring(0, 4);
-
-      // Create filename with user's name if available
-      let filename = 'video.mp4';
-      if (userProfile) {
-        const sanitizedTopicName = topicName
-          .toLowerCase()
-          .split(/\s+/)
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-          .join('-')
-          .replace(/[^a-zA-Z0-9-]/g, ''); // Remove special chars except hyphens
-        if (videoType === 'topic') {
-          filename = `${userProfile.lastName}-${userProfile.firstName}_${sanitizedTopicName}_Topic_${shortUuid}.mp4`;
-        } else {
-          filename = `${userProfile.lastName}-${userProfile.firstName}_${sanitizedTopicName}_Prompt_${shortUuid}.mp4`;
-        }
-      }
 
       const response = await fetch('/api/mux/download', {
         method: 'POST',
@@ -146,28 +147,39 @@ export function VideoDownloadButton({
           muxAssetId,
           quality: 'original',
           videoType,
-          checkAvailabilityOnly: false // Explicitly indicate this is a download request
+          checkAvailabilityOnly: false,
+          userId: profileSharerId,
+          topicName: promptCategoryName
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to download video');
+        let errorMsg = 'Failed to download video';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch (_) { /* Ignore if response is not JSON */ }
+        throw new Error(errorMsg);
       }
 
-      // Create a blob from the video stream
+      const disposition = response.headers.get('content-disposition');
+      let filename = 'telloom-video.mp4';
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+          const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+          const matches = filenameRegex.exec(disposition);
+          if (matches != null && matches[1]) { 
+            filename = matches[1].replace(/['"]/g, '');
+          }
+      }
+
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-
-      // Create a temporary link and trigger download
       const link = document.createElement('a');
       link.href = url;
       link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      // Clean up the blob URL
       URL.revokeObjectURL(url);
 
       toast.success('Download started!');
@@ -183,16 +195,19 @@ export function VideoDownloadButton({
     <Button 
       variant="outline" 
       size="sm"
-      className={`${className} border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full`}
+      className={`${className} rounded-full`}
       disabled={isLoading || !isAvailable}
       onClick={handleDownload}
+      aria-label="Download video response"
     >
       {isLoading ? (
         <Loader2 className="h-4 w-4 animate-spin" />
       ) : (
-        <Download className="h-4 w-4" />
+        <>
+          <Download className="mr-2 h-4 w-4" />
+          Download
+        </>
       )}
-      <span className="ml-2">Download</span>
     </Button>
   );
 } 

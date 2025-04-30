@@ -183,6 +183,9 @@ export async function POST(request: Request) {
       cors_origin: corsOrigin,
       new_asset_settings: {
         playback_policy: ['public'],
+        static_renditions: [
+          { resolution: 'highest' }
+        ],
         input: [{
           generated_subtitles: [{
             language_code: 'en',
@@ -192,7 +195,7 @@ export async function POST(request: Request) {
         passthrough: JSON.stringify({
           videoId: videoRecord.id,
           promptId,
-          profileSharerId: profileSharerId // Pass the validated sharerId to Mux webhook
+          profileSharerId: profileSharerId
         })
       }
     };

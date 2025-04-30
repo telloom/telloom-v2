@@ -72,7 +72,7 @@ export default function SupabaseListener({ serverSession }: SupabaseListenerProp
     
     // Don't navigate if we're already on the same path
     if (lastPath.current === pathname) {
-      console.log('[SupabaseListener] Already on path', pathname, 'not navigating');
+      // console.log('[SupabaseListener] Already on path', pathname, 'not navigating');
       return;
     }
     
@@ -81,35 +81,35 @@ export default function SupabaseListener({ serverSession }: SupabaseListenerProp
     
     // Guard against too frequent navigations
     if (now - lastNavTimestamp.current < MIN_NAV_INTERVAL) {
-      console.log('[SupabaseListener] Navigation attempted too soon, delaying');
+      // console.log('[SupabaseListener] Navigation attempted too soon, delaying');
       return;
     }
     
     // Don't navigate if auth is still loading
     if (loading) {
-      console.log('[SupabaseListener] Auth still loading, not navigating');
+      // console.log('[SupabaseListener] Auth still loading, not navigating');
       return;
     }
     
     // Only navigate if we have established a stable auth state
     if (stableAuthState === null) {
-      console.log('[SupabaseListener] Auth state not yet stabilized, not navigating');
+      // console.log('[SupabaseListener] Auth state not yet stabilized, not navigating');
       return;
     }
     
     // Handle navigation based on authenticated state and current route
     if (stableAuthState === 'authenticated' && isPublicRoute) {
-      console.log('[SupabaseListener] Authenticated on public route, redirecting to dashboard');
+      // console.log('[SupabaseListener] Authenticated on public route, redirecting to dashboard');
       navigating.current = true;
       lastNavTimestamp.current = now;
       router.replace('/dashboard');
     } else if (stableAuthState === 'unauthenticated' && isProtectedRoute) {
-      console.log('[SupabaseListener] Unauthenticated on protected route, redirecting to login');
+      // console.log('[SupabaseListener] Unauthenticated on protected route, redirecting to login');
       navigating.current = true;
       lastNavTimestamp.current = now;
       router.replace('/login');
     } else {
-      console.log('[SupabaseListener] No navigation needed for current state and route');
+      // console.log('[SupabaseListener] No navigation needed for current state and route');
     }
     
     // Reset navigating flag after a delay
@@ -122,27 +122,27 @@ export default function SupabaseListener({ serverSession }: SupabaseListenerProp
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[SupabaseListener] Auth state changed', { event, session: !!session });
+    } = supabase.auth.onAuthStateChange((event, changedSession) => {
+      // console.log('[SupabaseListener] Auth state changed', { event, session: !!changedSession });
       stateChangeCount.current += 1;
       
       // Only react if not currently navigating
       if (!navigating.current) {
         // Check for rapid state changes that might indicate a loop
         if (stateChangeCount.current > MAX_RAPID_STATE_CHANGES) {
-          console.log('[SupabaseListener] Too many rapid auth state changes, stabilizing');
+          // console.log('[SupabaseListener] Too many rapid auth state changes, stabilizing');
           return; // Ignore further changes to break the loop
         }
         
         // Handle auth events
         if (event === 'SIGNED_OUT') {
-          console.log('[SupabaseListener] User signed out');
+          // console.log('[SupabaseListener] User signed out');
           setUser(null);
           setStableAuthState('unauthenticated');
         } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          console.log('[SupabaseListener] User signed in or token refreshed');
-          if (session?.user) {
-            setUser(session.user);
+          // console.log('[SupabaseListener] User signed in or token refreshed');
+          if (changedSession?.user) {
+            setUser(changedSession.user);
             setStableAuthState('authenticated');
           }
         }
@@ -172,30 +172,30 @@ export default function SupabaseListener({ serverSession }: SupabaseListenerProp
         
         // Limit frequency of server checks
         if (now - serverCheckTimestamp.current < SERVER_CHECK_INTERVAL) {
-          console.log('[SupabaseListener] Skipping server check - too frequent');
+          // console.log('[SupabaseListener] Skipping server check - too frequent');
           return;
         }
         
         serverCheckTimestamp.current = now;
-        console.log('[SupabaseListener] Client has no user but server indicated session, verifying...');
+        // console.log('[SupabaseListener] Client has no user but server indicated session, verifying...');
         
         try {
           // Check if server still has a session
           const response = await fetch('/api/auth/session');
           const data = await response.json();
           
-          console.log('[SupabaseListener] Server auth check result:', data);
+          // console.log('[SupabaseListener] Server auth check result:', data);
           
           if (data.session?.user?.id) {
-            console.log('[SupabaseListener] Server confirms user, refreshing client...');
+            // console.log('[SupabaseListener] Server confirms user, refreshing client...');
             await refreshUser();
             setStableAuthState('authenticated');
           } else {
-            console.log('[SupabaseListener] Server confirms no user');
+            // console.log('[SupabaseListener] Server confirms no user');
             setStableAuthState('unauthenticated');
           }
-        } catch (error) {
-          console.log('[SupabaseListener] Error checking server auth:', error);
+        } catch {
+          // console.log('[SupabaseListener] Error checking server auth:', error);
         }
       }
     };
@@ -214,7 +214,7 @@ export default function SupabaseListener({ serverSession }: SupabaseListenerProp
           setStableAuthState('unauthenticated');
         } else {
           // Server has session but client doesn't - wait for server check
-          console.log('[SupabaseListener] Client/server auth mismatch on mount, waiting for check');
+          // console.log('[SupabaseListener] Client/server auth mismatch on mount, waiting for check');
         }
       }
     }

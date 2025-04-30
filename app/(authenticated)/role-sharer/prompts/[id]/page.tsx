@@ -1,317 +1,251 @@
 // app/(authenticated)/role-sharer/prompts/[id]/page.tsx
-'use client';
+// Remove 'use client' directive
+// 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { notFound } from 'next/navigation';
-import { createClient } from '@/utils/supabase/client';
+// Remove client-side hook imports
+// import { useEffect, useState } from 'react';
+// import { useParams, useRouter } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation'; // Keep notFound, add redirect
+import { createClient } from '@/utils/supabase/server'; // Use server client
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft } from 'lucide-react';
+import { Button } from "@/components/ui/button"; // Keep for potential use or move later
+import { ArrowLeft, Loader2 } from 'lucide-react'; // Keep for potential use or move later
 import { VideoResponseSection } from '@/components/prompt-response-section/video-response-section';
-import { GetPromptDataResult, GetPromptDataError, Prompt } from '@/types/models';
-import { getEffectiveSharerId } from '@/utils/supabase/role-helpers';
+// Ensure Profile is imported if used explicitly, otherwise remove if only needed for the type ProfileSharer
+import { GetPromptDataResult, GetPromptDataError, Prompt, ProfileSharer, Profile, PromptResponse, Video, PromptResponseAttachment as ModelAttachment, Prompt as ModelPrompt, PromptResponse as ModelPromptResponse, Video as ModelVideo, PromptCategory as ModelPromptCategory } from '@/types/models'; // Keep type imports, added Profile
+// Remove useAuth hook import
+// import { useAuth } from '@/hooks/useAuth';
+import { getUserWithRoleData } from '@/utils/supabase/jwt-helpers'; // Import JWT helper
+import { Suspense } from 'react';
+import { PageTitle } from '@/components/PageTitle';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+// Import the new client component
+import { PromptDisplayClient } from '@/components/prompt-response-section/PromptDisplayClient';
+// Add import for the moved ErrorDisplay component
+import { ErrorDisplay } from '@/components/ErrorDisplay';
 
-async function getPromptData(promptId: string): Promise<GetPromptDataResult | GetPromptDataError> {
-  console.log('getPromptData: Starting to fetch data for prompt ID:', promptId);
-  
-  const supabase = createClient();
+// Remove client-side interface for page data
+// interface PromptPageData {
+//   prompt: Prompt;
+//   profileSharer: ProfileSharer;
+//   siblingPrompts?: {
+//     previousPrompt: Prompt | null;
+//     nextPrompt: Prompt | null;
+//   };
+// }
 
-  // Verify authentication
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) {
-    console.log('getPromptData: Authentication error:', userError);
-    return { error: 'Unauthorized' };
-  }
-
-  // Get user roles with role validation
-  const { data: userRoles, error: rolesError } = await supabase
-    .from('ProfileRole')
-    .select('role')
-    .eq('profileId', user.id);
-
-  if (rolesError || !userRoles?.some(({ role }: { role: string }) => role === 'SHARER' || role === 'EXECUTOR' || role === 'ADMIN')) {
-    console.log('getPromptData: Role validation error:', rolesError);
-    return { error: 'Unauthorized' };
-  }
-
-  // Get effective sharer ID (either the user's own sharer ID or the sharer ID they're executing for)
-  const effectiveSharerId = await getEffectiveSharerId(user.id, supabase);
-  if (!effectiveSharerId) {
-    console.log('getPromptData: Effective sharer ID not found');
-    return { error: 'Profile not found' };
-  }
-
-  // Fetch prompt data with all related data
-  const { data: prompt, error: promptError } = await supabase
-    .from('Prompt')
-    .select(`
-      id,
-      promptText,
-      promptType,
-      isContextEstablishing,
-      promptCategoryId,
-      PromptCategory (
-        id,
-        category
-      ),
-      PromptResponse (
-        id,
-        profileSharerId,
-        summary,
-        createdAt,
-        Video!videoId (
-          id,
-          muxPlaybackId,
-          muxAssetId,
-          dateRecorded,
-          VideoTranscript (
-            id,
-            transcript
-          )
-        ),
-        PromptResponseAttachment (
-          id,
-          fileUrl,
-          fileType,
-          fileName,
-          description,
-          dateCaptured,
-          yearCaptured
-        )
-      )
-    `)
-    .eq('id', promptId)
-    .single();
-
-  if (promptError) {
-    console.error('getPromptData: Error fetching prompt:', promptError);
-    return { error: 'Prompt not found' };
-  }
-
-  console.log('getPromptData: Fetched prompt:', {
-    id: prompt.id,
-    promptText: prompt.promptText,
-    promptType: prompt.promptType,
-    promptCategoryId: prompt.promptCategoryId,
-    responseCount: prompt.PromptResponse?.length || 0,
-    attachmentCount: prompt.PromptResponse?.reduce((acc: number, r: { PromptResponseAttachment?: any[] }) => acc + (r.PromptResponseAttachment?.length || 0), 0) || 0,
-    attachments: prompt.PromptResponse?.map((r: { PromptResponseAttachment?: any[] }) => r.PromptResponseAttachment?.map((a: { id: string; fileUrl: string; fileType: string; fileName: string; description?: string; dateCaptured?: string; yearCaptured?: number; signedUrl?: string }) => ({
-      id: a.id,
-      fileUrl: a.fileUrl,
-      fileType: a.fileType,
-      fileName: a.fileName,
-      description: a.description,
-      dateCaptured: a.dateCaptured,
-      yearCaptured: a.yearCaptured,
-      signedUrl: a.signedUrl
-    })))
-  });
-
-  // Fetch sibling prompts
-  const { data: siblingPrompts, error: siblingError } = await supabase
-    .from('Prompt')
-    .select('id, promptText, isContextEstablishing')
-    .eq('promptCategoryId', prompt.promptCategoryId)
-    .order('isContextEstablishing', { ascending: false })
-    .order('id');
-
-  if (siblingError) {
-    console.error('Error fetching sibling prompts:', siblingError);
-    return { 
-      prompt: prompt as unknown as Prompt, 
-      profileSharer: { id: effectiveSharerId } 
-    };
-  }
-
-  // Find current prompt index and get previous/next
-  const currentIndex = siblingPrompts.findIndex((p: { id: string }) => p.id === promptId);
-  const previousPrompt = currentIndex > 0 ? siblingPrompts[currentIndex - 1] : null;
-  const nextPrompt = currentIndex < siblingPrompts.length - 1 ? siblingPrompts[currentIndex + 1] : null;
-
-  return { 
-    prompt: prompt as unknown as Prompt, 
-    profileSharer: { id: effectiveSharerId },
-    siblingPrompts: {
-      previousPrompt,
-      nextPrompt
-    }
+// Define interfaces for component props and params
+interface PromptPageProps {
+  params: {
+    id: string; // promptId
   };
 }
 
-export default function PromptPage() {
-  const router = useRouter();
-  const params = useParams();
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [promptData, setPromptData] = useState<GetPromptDataResult | null>(null);
+// Define the detailed Prompt type required by this page and its components
+// This composes properties from ModelPrompt but uses the full ModelPromptResponse
+// and ModelAttachment types for compatibility with PromptDisplayClient.
+interface PromptWithDetails extends Omit<ModelPrompt, 'profileSharerId'> { // Omit the non-existent field
+  id: string;
+  promptText: string;
+  promptTitle: string;
+  status: string;
+  profileSharerId: string;
+  // profileSharerId is NOT directly on Prompt
+  promptCategoryId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  promptType: string;
+  isContextEstablishing: boolean;
 
-  useEffect(() => {
-    async function fetchData() {
-      console.log('PromptPage: Starting fetchData with params:', params);
-      
-      if (!params?.id || typeof params.id !== 'string') {
-        console.log('PromptPage: Invalid params, redirecting to topics');
-        router.push('/role-sharer/topics');
-        return;
-      }
+  // Use the imported full types for relations
+  PromptCategory?: ModelPromptCategory | null;
+  PromptResponse: Array<ModelPromptResponse & {
+    // Add profileSharerId here as it's part of PromptResponse
+    profileSharerId: string;
+    Video?: ModelVideo & {
+      VideoTranscript?: { transcript: string | null }[] | null;
+    } | null;
+    PromptResponseAttachment?: ModelAttachment[] | null;
+  }>;
+}
 
-      try {
-        console.log('PromptPage: Fetching prompt data for ID:', params.id);
-        const result = await getPromptData(params.id);
-        
-        if ('error' in result) {
-          console.log('PromptPage: Error in result:', result.error);
-          if (result.error === 'redirect' && 'redirectTo' in result) {
-            router.push(`/role-sharer/prompts/${result.redirectTo}`);
-            return;
-          }
-          setError(result.error || 'Unknown error');
-          return;
-        }
-
-        setPromptData(result);
-      } catch (err) {
-        console.error('PromptPage: Error fetching prompt:', err);
-        setError('Failed to load prompt');
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    void fetchData();
-  }, [params, router]);
-
-  if (isLoading) {
-    return (
-      <div className="container mx-auto space-y-6 py-6">
-        <div className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 rounded-lg p-6">
-          <p>Loading Prompt Response...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !promptData) {
-    return notFound();
-  }
-
-  const { prompt, profileSharer } = promptData;
-
-  // Get the user's response if it exists
-  const userResponse = prompt.PromptResponse?.find(
-    response => response.profileSharerId === profileSharer.id
-  );
-
-  // Log the raw user response data
-  console.log('Raw user response:', {
-    id: userResponse?.id,
-    hasVideo: !!userResponse?.Video,
-    attachmentCount: userResponse?.PromptResponseAttachment?.length || 0,
-    rawAttachments: userResponse?.PromptResponseAttachment
-  });
-
-  // Transform the response to match the VideoResponseSection props
-  console.log('Starting response transformation:', {
-    userResponseId: userResponse?.id,
-    hasVideo: !!userResponse?.Video,
-    attachmentCount: userResponse?.PromptResponseAttachment?.length || 0
-  });
-
-  const transformedResponse = userResponse ? {
-    id: userResponse.id,
-    profileSharerId: userResponse.profileSharerId,
-    summary: userResponse.summary || null,
-    responseNotes: null,
-    dateRecorded: null,
-    video: userResponse.Video ? {
-      id: userResponse.Video.id,
-      muxPlaybackId: userResponse.Video.muxPlaybackId,
-      muxAssetId: userResponse.Video.muxAssetId,
-      dateRecorded: userResponse.Video.dateRecorded,
-      VideoTranscript: userResponse.Video.VideoTranscript
-    } : undefined,
-    PromptResponseAttachment: userResponse.PromptResponseAttachment?.map(attachment => ({
-      id: attachment.id,
-      promptResponseId: userResponse.id,
-      profileSharerId: userResponse.profileSharerId,
-      fileUrl: attachment.fileUrl,
-      fileType: attachment.fileType,
-      fileName: attachment.fileName,
-      fileSize: null,
-      title: null,
-      description: attachment.description || null,
-      estimatedYear: null,
-      uploadedAt: new Date().toISOString(),
-      dateCaptured: attachment.dateCaptured || null,
-      yearCaptured: attachment.yearCaptured || null,
-      PromptResponseAttachmentPersonTag: []
-    }))
-  } : undefined;
-
-  console.log('Final transformed response:', {
-    id: transformedResponse?.id,
-    hasVideo: !!transformedResponse?.video,
-    attachmentCount: transformedResponse?.PromptResponseAttachment?.length || 0,
-    attachments: transformedResponse?.PromptResponseAttachment
-  });
-
+// Placeholder Loading Component
+function Loading() {
   return (
-    <div className="container mx-auto py-8 space-y-8">
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <Button 
-            variant="ghost" 
-            onClick={() => router.push(`/role-sharer/topics/${prompt.promptCategoryId}`)}
-            className="-ml-2 text-gray-600 hover:text-gray-900 rounded-full"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Topic
-          </Button>
-          <div className="flex gap-2">
-            {promptData?.siblingPrompts?.previousPrompt && (
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/role-sharer/prompts/${promptData?.siblingPrompts?.previousPrompt?.id}`)}
-                className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Previous Prompt
-              </Button>
-            )}
-            {promptData?.siblingPrompts?.nextPrompt && (
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/role-sharer/prompts/${promptData?.siblingPrompts?.nextPrompt?.id}`)}
-                className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full"
-              >
-                Next Prompt
-                <ArrowLeft className="ml-2 h-4 w-4 rotate-180" />
-              </Button>
-            )}
-          </div>
-        </div>
-        <Card className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
-          <CardHeader>
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4">
-              <CardTitle className="text-xl">{prompt.promptText}</CardTitle>
-              {prompt.PromptCategory?.category && (
-                <div className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm whitespace-nowrap flex-shrink-0 flex items-center justify-center">
-                  {prompt.PromptCategory.category}
-                </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <VideoResponseSection 
-              promptId={prompt.id}
-              promptText={prompt.promptText}
-              promptCategory={prompt.PromptCategory?.category || ""}
-              response={transformedResponse}
-            />
-          </CardContent>
-        </Card>
-      </div>
+    <div className="flex justify-center items-center min-h-screen">
+      <Loader2 className="h-12 w-12 animate-spin text-gray-400" />
     </div>
   );
+}
+
+// Change function signature to async and accept params directly
+export default async function PromptPage({ params }: PromptPageProps) {
+  const resolvedParams = await Promise.resolve(params);
+  const promptId = resolvedParams.id;
+
+  // console.log(`[PromptPage Server] Rendering prompt page for ID: ${promptId}`);
+
+  // Re-add await because createClient is wrapped in cache(async () => ...)
+  const supabase = await createClient();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    // console.log('[PromptPage Server] No user found or error fetching user. Redirecting to login.');
+    redirect('/login');
+  }
+  // console.log(`[PromptPage Server] User ${user.id.substring(0,8)} authenticated.`);
+
+  const { roleData } = await getUserWithRoleData();
+
+  if (!roleData.roles.includes('SHARER')) {
+      // console.log('[PromptPage Server] User does not have SHARER role. Roles:', roleData.roles);
+      redirect('/select-role?error=unauthorized');
+  }
+  // console.log('[PromptPage Server] User has SHARER role.');
+
+  const sharerId = roleData.sharerId;
+  if (!sharerId) {
+    console.error('[PromptPage Server] Could not find sharer_id for the user.');
+     return <ErrorDisplay message="Could not determine your Sharer profile ID." showBackButton={false} />;
+  }
+  // console.log('[PromptPage Server] Effective Sharer ID:', sharerId);
+
+  if (!promptId || typeof promptId !== 'string') {
+    // console.log('[PromptPage Server] Invalid or missing prompt ID in params:', params);
+    notFound();
+  }
+  // console.log('[PromptPage Server] Target prompt ID:', promptId);
+
+  try {
+    // --- Fetch Sharer Profile FIRST ---
+    let sharerProfile: Profile | null = null;
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .rpc('get_profile_safe');
+
+      if (profileError) throw new Error(`Sharer profile fetch failed via RPC: ${profileError.message}`);
+      if (!profileData) throw new Error('No profile data returned from get_profile_safe RPC.');
+
+      sharerProfile = profileData as Profile;
+      // console.log('[PromptPage Server] Successfully fetched sharer profile via RPC.');
+    } catch (error: any) {
+      console.error('[PromptPage Server] Profile data fetching error via RPC:', error);
+      return <ErrorDisplay message={error.message || 'An unexpected error occurred while fetching profile data.'} />;
+    }
+    
+    // Ensure sharerProfile is not null before proceeding (already fetched via RPC)
+    if (!sharerProfile) {
+        // This case should technically not be hit if the RPC succeeded, but safety first.
+        return <ErrorDisplay message="Sharer profile data is missing after successful fetch." />;
+  }
+
+    // --- Fetch Prompt Data and Siblings ---
+    const { data: prompt, error: promptError } = await supabase
+      .from('Prompt')
+      // Remove profileSharerId from select - it doesn't exist here
+      .select('*, PromptCategory(id, category), PromptResponse(*, profileSharerId, Video(*, VideoTranscript(*)), PromptResponseAttachment(*))')
+      .eq('id', promptId)
+      .single();
+
+    // Remove the direct log for prompt.profileSharerId as it caused the error
+    // console.log(`[PromptPage Server] Fetched prompt.profileSharerId: ${prompt?.profileSharerId}`);
+
+    if (promptError || !prompt) {
+      console.error('Error fetching prompt:', promptError);
+      // Log the actual error if it exists
+      if (promptError) {
+        console.error(`Supabase Error: ${promptError.message} (Code: ${promptError.code})`);
+      }
+      return <ErrorDisplay message="Failed to load prompt details." />;
+    }
+
+    // Get the sharer ID from the *first response* if available
+    const sharerIdFromResponse = prompt.PromptResponse?.[0]?.profileSharerId;
+    console.log(`[PromptPage Server] Derived sharerId from first response: ${sharerIdFromResponse}`);
+
+    // Construct the promptWithDetails object explicitly
+    const promptWithDetails: PromptWithDetails = {
+      id: prompt.id,
+      promptText: prompt.promptText,
+      promptTitle: prompt.promptTitle,
+      status: prompt.status,
+      profileSharerId: sharerId,
+      // No profileSharerId here
+      promptCategoryId: prompt.promptCategoryId,
+      createdAt: prompt.createdAt,
+      updatedAt: prompt.updatedAt,
+      promptType: prompt.promptType,
+      isContextEstablishing: prompt.isContextEstablishing,
+      PromptCategory: prompt.PromptCategory as ModelPromptCategory | null,
+      PromptResponse: prompt.PromptResponse as Array<ModelPromptResponse & {
+        profileSharerId: string; // Ensure this is typed correctly
+        Video?: ModelVideo & {
+          VideoTranscript?: { transcript: string | null }[] | null;
+        } | null;
+        PromptResponseAttachment?: ModelAttachment[] | null;
+      }>,
+    };
+
+    // Construct sharerName from the profile fetched via RPC earlier
+    const sharerName = `${sharerProfile.firstName ?? 'Sharer'} ${sharerProfile.lastName ?? ''}`.trim();
+    
+    // Extract the prompt category name
+    const promptCategoryName = prompt.PromptCategory?.category ?? 'Unknown Topic'; // Default name
+    console.log('[PromptPage Server] Prompt Category Name:', promptCategoryName); // Log extracted name
+
+    // Fetch sibling prompts (Simplified)
+    let previousPromptId: string | null = null;
+    let nextPromptId: string | null = null;
+
+    if (promptWithDetails.promptCategoryId) {
+  const { data: siblingPrompts, error: siblingError } = await supabase
+    .from('Prompt')
+          .select('id') // Only select ID
+          .eq('promptCategoryId', promptWithDetails.promptCategoryId)
+    .order('isContextEstablishing', { ascending: false })
+          .order('id'); // Ensure consistent ordering
+
+  if (siblingError) {
+          // console.warn('[PromptPage Server] Error fetching sibling prompts:', siblingError);
+        } else if (siblingPrompts) {
+            const currentIndex = siblingPrompts.findIndex((p) => p.id === promptId);
+            if (currentIndex > 0) {
+                previousPromptId = siblingPrompts[currentIndex - 1].id;
+            }
+            if (currentIndex < siblingPrompts.length - 1) {
+                nextPromptId = siblingPrompts[currentIndex + 1].id;
+            }
+            // console.log(`[PromptPage Server] Found sibling IDs: Prev=${previousPromptId}, Next=${nextPromptId}`);
+        }
+    } else {
+        // console.log('[PromptPage Server] Prompt has no category ID, skipping sibling fetch.');
+    }
+
+    // --- Rendering Logic --- Pass the derived sharerId to client
+    return (
+       <Suspense fallback={<Loading />}>
+         <PromptDisplayClient
+            initialPrompt={promptWithDetails}
+            sharerName={sharerName}
+            promptCategoryName={promptCategoryName}
+            previousPromptId={previousPromptId}
+            nextPromptId={nextPromptId}
+            sharerIdFromResponse={sharerIdFromResponse} // Pass the ID from the response
+         />
+       </Suspense>
+    );
+
+  } catch (error) {
+    console.error('[PromptPage Server] General error during data fetching or processing:', error);
+    // Use the imported ErrorDisplay component
+    return <ErrorDisplay message={error instanceof Error ? error.message : 'An unknown error occurred'} />;
+  }
+
+  // Remove old client-side rendering logic
+  // if (isLoading || authLoading) { ... }
+  // if (error) { ... }
+  // if (!pageData?.prompt) { ... }
+  // const handleBack = () => { ... };
+  // const handleNavigateSibling = (siblingPrompt: Prompt | null) => { ... };
+  // return ( ... old render logic ... );
 }

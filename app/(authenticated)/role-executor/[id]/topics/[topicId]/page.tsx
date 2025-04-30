@@ -5,17 +5,25 @@ import React, { Suspense } from 'react';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
 import { Loader2 } from 'lucide-react';
-import { getHeader } from '@/utils/next-cookies-helper';
+// import { getHeader } from '@/utils/next-cookies-helper'; // Removed
 import ExecutorTopicPageClient from './ExecutorTopicPageClient';
-import type { Database, Json } from '@/lib/database.types';
-import { ProfileExecutor, PromptCategory, PersonTag } from '@/types/models';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { fetchTopicDetails, fetchAttachmentUrls } from '@/app/lib/executor-data';
-import type { Profile } from '@/types/models';
-import type { ProfileSharer } from '@/types/models';
-import type { Database as SupabaseDatabase } from '@/lib/database.types';
+// Removed Json from database.types import
+// Removed ProfileExecutor, PromptCategory, PersonTag from types/models import
+
+// Removed Avatar, AvatarFallback, AvatarImage import
+
+// Removed fetchTopicDetails, fetchAttachmentUrls import
+
+// Removed Profile, ProfileSharer import
+
+// Removed SupabaseDatabase type import if Database is also unused, otherwise remove SupabaseDatabase from the type import
+// import type { Database as SupabaseDatabase } from '@/lib/database.types';
+
 import { ExecutorSharerHeader } from '@/components/executor/ExecutorSharerHeader';
 import { BackButton } from '@/components/ui/BackButton';
+
+// Remove unused ProfileSharerRow type alias
+// type ProfileSharerRow = Database['public']['Tables']['ProfileSharer']['Row'];
 
 // Define the expected structure of the data returned by the RPC function
 // Matches the RETURNS TABLE definition in the SQL function
@@ -29,24 +37,12 @@ interface SharerDetailsRpcResult {
   profile_avatar_url: string | null;
 }
 
-// Use the Database type to define the ProfileSharer row type
-type ProfileSharerRow = Database['public']['Tables']['ProfileSharer']['Row'];
-
 // Type definitions for the page props
 interface ExecutorTopicPageProps {
   params: {
     id: string; // Sharer ID
     topicId: string;
   };
-}
-
-function Loading() {
-  return (
-    <div className="flex justify-center items-center h-64">
-      <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-      <p className="ml-2">Loading topic...</p>
-    </div>
-  );
 }
 
 /**
@@ -143,11 +139,11 @@ export default async function ExecutorTopicPage({ params }: ExecutorTopicPagePro
       >
         {/* Wrap client component and apply negative margin to the wrapper */}
         <div className="-mt-4"> 
-          <ExecutorTopicPageClient
-            targetSharerId={sharerId}
-            topicId={topicId}
-            initialSharerProfile={sharerProfile} // Pass the fetched profile (now any)
-          />
+        <ExecutorTopicPageClient
+          targetSharerId={sharerId}
+          topicId={topicId}
+          initialSharerProfile={sharerProfile} // Pass the fetched profile (now any)
+        />
         </div>
       </Suspense>
     </div>
