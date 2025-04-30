@@ -141,6 +141,7 @@ interface TopicPageContentProps {
   hasPrevious?: boolean;
   handleDownloadAttachment?: (attachment: LocalUIAttachment) => Promise<void>;
   handleDialogSaveWrapper: (attachment: Attachment) => Promise<void>;
+  roleContext: 'SHARER' | 'EXECUTOR';
 }
 
 // Error boundary fallback
@@ -247,7 +248,8 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
   hasNext,
   hasPrevious,
   handleDownloadAttachment,
-  handleDialogSaveWrapper
+  handleDialogSaveWrapper,
+  roleContext
 }) => {
   // Add diagnostic log for promptCategory
   console.log('[DIAGNOSTIC] TopicPageContent rendering with promptCategory:',
@@ -257,6 +259,17 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
       promptsCount: promptCategory.Prompt?.length || 0
     } : null
   );
+
+  // Calculate completed count *before* the early return
+  const completedCount = useMemo(() => {
+    if (!promptCategory?.Prompt) return 0; // Guard against null/undefined
+    return promptCategory.Prompt.filter(
+      (p) =>
+        // Check status on Video, or check for attachments
+        (p.PromptResponse && p.PromptResponse.length > 0 && p.PromptResponse[0].Video?.status === 'READY') || 
+        (p.PromptResponse && p.PromptResponse.length > 0 && p.PromptResponse[0].PromptResponseAttachment && p.PromptResponse[0].PromptResponseAttachment.length > 0)
+    ).length;
+  }, [promptCategory?.Prompt]);
 
   const [overflowingPrompts, setOverflowingPrompts] = useState<Set<string>>(new Set());
   const promptRefs = useRef<{ [key: string]: HTMLElement | null }>({});
@@ -341,36 +354,27 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                 displayUrl: uiAttachment.displayUrl,
             };
 
+            // Dummy handlers for AttachmentThumbnail used *within* TopicPageContent
+            const dummyDownloadHandler = () => console.warn('Download not implemented in this context');
+            const dummyDeleteHandler = () => console.warn('Delete not implemented in this context');
+
             return (
               <div
                 key={attachment.id}
                 className="relative w-9 h-9 hover:z-10 cursor-pointer -ml-2 first:ml-0 border-2 border-white rounded-full overflow-hidden shadow"
                 onClick={(e) => {
-                  e.stopPropagation();
-                  console.log(`[RENDER_GALLERY] Thumbnail clicked. Finding attachment ID: ${attachment.id} in gallery state.`);
-                  // --- FIX: Find the LATEST version from the galleryAttachments state array ---
-                  const latestAttachmentFromState = galleryAttachments.find(ga => ga.id === attachment.id);
-
-                  if (latestAttachmentFromState) {
-                    // Remove the line below
-                    // const dialogIndex = galleryAttachments.findIndex(ga => ga.id === attachment.id); // Index remains the same
-                    // --- FIX: Use the object directly from the state array ---
-                    setSelectedAttachment(latestAttachmentFromState);
-                  } else {
-                    console.warn(`Could not find attachment ${attachment.id} in galleryAttachments state for dialog.`);
-                    // Fallback logic (unchanged)
-                    if (galleryAttachments.length > 0) {
-                        setSelectedAttachment(galleryAttachments[0]);
-                    } else {
-                        setSelectedAttachment(null);
-                    }
-                  }
+                  e.preventDefault();
+                  console.log('[TopicPageContent Card onClick] Event triggered.');
+                  console.log(`[TopicPageContent Card onClick] roleContext: ${roleContext}, targetSharerId: ${targetSharerId}, attachment.id: ${attachment.id}`);
+                  setSelectedAttachment(uiAttachment);
                 }}
               >
                 <AttachmentThumbnail
                   attachment={thumbnailProps} // Pass the typed (or 'any') object
                   size="lg"
                   className="w-full h-full object-cover"
+                  onDownload={dummyDownloadHandler} // Use defined dummy handler
+                  onDelete={dummyDeleteHandler} // Use defined dummy handler
                 />
               </div>
             );
@@ -381,7 +385,7 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
       console.error('Error rendering gallery:', error);
       return <div className="text-red-500 text-xs">Error loading gallery</div>;
     }
-  }, [gallerySignedUrls, areUrlsLoading, galleryAttachments, setSelectedAttachment]);
+  }, [gallerySignedUrls, areUrlsLoading, galleryAttachments, setSelectedAttachment, roleContext, targetSharerId]);
 
   // Render
   if (!promptCategory) {
@@ -390,15 +394,6 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
   }
 
   const totalCount = promptCategory?.Prompt?.length || 0;
-  const completedCount = useMemo(() => {
-    return promptCategory?.Prompt?.filter(
-      (p) =>
-        // Check status on Video, or check for attachments
-        (p.PromptResponse && p.PromptResponse.length > 0 && p.PromptResponse[0].Video?.status === 'READY') || 
-        (p.PromptResponse && p.PromptResponse.length > 0 && p.PromptResponse[0].PromptResponseAttachment && p.PromptResponse[0].PromptResponseAttachment.length > 0)
-    ).length || 0;
-  }, [promptCategory?.Prompt]);
-
   const progressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
   // Sort
@@ -553,12 +548,21 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                         hasResponse && "cursor-pointer"
                       )}
                       onClick={(e) => {
+                        e.preventDefault();
+                        console.log('[TopicPageContent Card onClick] Event triggered.');
+                        console.log(`[TopicPageContent Card onClick] roleContext: ${roleContext}, targetSharerId: ${targetSharerId}, prompt.id: ${prompt.id}`);
                         if (
                           e.target instanceof HTMLElement &&
                           !e.target.closest('button') &&
                           hasResponse
                         ) {
-                          router.push(`/role-sharer/prompts/${prompt.id}`);
+                          const calculatedPath = roleContext === 'EXECUTOR'
+                              ? `/role-executor/${targetSharerId}/prompts/${prompt.id}`
+                              : `/role-sharer/prompts/${prompt.id}`;
+                          console.log(`[TopicPageContent Card onClick] Calculated path: ${calculatedPath}`);
+                          router.push(calculatedPath);
+                        } else {
+                          console.log('[TopicPageContent Card onClick] Conditions not met for navigation.');
                         }
                       }}
                     >
@@ -755,12 +759,21 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                             hasResponse && "cursor-pointer"
                           )}
                           onClick={(e) => {
+                            e.preventDefault();
+                            console.log('[TopicPageContent TableRow onClick] Event triggered.');
+                            console.log(`[TopicPageContent TableRow onClick] Role: ${roleContext}, Sharer: ${targetSharerId}, Prompt: ${prompt.id}`);
                             if (
                               e.target instanceof HTMLElement &&
                               !e.target.closest('button') &&
                               hasResponse
                             ) {
-                              router.push(`/role-sharer/prompts/${prompt.id}`);
+                              const calculatedPath = roleContext === 'EXECUTOR'
+                                  ? `/role-executor/${targetSharerId}/prompts/${prompt.id}`
+                                  : `/role-sharer/prompts/${prompt.id}`;
+                              console.log(`[TopicPageContent TableRow onClick] Calculated path: ${calculatedPath}`);
+                              router.push(calculatedPath);
+                            } else {
+                              console.log('[TopicPageContent TableRow onClick] Conditions not met for nav.');
                             }
                           }}
                         >
@@ -986,6 +999,11 @@ export default function TopicPage() {
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const POLLING_INTERVAL_MS = 5000; // Check every 5 seconds
   const POLLING_TIMEOUT_MS = 120000; // Stop after 2 minutes
+
+  // Determine Role Context
+  const roleContext = useMemo(() => {
+    return sharerIdFromParams ? 'EXECUTOR' : 'SHARER';
+  }, [sharerIdFromParams]);
 
   // --- Navigation and Download Handlers (for Sharer) ---
   const handleNextAttachment = useCallback(() => {
@@ -1724,6 +1742,7 @@ export default function TopicPage() {
                 hasPrevious={hasPrevious}
                 handleDownloadAttachment={handleDownloadAttachment}
                 handleDialogSaveWrapper={handleDialogSaveWrapper}
+                roleContext={roleContext}
              />
         )}
 

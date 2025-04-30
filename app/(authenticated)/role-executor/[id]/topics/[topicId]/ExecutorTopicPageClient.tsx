@@ -658,6 +658,7 @@ export default function ExecutorTopicPageClient({ targetSharerId, topicId, initi
     hasNext,
     hasPrevious,
     handleDownloadAttachment,
+    roleContext: 'EXECUTOR',
   };
 
   return (
@@ -665,9 +666,9 @@ export default function ExecutorTopicPageClient({ targetSharerId, topicId, initi
       FallbackComponent={ErrorFallback}
       onReset={() => fetchData(true)} 
     >
-      {promptCategory && (
-        <TopicPageContent {...topicPageContentProps} />
-      )}
+      <TopicPageContent
+        {...topicPageContentProps}
+      />
 
       {/* Render AttachmentDialog */}
        {selectedAttachment && galleryAttachments.length > 0 && (

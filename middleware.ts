@@ -31,6 +31,10 @@ const PUBLIC_ROUTES = [
 ];
 
 export async function middleware(request: NextRequest) {
+  // --- ADDED LOGGING --- 
+  console.log(`[MIDDLEWARE_PATH_CHECK] Received path: ${request.nextUrl.pathname}`);
+  // ---------------------
+  
   console.log('[MIDDLEWARE] ⭐ Processing request for:', request.url);
   
   // Log cookie header to better understand issues

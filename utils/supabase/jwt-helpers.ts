@@ -15,6 +15,7 @@ export interface JwtRoleData {
   sharerId: string | null;
   hasExecutor: boolean;
   executorCount: number;
+  executorRelationships?: Array<{ sharerId: string; [key: string]: any }>;
 }
 
 /**
@@ -61,7 +62,7 @@ export async function getUserWithRoleData(): Promise<{ user: User | null, roleDa
     
     if (error || !user) {
       console.error('[JWT_HELPERS] No authenticated user found:', error?.message);
-      return { user: null, roleData: { roles: [], isSharer: false, sharerId: null, hasExecutor: false, executorCount: 0 } };
+      return { user: null, roleData: { roles: [], isSharer: false, sharerId: null, hasExecutor: false, executorCount: 0, executorRelationships: [] } };
     }
     
     // Get comprehensive role data from the RPC function
@@ -80,10 +81,12 @@ export async function getUserWithRoleData(): Promise<{ user: User | null, roleDa
       isSharer: roleInfo?.is_sharer || false,
       sharerId: roleInfo?.sharerId || null,
       hasExecutor: roleInfo?.has_executor_relationship || false,
-      executorCount: roleInfo?.executor_count || 0
+      executorCount: roleInfo?.executor_count || 0,
+      executorRelationships: roleInfo?.executor_relationships || []
     };
     
     console.log('User role info in server component:', roleInfo);
+    console.log('[JWT_HELPERS] Transformed roleData:', JSON.stringify(roleData, null, 2));
     
     return { user, roleData };
   } catch (error) {
@@ -95,7 +98,8 @@ export async function getUserWithRoleData(): Promise<{ user: User | null, roleDa
         isSharer: false, 
         sharerId: null, 
         hasExecutor: false, 
-        executorCount: 0 
+        executorCount: 0,
+        executorRelationships: []
       } 
     };
   }

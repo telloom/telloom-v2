@@ -231,6 +231,7 @@ export default async function PromptPage({ params }: PromptPageProps) {
             previousPromptId={previousPromptId}
             nextPromptId={nextPromptId}
             sharerIdFromResponse={sharerIdFromResponse} // Pass the ID from the response
+            roleContext="SHARER" // Add the missing prop with value "SHARER"
          />
        </Suspense>
     );

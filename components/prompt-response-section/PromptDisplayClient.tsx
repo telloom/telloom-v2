@@ -40,6 +40,7 @@ import { VideoResponseSection } from './video-response-section';
 import { PromptActions } from '../../app/(authenticated)/role-sharer/prompts/[id]/prompt-actions';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { ExecutorSharerHeader } from '@/components/executor/ExecutorSharerHeader';
 
 const AttachmentUpload = dynamic(() => import('@/components/AttachmentUpload').then(mod => mod.default), {
   ssr: false,
@@ -70,6 +71,12 @@ interface PromptWithDetails extends Prompt {
   PromptCategory?: { category: string; id: string } | null;
 }
 
+interface SharerProfileHeaderData {
+  avatarUrl?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+}
+
 interface PromptDisplayClientProps {
   initialPrompt: PromptWithDetails;
   sharerName: string;
@@ -77,6 +84,9 @@ interface PromptDisplayClientProps {
   previousPromptId: string | null;
   nextPromptId: string | null;
   sharerIdFromResponse?: string | null;
+  roleContext: 'SHARER' | 'EXECUTOR';
+  contextSharerId?: string;
+  sharerProfileHeaderData?: SharerProfileHeaderData | null;
 }
 
 export function PromptDisplayClient({
@@ -86,6 +96,9 @@ export function PromptDisplayClient({
   previousPromptId,
   nextPromptId,
   sharerIdFromResponse,
+  roleContext,
+  contextSharerId,
+  sharerProfileHeaderData
 }: PromptDisplayClientProps) {
   const router = useRouter();
   const [promptData, setPromptData] = useState<PromptWithDetails>(initialPrompt);
@@ -130,21 +143,52 @@ export function PromptDisplayClient({
     setIsEditingDate(false);
     setGalleryKey(Date.now());
     setIsDeleting(false);
-  }, [initialPrompt, sharerIdFromResponse]);
+    if (roleContext === 'EXECUTOR' && !contextSharerId) {
+        console.error('[PromptDisplayClient Error] contextSharerId is required when roleContext is EXECUTOR.');
+    }
+  }, [initialPrompt, sharerIdFromResponse, roleContext, contextSharerId]);
 
   const handleBackToTopic = () => {
-    if (promptData.promptCategoryId) {
-       router.push(`/role-sharer/topics/${promptData.promptCategoryId}`);
+    let path = '/role-sharer/topics';
+    if (roleContext === 'EXECUTOR') {
+        if (!contextSharerId) {
+            console.error("Cannot determine back path: contextSharerId missing for executor.");
+            toast.error("Navigation error.");
+            return;
+        }
+        path = promptData.promptCategoryId
+            ? `/role-executor/${contextSharerId}/topics/${promptData.promptCategoryId}`
+            : `/role-executor/${contextSharerId}`;
     } else {
-       router.push('/role-sharer/topics');
+        if (promptData.promptCategoryId) {
+            path = `/role-sharer/topics/${promptData.promptCategoryId}`;
+        }
     }
+    router.push(path);
   };
 
-  const handleNavigateSibling = (promptId: string | null) => {
-    if (promptId) {
-      router.push(`/role-sharer/prompts/${promptId}`);
+  const handleNavigate = useCallback((direction: 'prev' | 'next') => {
+    const targetPromptId = direction === 'prev' ? previousPromptId : nextPromptId;
+    if (targetPromptId && !isNavigating) {
+      setIsNavigating(true);
+      let path = '';
+      if (roleContext === 'EXECUTOR') {
+          if (!contextSharerId) {
+             console.error("Cannot navigate sibling: contextSharerId missing for executor.");
+             toast.error("Navigation error.");
+             setIsNavigating(false);
+             return;
+          }
+          path = `/role-executor/${contextSharerId}/prompts/${targetPromptId}`;
+      } else {
+          path = `/role-sharer/prompts/${targetPromptId}`;
+      }
+
+      startTransition(() => {
+        void router.push(path);
+      });
     }
-  };
+  }, [previousPromptId, nextPromptId, router, isNavigating, startTransition, roleContext, contextSharerId]);
 
   const handleSave = async (field: 'notes' | 'transcript' | 'summary' | 'date') => {
     setIsLoading(true);
@@ -296,16 +340,6 @@ export function PromptDisplayClient({
     setGalleryKey(prev => prev + 1);
   }, [router]);
 
-  const handleNavigate = useCallback((direction: 'prev' | 'next') => {
-    const targetId = direction === 'prev' ? previousPromptId : nextPromptId;
-    if (targetId && !isNavigating) {
-      setIsNavigating(true);
-      startTransition(() => {
-        router.push(`/role-sharer/prompts/${targetId}`);
-      });
-    }
-  }, [previousPromptId, nextPromptId, router, isNavigating, startTransition]);
-
   const handleDelete = async () => {
     if (!promptResponse?.id || !muxAssetId) {
       toast.error("Cannot delete: Missing response or video information.");
@@ -333,10 +367,20 @@ export function PromptDisplayClient({
     }
   };
 
+  const effectiveSharerIdForDownload = roleContext === 'EXECUTOR' ? contextSharerId : sharerIdFromResponse;
+  console.log(`[PromptDisplayClient] Effective Sharer ID for Download Button: ${effectiveSharerIdForDownload}`);
+
   return (
     <TooltipProvider>
       <div className="container mx-auto px-4 lg:px-32 py-8 max-w-7xl">
-        <div className="flex justify-between items-center mb-6">
+        {/* REMOVE Header from here */}
+        {/* {roleContext === 'EXECUTOR' && sharerProfileHeaderData && (
+          <div className="mb-6">
+            <ExecutorSharerHeader sharerProfile={sharerProfileHeaderData} />
+          </div>
+        )} */}
+        
+        <div className="flex justify-between items-center mb-1">
           <Button variant="ghost" onClick={handleBackToTopic} className="-ml-2 rounded-full">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
@@ -351,6 +395,13 @@ export function PromptDisplayClient({
           </div>
         </div>
 
+        {/* ADD Header HERE, right before the main card */}
+        {roleContext === 'EXECUTOR' && sharerProfileHeaderData && (
+          <div className="mb-2">
+            <ExecutorSharerHeader sharerProfile={sharerProfileHeaderData} />
+          </div>
+        )}
+        
         <div className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 rounded-2xl p-6 md:p-8 space-y-8 mb-12">
           <div>
             <h2 className="text-xl md:text-2xl font-semibold mb-0">{promptData.promptText}</h2>
@@ -406,7 +457,7 @@ export function PromptDisplayClient({
                    <VideoDownloadButton
                      muxAssetId={muxAssetId}
                      videoType="prompt"
-                     userId={sharerIdFromResponse}
+                     userId={effectiveSharerIdForDownload}
                      promptCategoryName={promptCategoryName}
                    />
                 )}

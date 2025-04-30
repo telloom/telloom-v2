@@ -104,31 +104,66 @@ export async function updatePromptResponseNotes(formData: FormData): Promise<{ s
   }
 
   const { responseId, notes } = parsed.data;
+  console.log(`[ACTION_UPDATE_NOTES] Attempting update for responseId: ${responseId}`);
 
-  // Permission Check
-  const owner = await isOwner(supabase, responseId);
-  if (!owner) {
-    return { success: false, error: 'Permission denied.' };
+  // --- NEW Permission Check using RPC ---
+  try {
+    const { data: responseInfo, error: responseError } = await supabase
+      .from('PromptResponse')
+      .select('profileSharerId')
+      .eq('id', responseId)
+      .maybeSingle();
+
+    if (responseError) throw new Error(`Failed to fetch response info: ${responseError.message}`);
+    if (!responseInfo?.profileSharerId) throw new Error('Could not determine sharer for the response.');
+
+    const sharerId = responseInfo.profileSharerId;
+    console.log(`[ACTION_UPDATE_NOTES] Found sharerId: ${sharerId} for responseId: ${responseId}`);
+
+    const { data: hasAccess, error: accessError } = await supabase
+        .rpc('has_sharer_access', { sharer_profile_id: sharerId });
+
+    if (accessError) throw new Error(`Access check failed: ${accessError.message}`);
+
+    console.log(`[ACTION_UPDATE_NOTES] has_sharer_access check result: ${hasAccess}`);
+    if (hasAccess !== true) { // RPC returns boolean or null
+        return { success: false, error: 'Permission denied by access check.' };
+    }
+  } catch (error: any) {
+      console.error('[ACTION_UPDATE_NOTES] Permission check error:', error);
+      return { success: false, error: error.message || 'Permission check failed.' };
   }
+  // --- End Permission Check ---
 
   try {
-    const { error } = await supabase
+    console.log('[ACTION_UPDATE_NOTES] Permission check passed. Proceeding with update...');
+    const { error: updateError } = await supabase
       .from('PromptResponse')
       .update({ responseNotes: notes })
       .eq('id', responseId);
 
-    if (error) throw error;
+    if (updateError) throw updateError; // Throw the actual Supabase error
+
+    console.log(`[ACTION_UPDATE_NOTES] Update successful for responseId: ${responseId}`);
 
     // Revalidate the path for the prompt page
     const { data: promptData } = await supabase.from('PromptResponse').select('promptId').eq('id', responseId).single();
     if (promptData?.promptId) {
-      revalidatePath(`/role-sharer/prompts/${promptData.promptId}`);
+      const { data: { user } } = await supabase.auth.getUser();
+      const { roleData } = await getUserWithRoleData();
+      const path = roleData.roles.includes('EXECUTOR')
+        ? `/role-executor/${roleData.executorRelationships?.[0]?.sharerId}/prompts/${promptData.promptId}` // Adjust if multiple relationships possible
+        : `/role-sharer/prompts/${promptData.promptId}`;
+       console.log(`[ACTION_UPDATE_NOTES] Revalidating path: ${path}`);
+      revalidatePath(path);
     }
 
     return { success: true };
   } catch (error: any) {
-    console.error("Error updating notes:", error);
-    return { success: false, error: error.message || 'Failed to update notes.' };
+    console.error(`[ACTION_UPDATE_NOTES] Error updating notes for response ${responseId}:`, error);
+    // Provide more context from Supabase error if available
+    const message = error.message ? `Database error: ${error.message}` : 'Failed to update notes.';
+    return { success: false, error: message };
   }
 }
 
@@ -144,30 +179,65 @@ export async function updatePromptResponseSummary(formData: FormData): Promise<{
   }
   
   const { responseId, summary } = parsed.data;
+  console.log(`[ACTION_UPDATE_SUMMARY] Attempting update for responseId: ${responseId}`);
 
-  // Permission Check
-  const owner = await isOwner(supabase, responseId);
-  if (!owner) {
-    return { success: false, error: 'Permission denied.' };
+  // --- NEW Permission Check using RPC ---
+  try {
+    const { data: responseInfo, error: responseError } = await supabase
+      .from('PromptResponse')
+      .select('profileSharerId')
+      .eq('id', responseId)
+      .maybeSingle();
+
+    if (responseError) throw new Error(`Failed to fetch response info: ${responseError.message}`);
+    if (!responseInfo?.profileSharerId) throw new Error('Could not determine sharer for the response.');
+
+    const sharerId = responseInfo.profileSharerId;
+    console.log(`[ACTION_UPDATE_SUMMARY] Found sharerId: ${sharerId} for responseId: ${responseId}`);
+
+    const { data: hasAccess, error: accessError } = await supabase
+        .rpc('has_sharer_access', { sharer_profile_id: sharerId });
+
+    if (accessError) throw new Error(`Access check failed: ${accessError.message}`);
+
+    console.log(`[ACTION_UPDATE_SUMMARY] has_sharer_access check result: ${hasAccess}`);
+     if (hasAccess !== true) { // RPC returns boolean or null
+        return { success: false, error: 'Permission denied by access check.' };
+    }
+  } catch (error: any) {
+      console.error('[ACTION_UPDATE_SUMMARY] Permission check error:', error);
+      return { success: false, error: error.message || 'Permission check failed.' };
   }
+  // --- End Permission Check ---
 
   try {
-    const { error } = await supabase
+     console.log('[ACTION_UPDATE_SUMMARY] Permission check passed. Proceeding with update...');
+    const { error: updateError } = await supabase
       .from('PromptResponse')
       .update({ summary: summary })
       .eq('id', responseId);
 
-    if (error) throw error;
+    if (updateError) throw updateError; // Throw the actual Supabase error
+
+    console.log(`[ACTION_UPDATE_SUMMARY] Update successful for responseId: ${responseId}`);
 
     const { data: promptData } = await supabase.from('PromptResponse').select('promptId').eq('id', responseId).single();
     if (promptData?.promptId) {
-      revalidatePath(`/role-sharer/prompts/${promptData.promptId}`);
+       const { data: { user } } = await supabase.auth.getUser();
+      const { roleData } = await getUserWithRoleData();
+      const path = roleData.roles.includes('EXECUTOR')
+        ? `/role-executor/${roleData.executorRelationships?.[0]?.sharerId}/prompts/${promptData.promptId}` // Adjust if multiple relationships possible
+        : `/role-sharer/prompts/${promptData.promptId}`;
+       console.log(`[ACTION_UPDATE_SUMMARY] Revalidating path: ${path}`);
+      revalidatePath(path);
     }
-    
+
     return { success: true };
   } catch (error: any) {
-    console.error("Error updating summary:", error);
-    return { success: false, error: error.message || 'Failed to update summary.' };
+     console.error(`[ACTION_UPDATE_SUMMARY] Error updating summary for response ${responseId}:`, error);
+    // Provide more context from Supabase error if available
+    const message = error.message ? `Database error: ${error.message}` : 'Failed to update summary.';
+    return { success: false, error: message };
   }
 }
 

@@ -4,7 +4,6 @@ import { Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/utils/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
-import { Profile } from '@/types/models';
 
 interface VideoDownloadButtonProps {
   muxAssetId: string;
@@ -23,7 +22,6 @@ export function VideoDownloadButton({
 }: VideoDownloadButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isAvailable, setIsAvailable] = useState(false);
-  const [userProfile, setUserProfile] = useState<Profile | null>(null);
 
   console.log(`[VideoDownloadButton Render] Received userId prop: ${profileSharerId}`);
 
@@ -66,60 +64,6 @@ export function VideoDownloadButton({
     checkAvailability();
 
   }, [muxAssetId, videoType]);
-
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (!profileSharerId) {
-        setUserProfile(null);
-        return;
-      }
-
-      const supabase = createClient();
-      try {
-        const { data: sharerData, error: sharerError } = await supabase
-          .from('ProfileSharer')
-          .select('profileId')
-          .eq('id', profileSharerId)
-          .single();
-
-        if (sharerError) {
-          console.error('Error fetching ProfileSharer to get profileId:', sharerError.message);
-          setUserProfile(null);
-          return;
-        }
-        if (!sharerData?.profileId) {
-          console.error('No profileId found for ProfileSharer ID:', profileSharerId);
-          setUserProfile(null);
-          return;
-        }
-
-        const targetProfileId = sharerData.profileId;
-
-        const { data: profileData, error: profileError } = await supabase
-          .rpc('get_profile_safe', { target_user_id: targetProfileId });
-
-        if (profileError) {
-          console.error('Error calling get_profile_safe RPC:', profileError);
-          setUserProfile(null);
-          return;
-        }
-
-        if (!profileData) {
-          console.error('No profile data returned from get_profile_safe RPC for ID:', targetProfileId);
-          setUserProfile(null);
-          return;
-        }
-
-        setUserProfile(profileData as Profile);
-
-      } catch (error) {
-        console.error('Error in profile fetch chain (RPC):', error);
-        setUserProfile(null);
-      }
-    };
-
-    fetchUserProfile();
-  }, [profileSharerId]);
 
   const handleDownload = async () => {
     if (!muxAssetId) {
