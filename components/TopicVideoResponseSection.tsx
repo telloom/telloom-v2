@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Video as VideoIcon, Upload, Paperclip, Edit, Check, ArrowLeft, Download, Trash2, AlertTriangle, Pencil, Wand2, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Video as VideoIcon, Upload, Paperclip, Edit, Check, ArrowLeft, Download, Trash2, AlertTriangle, Pencil, Wand2, Loader2, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { RecordingInterface } from '@/components/RecordingInterface';
 import { UploadPopup } from '@/components/UploadPopup';
 import dynamic from 'next/dynamic';
@@ -594,16 +594,17 @@ export function TopicVideoResponseSection({
 
         {showUploadPopup && (
           <UploadPopup
-            promptId={topicId}
-            onClose={() => setShowUploadPopup(false)}
             open={showUploadPopup}
+            onClose={() => setShowUploadPopup(false)}
             promptText={topicName}
-            onUploadSuccess={async () => {
+            promptId={topicId}
+            onUploadSuccess={async (playbackId) => {
               if (onVideoUpload) {
                 await onVideoUpload();
               }
               setShowUploadPopup(false);
             }}
+            targetSharerId={userId as string}
           />
         )}
       </Card>
@@ -613,94 +614,220 @@ export function TopicVideoResponseSection({
   return (
     <div className="space-y-8">
       <Card className="p-8 border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-4">
-            {/* Topic Title */}
+        <div className="space-y-6">
+          <div>
             <h2 className="text-2xl font-semibold text-black">{topicName}</h2>
-            
-            {/* Video and Text Content */}
-            <div className="relative">
-              <div className="space-y-4">
-                <div className="rounded-lg overflow-hidden">
-                  <MuxPlayer
-                    playbackId={video.muxPlaybackId}
+            <div className="inline-block px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
+              Topic Summary
+            </div>
+          </div>
+
+          {video?.muxPlaybackId && (
+            <div className="rounded-lg overflow-hidden">
+              <MuxPlayer playbackId={video.muxPlaybackId} />
+            </div>
+          )}
+
+          {/* Date and Download Section */}
+          <div className="flex items-center justify-between py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Date Recorded:</span>
+              {isEditingDate ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={dateRecorded || ''}
+                    onChange={(e) => setDateRecorded(e.target.value || null)}
+                    className="px-2 py-1 border rounded text-sm"
+                    aria-label="Date recorded"
                   />
+                  <Button variant="ghost" size="icon" onClick={handleSaveDate} className="h-8 w-8 rounded-full">
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setIsEditingDate(false)} className="h-8 w-8 rounded-full">
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
-              </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                   <span className="text-sm text-gray-900">
+                    {dateRecorded ? new Date(dateRecorded).toLocaleDateString() : 'Not set'}
+                  </span>
+                  <Button variant="ghost" size="icon" onClick={() => setIsEditingDate(true)} className="h-8 w-8 rounded-full">
+                    <Pencil className="h-4 w-4 text-gray-500 hover:text-gray-700" />
+                    <span className="sr-only">Edit Date</span>
+                  </Button>
+                </div>
+              )}
             </div>
+            {video?.muxAssetId && (
+              <VideoDownloadButton
+                muxAssetId={video.muxAssetId}
+                videoType="topic"
+                userId={userId}
+                promptCategoryName={topicName}
+              />
+            )}
+          </div>
 
-            {/* Date and Download Section */}
-            <div className="flex items-center justify-between py-2">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500">Date Recorded:</span>
-                {isEditingDate ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="date"
-                      value={dateRecorded || ''}
-                      onChange={(e) => setDateRecorded(e.target.value || null)}
-                      className="px-2 py-1 border rounded text-sm"
-                      aria-label="Date recorded"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleSaveDate}
-                      className="rounded-full"
-                    >
-                      <Check className="h-4 w-4 mr-2" />
-                      Save
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">
-                      {dateRecorded ? dateRecorded.split('T')[0] : 'Not set'}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setIsEditingDate(true)}
-                      className="rounded-full"
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
-                    </Button>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {video.muxAssetId && (
-                  <VideoDownloadButton
-                    muxAssetId={video.muxAssetId}
-                    videoType="topic"
-                    userId={userId}
-                    topicName={topicName}
-                  />
-                )}
-              </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">All Topic Attachments</h3>
             </div>
-
-            {/* Transcript Section */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Transcript</h3>
-                <div className="flex gap-2">
-                  {previousTranscript && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
+            {attachments.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {attachments.map((attachment) => {
+                  const thumbnailAttachment = toThumbnailAttachment({
+                    ...attachment,
+                    dateCaptured: attachment.dateCaptured ? attachment.dateCaptured.toISOString() : null
+                  });
+                  return (
+                    <div
+                      key={attachment.id}
+                      className="relative aspect-square group cursor-pointer"
                       onClick={() => {
-                        setTranscript(previousTranscript);
-                        setPreviousTranscript('');
+                        if (attachment.fileType.startsWith('image/') || attachment.fileType === 'application/pdf') {
+                          const imageIndex = imageAttachments.findIndex(img => img.id === attachment.id);
+                          if (imageIndex !== -1) {
+                            setSelectedImageIndex(imageIndex);
+                          }
+                        }
                       }}
-                      className="rounded-full"
                     >
-                      <ArrowLeft className="h-4 w-4 mr-2" />
-                      Revert
+                      <AttachmentThumbnail
+                        attachment={thumbnailAttachment}
+                        size="lg"
+                      />
+                      <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                        <Button
+                          variant="secondary"
+                          size="icon"
+                          className="h-8 w-8 rounded-full bg-white/80 hover:bg-white"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const supabase = createClient();
+                            try {
+                              const filePath = attachment.fileUrl.includes('attachments/') 
+                                ? attachment.fileUrl.split('attachments/')[1]
+                                : attachment.fileUrl;
+                              
+                              const { data, error } = await supabase.storage
+                                .from('attachments')
+                                .download(filePath);
+
+                              if (error) throw error;
+
+                              if (data) {
+                                const url = URL.createObjectURL(data);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = attachment.fileName;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                URL.revokeObjectURL(url);
+                              }
+                            } catch (error) {
+                              console.error('Error downloading file:', error);
+                              toast.error('Failed to download file');
+                            }
+                          }}
+                        >
+                          <Download className="h-4 w-4" />
+                          <span className="sr-only">Download attachment</span>
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="icon"
+                          className="h-8 w-8 rounded-full bg-white/80 hover:bg-white hover:text-red-600"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const supabase = createClient();
+                            try {
+                              const filePath = attachment.fileUrl.includes('attachments/') 
+                                ? attachment.fileUrl.split('attachments/')[1]
+                                : attachment.fileUrl;
+                              
+                              const { error: storageError } = await supabase.storage
+                                .from('attachments')
+                                .remove([filePath]);
+
+                              if (storageError) throw storageError;
+
+                              const { error: dbError } = await supabase
+                                .from('PromptResponseAttachment')
+                                .delete()
+                                .eq('id', attachment.id);
+
+                              if (dbError) throw dbError;
+
+                              setAttachments(prev => prev.filter(a => a.id !== attachment.id));
+                              toast.success('Attachment deleted successfully');
+                            } catch (error) {
+                              console.error('Error deleting attachment:', error);
+                              toast.error('Failed to delete attachment');
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Delete attachment</span>
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+               <p className="text-sm text-gray-500">No attachments added for this topic yet.</p> 
+            )}
+          </div>
+          
+          <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-semibold">Transcript</h3>
+                  <Button
+                    variant="ghost"
+                    size="icon" 
+                    onClick={() => {
+                      if (isEditingTranscript) {
+                        handleSaveTranscript();
+                      } else {
+                        setIsEditingTranscript(true);
+                      }
+                    }}
+                    className="h-8 w-8 rounded-full" 
+                  >
+                    {isEditingTranscript ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      <Pencil className="h-4 w-4" />
+                    )}
+                    <span className="sr-only">{isEditingTranscript ? 'Save Transcript' : 'Edit Transcript'}</span>
+                  </Button>
+                  {isEditingTranscript && (
+                    <Button variant="ghost" size="icon" onClick={() => setIsEditingTranscript(false)} className="h-8 w-8 rounded-full">
+                      <X className="h-4 w-4" />
+                      <span className="sr-only">Cancel Edit Transcript</span>
                     </Button>
                   )}
-                  <Button
+                </div>
+                <div className="flex gap-2">
+                   {previousTranscript && (
+                     <Button
+                       variant="ghost"
+                       size="sm"
+                       onClick={() => {
+                         setTranscript(previousTranscript);
+                         setPreviousTranscript('');
+                       }}
+                       className="rounded-full"
+                     >
+                       <ArrowLeft className="h-4 w-4 mr-2" />
+                       Revert
+                     </Button>
+                   )}
+                   <Button
                     variant="outline"
                     size="sm"
                     onClick={async () => {
@@ -749,12 +876,12 @@ export function TopicVideoResponseSection({
                         setIsCleaningTranscript(false);
                       }
                     }}
-                    className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full"
+                    className="hover:bg-[#8fbc55] rounded-full"
                     disabled={isCleaningTranscript}
                   >
                     {isCleaningTranscript ? (
                       <>
-                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-[#1B4332] border-t-transparent" />
+                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                         Cleaning Transcript...
                       </>
                     ) : cleaningSuccess ? (
@@ -765,25 +892,6 @@ export function TopicVideoResponseSection({
                     ) : (
                       'Clean Transcript with AI'
                     )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      if (isEditingTranscript) {
-                        handleSaveTranscript();
-                      } else {
-                        setIsEditingTranscript(true);
-                      }
-                    }}
-                    className="rounded-full"
-                  >
-                    {isEditingTranscript ? (
-                      <Check className="h-4 w-4 mr-2" />
-                    ) : (
-                      <Edit className="h-4 w-4 mr-2" />
-                    )}
-                    {isEditingTranscript ? 'Save' : 'Edit'}
                   </Button>
                 </div>
               </div>
@@ -802,7 +910,7 @@ export function TopicVideoResponseSection({
                 <div className="space-y-2">
                   <div
                     ref={transcriptContentRef}
-                    className={`relative bg-white rounded-lg p-4 whitespace-pre-wrap transition-all duration-200 text-base ${
+                    className={`relative bg-white rounded-lg whitespace-pre-wrap transition-all duration-200 text-base ${
                       !isTranscriptExpanded ? "max-h-[16em]" : ""
                     }`}
                     style={getContentStyle(isTranscriptExpanded)}
@@ -838,10 +946,36 @@ export function TopicVideoResponseSection({
               )}
             </div>
 
-            {/* Summary Section */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Summary</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-semibold">Summary</h3>
+                  <Button
+                    variant="ghost"
+                    size="icon" 
+                    onClick={() => {
+                      if (isEditingSummary) {
+                        handleSaveSummary();
+                      } else {
+                        setIsEditingSummary(true);
+                      }
+                    }}
+                    className="h-8 w-8 rounded-full" 
+                  >
+                    {isEditingSummary ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      <Pencil className="h-4 w-4" />
+                    )}
+                     <span className="sr-only">{isEditingSummary ? 'Save Summary' : 'Edit Summary'}</span>
+                  </Button>
+                  {isEditingSummary && (
+                    <Button variant="ghost" size="icon" onClick={() => setIsEditingSummary(false)} className="h-8 w-8 rounded-full">
+                      <X className="h-4 w-4" />
+                       <span className="sr-only">Cancel Edit Summary</span>
+                    </Button>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   {previousSummary && (
                     <Button
@@ -861,12 +995,12 @@ export function TopicVideoResponseSection({
                     variant="outline"
                     size="sm"
                     onClick={handleGenerateSummary}
-                    className="border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] rounded-full"
+                    className="hover:bg-[#8fbc55] rounded-full"
                     disabled={isGeneratingSummary}
                   >
                     {isGeneratingSummary ? (
                       <>
-                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-[#1B4332] border-t-transparent" />
+                         <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                         Generating Summary...
                       </>
                     ) : summarySuccess ? (
@@ -877,25 +1011,6 @@ export function TopicVideoResponseSection({
                     ) : (
                       'Generate AI Summary'
                     )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      if (isEditingSummary) {
-                        handleSaveSummary();
-                      } else {
-                        setIsEditingSummary(true);
-                      }
-                    }}
-                    className="rounded-full"
-                  >
-                    {isEditingSummary ? (
-                      <Check className="h-4 w-4 mr-2" />
-                    ) : (
-                      <Edit className="h-4 w-4 mr-2" />
-                    )}
-                    {isEditingSummary ? 'Save' : 'Edit'}
                   </Button>
                 </div>
               </div>
@@ -915,7 +1030,7 @@ export function TopicVideoResponseSection({
                 <div className="space-y-2">
                   <div
                     ref={summaryContentRef}
-                    className={`relative bg-white rounded-lg p-4 whitespace-pre-wrap transition-all duration-200 text-base ${
+                    className={`relative bg-white rounded-lg whitespace-pre-wrap transition-all duration-200 text-base ${
                       !isSummaryExpanded ? "max-h-[16em]" : ""
                     }`}
                     style={getContentStyle(isSummaryExpanded)}
@@ -951,142 +1066,8 @@ export function TopicVideoResponseSection({
               )}
             </div>
           </div>
-
-          {/* Attachments Section */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">All Topic Attachments</h3>
-            </div>
-            
-            {attachments.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {attachments.map((attachment) => {
-                  const thumbnailAttachment = toThumbnailAttachment(attachment);
-                  return (
-                    <div
-                      key={attachment.id}
-                      className="relative aspect-square group cursor-pointer"
-                      onClick={() => {
-                        if (attachment.fileType.startsWith('image/') || attachment.fileType === 'application/pdf') {
-                          const imageIndex = imageAttachments.findIndex(img => img.id === attachment.id);
-                          if (imageIndex !== -1) {
-                            setSelectedImageIndex(imageIndex);
-                          }
-                        }
-                      }}
-                    >
-                      <AttachmentThumbnail
-                        attachment={thumbnailAttachment}
-                        size="lg"
-                      />
-                      {/* Action buttons */}
-                      <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                        <Button
-                          variant="secondary"
-                          size="icon"
-                          className="h-8 w-8 rounded-full bg-white/80 hover:bg-white"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            const supabase = createClient();
-                            try {
-                              const filePath = attachment.fileUrl.includes('attachments/') 
-                                ? attachment.fileUrl.split('attachments/')[1]
-                                : attachment.fileUrl;
-                              
-                              const { data, error } = await supabase.storage
-                                .from('attachments')
-                                .download(filePath);
-
-                              if (error) throw error;
-
-                              if (data) {
-                                const url = URL.createObjectURL(data);
-                                const link = document.createElement('a');
-                                link.href = url;
-                                link.download = attachment.fileName;
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-                                URL.revokeObjectURL(url);
-                              }
-                            } catch (error) {
-                              console.error('Error downloading file:', error);
-                              toast.error('Failed to download file');
-                            }
-                          }}
-                        >
-                          <Download className="h-4 w-4" />
-                          <span className="sr-only">Download attachment</span>
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="icon"
-                          className="h-8 w-8 rounded-full bg-white/80 hover:bg-white hover:text-red-600"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            const supabase = createClient();
-                            try {
-                              // Delete from storage
-                              const filePath = attachment.fileUrl.includes('attachments/') 
-                                ? attachment.fileUrl.split('attachments/')[1]
-                                : attachment.fileUrl;
-                              
-                              const { error: storageError } = await supabase.storage
-                                .from('attachments')
-                                .remove([filePath]);
-
-                              if (storageError) throw storageError;
-
-                              // Delete from database
-                              const { error: dbError } = await supabase
-                                .from('PromptResponseAttachment')
-                                .delete()
-                                .eq('id', attachment.id);
-
-                              if (dbError) throw dbError;
-
-                              // Update local state
-                              setAttachments(prev => prev.filter(a => a.id !== attachment.id));
-                              toast.success('Attachment deleted successfully');
-                            } catch (error) {
-                              console.error('Error deleting attachment:', error);
-                              toast.error('Failed to delete attachment');
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete attachment</span>
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Delete Video Section */}
-        <div className="mt-8 pt-8 border-t border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <span className="text-sm font-medium text-red-600">Danger zone!</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowVideoDeleteConfirm(true)}
-              className="bg-white hover:bg-red-50 hover:text-red-600 text-red-600 rounded-full border border-red-200"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete topic video
-            </Button>
-          </div>
-        </div>
       </Card>
 
-      {/* Image/PDF Gallery Dialog */}
       <AttachmentDialog
         attachment={selectedImageIndex !== null && imageAttachments[selectedImageIndex] ? {
           id: imageAttachments[selectedImageIndex].id,
@@ -1185,7 +1166,6 @@ export function TopicVideoResponseSection({
         }}
       />
 
-      {/* Video Delete Confirmation Dialog */}
       <Dialog open={showVideoDeleteConfirm} onOpenChange={setShowVideoDeleteConfirm}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>

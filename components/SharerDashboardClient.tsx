@@ -23,11 +23,13 @@ interface TopicSectionCategory {
 interface SharerDashboardClientProps {
     initialCategories: TopicSectionCategory[];
     sharerId: string;
+    userId: string;
 }
 
 export default function SharerDashboardClient({
     initialCategories,
     sharerId,
+    userId,
 }: SharerDashboardClientProps) {
     // Get the setter function from the Zustand store
     const setCategories = useSharerDashboardStore((state) => state.setCategories);
@@ -57,18 +59,21 @@ export default function SharerDashboardClient({
                 filterParam="queue" 
                 currentRole="SHARER" 
                 sharerId={sharerId} 
+                userId={userId}
             />
             <SharerTopicSection 
                 title="Favorites" 
                 filterParam="favorites" 
                 currentRole="SHARER" 
                 sharerId={sharerId} 
+                userId={userId}
             />
             <SharerTopicSection 
                 title="Has Responses" 
                 filterParam="has-responses" 
                 currentRole="SHARER" 
                 sharerId={sharerId} 
+                userId={userId}
             />
 
             {/* Message if initial fetch had no categories */}

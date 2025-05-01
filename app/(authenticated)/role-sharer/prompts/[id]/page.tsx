@@ -7,18 +7,25 @@
 // import { useParams, useRouter } from 'next/navigation';
 import { notFound, redirect } from 'next/navigation'; // Keep notFound, add redirect
 import { createClient } from '@/utils/supabase/server'; // Use server client
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button"; // Keep for potential use or move later
-import { ArrowLeft, Loader2 } from 'lucide-react'; // Keep for potential use or move later
-import { VideoResponseSection } from '@/components/prompt-response-section/video-response-section';
+// Remove unused Card imports
+// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+// Remove unused Button import
+// import { Button } from "@/components/ui/button"; // Keep for potential use or move later
+// Remove unused ArrowLeft import
+import { Loader2 } from 'lucide-react'; // Keep for potential use or move later
+// Remove unused VideoResponseSection import
+// import { VideoResponseSection } from '@/components/prompt-response-section/video-response-section';
 // Ensure Profile is imported if used explicitly, otherwise remove if only needed for the type ProfileSharer
-import { GetPromptDataResult, GetPromptDataError, Prompt, ProfileSharer, Profile, PromptResponse, Video, PromptResponseAttachment as ModelAttachment, Prompt as ModelPrompt, PromptResponse as ModelPromptResponse, Video as ModelVideo, PromptCategory as ModelPromptCategory } from '@/types/models'; // Keep type imports, added Profile
+// Keep type imports, added Profile - REMOVE UNUSED ONES
+import { Profile, PromptResponseAttachment as ModelAttachment, Prompt as ModelPrompt, PromptResponse as ModelPromptResponse, Video as ModelVideo, PromptCategory as ModelPromptCategory } from '@/types/models';
 // Remove useAuth hook import
 // import { useAuth } from '@/hooks/useAuth';
 import { getUserWithRoleData } from '@/utils/supabase/jwt-helpers'; // Import JWT helper
 import { Suspense } from 'react';
-import { PageTitle } from '@/components/PageTitle';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+// Remove unused PageTitle import
+// import { PageTitle } from '@/components/PageTitle';
+// Remove unused Alert imports
+// import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 // Import the new client component
 import { PromptDisplayClient } from '@/components/prompt-response-section/PromptDisplayClient';
 // Add import for the moved ErrorDisplay component
@@ -26,13 +33,6 @@ import { ErrorDisplay } from '@/components/ErrorDisplay';
 
 // Remove client-side interface for page data
 // interface PromptPageData {
-//   prompt: Prompt;
-//   profileSharer: ProfileSharer;
-//   siblingPrompts?: {
-//     previousPrompt: Prompt | null;
-//     nextPrompt: Prompt | null;
-//   };
-// }
 
 // Define interfaces for component props and params
 interface PromptPageProps {

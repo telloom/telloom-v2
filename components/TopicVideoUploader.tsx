@@ -17,12 +17,14 @@ interface TopicVideoUploaderProps {
   promptCategoryId: string;
   onUploadSuccess?: (playbackId: string) => Promise<void>;
   categoryName?: string;
+  targetSharerId?: string;
 }
 
 export function TopicVideoUploader({
   promptCategoryId,
   onUploadSuccess,
-  categoryName
+  categoryName,
+  targetSharerId
 }: TopicVideoUploaderProps) {
   const supabase = createClient();
   const [isUploading, setIsUploading] = useState(false);
@@ -177,6 +179,16 @@ export function TopicVideoUploader({
           throw new Error('Failed to get authorization token');
         }
 
+        // Prepare the body for the API call
+        const requestBody: { promptCategoryId: string; targetSharerId?: string } = {
+          promptCategoryId,
+        };
+
+        // Only include targetSharerId if it's provided (for executor uploads)
+        if (targetSharerId) {
+          requestBody.targetSharerId = targetSharerId;
+        }
+
         // Get upload URL from your API
         const response = await fetch('/api/mux/topic-upload-url', {
           method: 'POST',
@@ -184,7 +196,7 @@ export function TopicVideoUploader({
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`
           },
-          body: JSON.stringify({ promptCategoryId }),
+          body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {
@@ -277,7 +289,7 @@ export function TopicVideoUploader({
         }
       }
     },
-    [promptCategoryId, pollVideoStatus, handleVideoError]
+    [supabase, promptCategoryId, pollVideoStatus, handleVideoError, targetSharerId]
   );
 
   const handleDrop = useCallback(

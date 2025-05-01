@@ -4,7 +4,8 @@ import { createClient } from '@/utils/supabase/server';
 import { getUserWithRoleData } from '@/utils/supabase/jwt-helpers';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { PromptResponse, Video, VideoTranscript } from '@/types/models'; // Assuming types are defined here
+// Remove unused type imports
+// import { PromptResponse, Video, VideoTranscript } from '@/types/models'; // Assuming types are defined here
 import Mux from '@mux/mux-node'; // <-- Import Mux SDK
 
 // --- Helper: Check if user is the Sharer for the response/video ---
@@ -149,7 +150,6 @@ export async function updatePromptResponseNotes(formData: FormData): Promise<{ s
     // Revalidate the path for the prompt page
     const { data: promptData } = await supabase.from('PromptResponse').select('promptId').eq('id', responseId).single();
     if (promptData?.promptId) {
-      const { data: { user } } = await supabase.auth.getUser();
       const { roleData } = await getUserWithRoleData();
       const path = roleData.roles.includes('EXECUTOR')
         ? `/role-executor/${roleData.executorRelationships?.[0]?.sharerId}/prompts/${promptData.promptId}` // Adjust if multiple relationships possible
@@ -223,8 +223,7 @@ export async function updatePromptResponseSummary(formData: FormData): Promise<{
 
     const { data: promptData } = await supabase.from('PromptResponse').select('promptId').eq('id', responseId).single();
     if (promptData?.promptId) {
-       const { data: { user } } = await supabase.auth.getUser();
-      const { roleData } = await getUserWithRoleData();
+       const { roleData } = await getUserWithRoleData();
       const path = roleData.roles.includes('EXECUTOR')
         ? `/role-executor/${roleData.executorRelationships?.[0]?.sharerId}/prompts/${promptData.promptId}` // Adjust if multiple relationships possible
         : `/role-sharer/prompts/${promptData.promptId}`;
@@ -506,14 +505,30 @@ export async function deleteAttachment(formData: FormData): Promise<{ success: b
   }
 
   try {
-    // 1. Verify Ownership
-    const isOwner = await isAttachmentOwner(supabase, attachmentId);
-    if (!isOwner) {
-      console.warn(`[Action DeleteAttachment] Permission denied for user ${user.id} on attachment ${attachmentId}.`);
-      return { success: false, error: 'Permission denied.' };
-    }
-    console.log(`[Action DeleteAttachment] Ownership verified for attachment ${attachmentId}.`);
+    // 1. Verify Permission using RPC (Replaces isAttachmentOwner)
+    // Fetch the sharer ID associated with the attachment first
+    const { data: attachmentOwnerData, error: ownerFetchError } = await supabase
+      .from('PromptResponseAttachment')
+      .select('profileSharerId')
+      .eq('id', attachmentId)
+      .maybeSingle();
 
+    if (ownerFetchError) throw new Error(`Failed to fetch attachment owner info: ${ownerFetchError.message}`);
+    if (!attachmentOwnerData?.profileSharerId) throw new Error('Could not determine sharer for the attachment.');
+
+    const sharerProfileId = attachmentOwnerData.profileSharerId;
+    console.log(`[Action DeleteAttachment] Found profileSharerId: ${sharerProfileId} for attachment: ${attachmentId}`);
+
+    const { data: hasAccess, error: accessError } = await supabase
+      .rpc('has_sharer_access', { sharer_profile_id: sharerProfileId });
+
+    if (accessError) throw new Error(`Access check failed: ${accessError.message}`);
+    if (hasAccess !== true) {
+        console.warn(`[Action DeleteAttachment] Permission denied by has_sharer_access for user ${user.id} on attachment ${attachmentId} (Sharer: ${sharerProfileId}).`);
+        return { success: false, error: 'Permission denied.' };
+    }
+    console.log(`[Action DeleteAttachment] Permission verified via has_sharer_access for attachment ${attachmentId}.`);
+    
     // 2. Get Attachment details (including fileUrl for storage deletion)
     const { data: attachmentData, error: fetchError } = await supabase
       .from('PromptResponseAttachment')

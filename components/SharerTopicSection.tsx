@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils'; // Import cn utility
 import { useSharerDashboardStore } from '@/stores/useSharerDashboardStore'; // Import the store
 import { toast } from 'sonner'; // Import toast
+import { createClient } from '@/utils/supabase/client'; // <<< Import Supabase client
 
 // Import Swiper styles
 import 'swiper/css';
@@ -33,14 +34,17 @@ interface SharerTopicSectionProps {
     filterParam: 'queue' | 'favorites' | 'has-responses'; // Filter for "See All" link
     currentRole: 'SHARER'; // This component is specific to Sharer dashboard structure
     sharerId: string; // Needed for TopicCard actions/navigation
+    userId: string; // <<< Add userId prop
 }
 
 export default function SharerTopicSection({
     title,
     filterParam,
     currentRole,
-    sharerId
+    sharerId,
+    userId // <<< Destructure userId
 }: SharerTopicSectionProps) {
+    const supabase = createClient(); // <<< Initialize Supabase client
 
     // Get state and actions from the Zustand store
     const allCategories = useSharerDashboardStore((state) => state.categories);
@@ -71,28 +75,34 @@ export default function SharerTopicSection({
         e.stopPropagation();
         
         const categoryId = category.id;
+        const currentFavoriteState = category.isFavorite ?? false;
         
+        storeToggleFavorite(categoryId);
+        
+        const favoriteToast = toast.loading(currentFavoriteState ? 'Removing from favorites...' : 'Adding to favorites...');
         try {
-            // Call store action - this handles the state update
-            storeToggleFavorite(categoryId); 
-            
-            // Show toast based on the *expected* new state (after toggle)
-            // Need to read the *current* state from category object passed to handler
-            toast.success(!category.isFavorite ? 'Topic added to favorites' : 'Topic removed from favorites');
-            
-            // We could potentially call the Supabase RPC here as well 
-            // for persistence, or handle persistence within the store action itself.
-            // For now, focusing on UI update via store.
-            // await supabase.rpc('toggle_topic_favorite', { ... });
+            console.log(`[SharerTopicSection] Calling RPC toggle_topic_favorite for category: ${categoryId}, user: ${userId}, role: SHARER`);
+            const { error: rpcError } = await supabase.rpc('toggle_topic_favorite', { 
+                p_profile_id: userId, // <<< Use userId prop
+                p_category_id: categoryId,
+                p_role: 'SHARER', // <<< Set role
+                p_sharer_id: null // <<< Set sharerId to null for SHARER role
+            });
+
+            if (rpcError) {
+                console.error('[SharerTopicSection] RPC Error toggling favorite:', rpcError);
+                throw rpcError;
+            }
+
+            toast.success(!currentFavoriteState ? 'Topic added to favorites' : 'Topic removed from favorites', { id: favoriteToast });
+            console.log(`[SharerTopicSection] Successfully toggled favorite for category: ${categoryId}`);
 
         } catch (error) {
-            // If store action itself could fail (unlikely for simple toggle),
-            // add error handling. For now, assume store update succeeds.
-            console.error("Error toggling favorite (potentially in store action or subsequent effect):", error);
-            toast.error('Failed to update favorite status.');
-            // Reverting optimistic update is harder now, relies on store potentially handling it.
+            console.error("[SharerTopicSection] Failed to toggle favorite in DB:", error);
+            toast.error(`Failed: ${error instanceof Error ? error.message : 'Could not update favorite status.'}`, { id: favoriteToast });
+            storeToggleFavorite(categoryId); // Revert
         }
-    }, [storeToggleFavorite]); // Dependencies: store action
+    }, [supabase, storeToggleFavorite, userId]); // <<< Add userId to dependencies
 
     // --- Toggle Queue Logic --- 
     const handleQueueClick = useCallback(async (e: React.MouseEvent, category: TopicSectionCategory) => {
@@ -100,22 +110,34 @@ export default function SharerTopicSection({
         e.stopPropagation();
 
         const categoryId = category.id;
+        const currentQueueState = category.isInQueue ?? false;
+
+        storeToggleQueue(categoryId);
         
+        const queueToast = toast.loading(currentQueueState ? 'Removing from queue...' : 'Adding to queue...');
         try {
-            // Call store action
-            storeToggleQueue(categoryId);
+            console.log(`[SharerTopicSection] Calling RPC toggle_topic_queue for category: ${categoryId}, user: ${userId}, role: SHARER`);
+            const { error: rpcError } = await supabase.rpc('toggle_topic_queue', { 
+                p_profile_id: userId, // <<< Use userId prop
+                p_category_id: categoryId,
+                p_role: 'SHARER', // <<< Set role
+                p_sharer_id: null // <<< Set sharerId to null for SHARER role
+            });
+
+            if (rpcError) {
+                 console.error('[SharerTopicSection] RPC Error toggling queue:', rpcError);
+                throw rpcError;
+            }
             
-            // Show toast based on expected new state
-            toast.success(!category.isInQueue ? 'Topic added to queue' : 'Topic removed from queue');
-            
-            // Persistence call could be here or in store
-            // await supabase.rpc('toggle_topic_queue', { ... });
+            toast.success(!currentQueueState ? 'Topic added to queue' : 'Topic removed from queue', { id: queueToast });
+            console.log(`[SharerTopicSection] Successfully toggled queue for category: ${categoryId}`);
 
         } catch (error) {
-            console.error("Error toggling queue (potentially in store action or subsequent effect):", error);
-            toast.error('Failed to update queue status.');
+            console.error("[SharerTopicSection] Failed to toggle queue in DB:", error);
+            toast.error(`Failed: ${error instanceof Error ? error.message : 'Could not update queue status.'}`, { id: queueToast });
+            storeToggleQueue(categoryId); // Revert
         }
-    }, [storeToggleQueue]); // Dependencies: store action
+    }, [supabase, storeToggleQueue, userId]); // <<< Add userId to dependencies
 
     return (
         <div className="mb-10"> {/* Consistent margin */}

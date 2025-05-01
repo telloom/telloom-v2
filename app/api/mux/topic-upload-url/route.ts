@@ -3,6 +3,7 @@ import { headers, cookies } from 'next/headers';
 import Mux from '@mux/mux-node';
 import { supabaseAdmin } from '@/utils/supabase/service-role';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { getEffectiveSharerId } from '@/utils/supabase/role-helpers'; // Import helper if needed
 
 if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
   throw new Error('Missing required Mux environment variables');
@@ -31,11 +32,13 @@ export async function POST(request: Request) {
             return cookieStore.get(name)?.value;
           },
           set(name: string, value: string, options: CookieOptions) {
-            console.warn('[API /mux/topic-upload-url] Attempted to set cookie in Route Handler (noop for request)', name);
+            // No-op for setting cookies in read-only Route Handler context
+            // console.warn('[API /mux/topic-upload-url] Attempted to set cookie (noop for request)', name);
           },
           remove(name: string, options: CookieOptions) {
-            console.warn('[API /mux/topic-upload-url] Attempted to remove cookie in Route Handler (noop for request)', name);
-            cookieStore.set({ name, value: '', ...options });
+            // Handle removal if necessary, though less common in POST
+            // console.warn('[API /mux/topic-upload-url] Attempted to remove cookie (noop for request)', name);
+            // cookieStore.set({ name, value: '', ...options }); // Potential way to handle removal if needed
           },
         },
       }
@@ -49,10 +52,10 @@ export async function POST(request: Request) {
     );
   }
 
-  // --- Main Logic --- 
+  // --- Main Logic ---
   try {
     console.log('[API /mux/topic-upload-url] Starting topic video upload request');
-    
+
     // Get user session using the Supabase client
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     console.log('[API /mux/topic-upload-url] User fetched:', { userId: user?.id, error: userError?.message });
@@ -62,46 +65,105 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Authentication failed' }, { status: 401 });
     }
 
-    // Verify user is a sharer using admin client and user.id
-    const { data: sharerProfile, error: sharerError } = await supabaseAdmin
-      .from('ProfileSharer')
-      .select('id')
-      .eq('profileId', user.id)
-      .single();
-
-    if (sharerError || !sharerProfile) {
-      console.error('[API /mux/topic-upload-url] Failed to find ProfileSharer for user:', { userId: user.id, error: sharerError });
-      // THIS is where the 403 originates if the DB check fails
-      return NextResponse.json(
-        { error: 'User is not registered as a sharer or fetch failed.' }, 
-        { status: 403 } 
-      );
-    }
-    const profileSharerId = sharerProfile.id;
-    console.log('[API /mux/topic-upload-url] Verified user is a sharer:', { userId: user.id, profileSharerId });
-
-    // Get CORS headers
-    const headersList = await headers();
-    const origin = headersList.get('origin');
-    const corsOrigin = origin || process.env.NEXT_PUBLIC_APP_URL || '*';
-    
     // Get request body
     const body = await request.json();
     console.log('[API /mux/topic-upload-url] Request body:', body);
-    
-    const { promptCategoryId } = body;
+
+    const { promptCategoryId, targetSharerId: requestedTargetSharerId } = body; // Expect targetSharerId from executor requests
     if (!promptCategoryId) {
       console.warn('[API /mux/topic-upload-url] Missing promptCategoryId');
       return NextResponse.json({ error: 'Missing promptCategoryId' }, { status: 400 });
     }
 
-    // --- Check for and Handle Existing Video --- 
+    // --- Determine the Effective Sharer ID and Validate Access ---
+    let effectiveSharerId: string;
+
+    // 1. Get the authenticated user's own sharer ID (if they are one)
+    const { data: selfSharerProfile, error: selfSharerError } = await supabaseAdmin
+        .from('ProfileSharer')
+        .select('id')
+        .eq('profileId', user.id)
+        .maybeSingle(); // Use maybeSingle as user might not be a sharer
+
+    if (selfSharerError) {
+        console.error(`[API /mux/topic-upload-url] Error fetching self sharer profile for user ${user.id}:`, selfSharerError);
+        return NextResponse.json({ error: 'Failed to verify user identity.' }, { status: 500 });
+    }
+    const currentUserSharerId = selfSharerProfile?.id;
+    console.log(`[API /mux/topic-upload-url] Current user ${user.id} sharer ID check result: ${currentUserSharerId}`);
+
+    if (requestedTargetSharerId) {
+        // targetSharerId was provided in the request body
+
+        if (currentUserSharerId && requestedTargetSharerId === currentUserSharerId) {
+            // Case 1: User is a Sharer uploading for themselves (targetSharerId matches own sharerId)
+            console.log(`[API /mux/topic-upload-url] Sharer ${user.id} uploading for self (targetSharerId matched own).`);
+            effectiveSharerId = currentUserSharerId;
+        } else {
+            // Case 2: User is potentially an Executor/Admin uploading for someone else
+            console.log(`[API /mux/topic-upload-url] Request has targetSharerId ${requestedTargetSharerId}, validating executor/admin access for user ${user.id}.`);
+
+            // Check if the user is an executor for the target sharer
+            const { data: relationship, error: execError } = await supabaseAdmin
+                .from('ProfileExecutor')
+                .select('id')
+                .eq('executorId', user.id) // Current authenticated user
+                .eq('sharerId', requestedTargetSharerId) // The sharer they claim to represent
+                .maybeSingle();
+
+            if (execError) {
+                console.error(`[API /mux/topic-upload-url] Error checking executor relationship:`, execError);
+                return NextResponse.json({ error: 'Failed to verify access rights.' }, { status: 500 });
+            }
+
+            // Add admin check here if needed in the future
+
+            if (!relationship) { // If not an executor (and not admin if check added)
+                console.warn(`[API /mux/topic-upload-url] Access Denied: User ${user.id} is not an authorized executor/admin for sharer ${requestedTargetSharerId}.`);
+                return NextResponse.json({ error: 'Forbidden: You do not have permission to upload for this sharer.' }, { status: 403 });
+            }
+
+            console.log(`[API /mux/topic-upload-url] Access confirmed: User ${user.id} is authorized executor/admin for sharer ${requestedTargetSharerId}.`);
+            effectiveSharerId = requestedTargetSharerId; // Use the validated targetSharerId
+        }
+
+    } else {
+        // targetSharerId was NOT provided in the request body - User MUST be a sharer
+
+        if (!currentUserSharerId) {
+            // User is not a sharer and didn't provide a targetSharerId
+            console.warn(`[API /mux/topic-upload-url] Access Denied: User ${user.id} is not a sharer and no targetSharerId provided.`);
+            // Consider if a different error/status is more appropriate, but 403 seems reasonable
+            return NextResponse.json({ error: 'Forbidden: Sharer identity not found or target not specified.' }, { status: 403 });
+        }
+
+        // Case 3: User is a Sharer uploading for themselves (no targetSharerId provided)
+        console.log(`[API /mux/topic-upload-url] User ${user.id} is a sharer uploading for self (no targetSharerId provided).`);
+        effectiveSharerId = currentUserSharerId;
+    }
+
+    // At this point, 'effectiveSharerId' should be correctly set and validated.
+    console.log(`[API /mux/topic-upload-url] Using effectiveSharerId: ${effectiveSharerId} for subsequent operations.`);
+
+    // --- Role Check Removed - Replaced by validation above ---
+    /*
+    // Old logic removed/commented out
+    */
+
+    // Get CORS headers
+    const headersList = await headers();
+    const origin = headersList.get('origin');
+    const corsOrigin = origin || process.env.NEXT_PUBLIC_APP_URL || '*';
+
+    // --- Check for and Handle Existing Video ---
+    // Use the now correctly determined profileSharerId
+    console.log(`[API /mux/topic-upload-url] Checking for existing video for promptCategoryId: ${promptCategoryId}, profileSharerId: ${effectiveSharerId}`);
     const { data: existingVideos, error: existingError } = await supabaseAdmin
       .from('TopicVideo')
       // Select muxAssetId as well for deletion
-      .select('id, muxAssetId') 
+      .select('id, muxAssetId')
       .eq('promptCategoryId', promptCategoryId)
-      .eq('profileSharerId', profileSharerId);
+      .eq('profileSharerId', effectiveSharerId); // Use the validated profileSharerId
 
     if (existingError) {
       console.error('[API /mux/topic-upload-url] Error checking for existing videos:', existingError);
@@ -142,11 +204,12 @@ export async function POST(request: Request) {
       // ** IMPORTANT: Do NOT return 409 here. Continue to create the new video. **
     }
 
-    // --- Proceed with Creating New Video --- 
-    // Create a new video record
+    // --- Proceed with Creating New Video ---
+    // Create a new video record using the validated profileSharerId
+    console.log(`[API /mux/topic-upload-url] Creating new TopicVideo record for promptCategoryId: ${promptCategoryId}, profileSharerId: ${effectiveSharerId}`);
     const { data: videoRecord, error: insertError } = await supabaseAdmin
       .from('TopicVideo')
-      .insert({ promptCategoryId, profileSharerId, title: 'Topic Video', status: 'WAITING' })
+      .insert({ promptCategoryId, profileSharerId: effectiveSharerId, title: 'Topic Video', status: 'WAITING' }) // Use validated profileSharerId
       .select('id')
       .single();
 
@@ -162,8 +225,7 @@ export async function POST(request: Request) {
       new_asset_settings: {
         playback_policy: ['public'],
         static_renditions: [
-          { name: "high.mp4", resolution: "high" },
-          { name: "audio.m4a", resolution: "audio-only" }
+          { resolution: 'highest' }
         ],
         input: [{
           generated_subtitles: [{
@@ -171,10 +233,11 @@ export async function POST(request: Request) {
             name: 'English CC'
           }]
         }],
+        // Ensure the correct profileSharerId is in the passthrough data
         passthrough: JSON.stringify({
           videoId: videoRecord.id,
           promptCategoryId,
-          profileSharerId: profileSharerId
+          profileSharerId: effectiveSharerId // Use validated profileSharerId
         })
       }
     };

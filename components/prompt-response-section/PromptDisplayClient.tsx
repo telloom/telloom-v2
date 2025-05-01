@@ -1,14 +1,12 @@
 'use client';
 
-import { useState, useCallback, useEffect, Suspense, useTransition } from 'react';
+import { useState, useCallback, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { type PromptResponse, type Video, type PromptResponseAttachment as ModelAttachment, type Prompt, type Profile } from '@/types/models';
+import { type PromptResponse, type Video, type PromptResponseAttachment as ModelAttachment, type Prompt } from '@/types/models';
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ArrowLeft, Pencil, Check, X, Loader2, Wand2, Upload, VideoOff, Trash2 } from 'lucide-react';
+import { ArrowLeft, Pencil, Check, X, Loader2, Upload, Trash2, AlertTriangle } from 'lucide-react';
 import { PromptResponseGallery } from '@/components/PromptResponseGallery';
-import { PageTitle } from '@/components/PageTitle';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,9 +34,6 @@ import {
   deletePromptResponseAndVideo
 } from '@/components/prompt-response-section/prompt-response-actions';
 import { VideoDownloadButton } from '@/components/video/VideoDownloadButton';
-import { VideoResponseSection } from './video-response-section';
-import { PromptActions } from '../../app/(authenticated)/role-sharer/prompts/[id]/prompt-actions';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { ExecutorSharerHeader } from '@/components/executor/ExecutorSharerHeader';
 
@@ -568,19 +563,20 @@ export function PromptDisplayClient({
 
         </div>
 
-        {/* --- Danger Zone --- */}
+        {/* --- Danger Zone (Updated Styling) --- */}
         {promptResponse && muxAssetId && (
-            <div className="mt-12 p-6 border-t-2 border-red-600">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                    <div>
-                        <h3 className="text-lg font-semibold text-red-600">Danger Zone</h3>
-                        <p className="text-sm text-red-600 mt-1">Deleting this video recording is permanent and cannot be undone. This will remove the video, transcript, summary, and notes.</p>
+            <div className="mt-8 pt-6 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-red-600" />
+                        <span className="text-sm font-medium text-red-600">Danger zone!</span>
                     </div>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button
-                                variant="destructive"
-                                className="mt-4 sm:mt-0 sm:ml-4 rounded-full bg-red-600 hover:bg-red-700 text-white shrink-0"
+                                variant="ghost"
+                                size="sm"
+                                className="bg-white hover:bg-red-50 hover:text-red-600 text-red-600 rounded-full border border-red-200"
                                 disabled={isDeleting}
                             >
                                 {isDeleting ? (
@@ -588,7 +584,7 @@ export function PromptDisplayClient({
                                 ) : (
                                     <Trash2 className="mr-2 h-4 w-4" />
                                 )}
-                                {isDeleting ? 'Deleting...' : 'Delete Video Recording'}
+                                {isDeleting ? 'Deleting...' : 'Delete topic video'}
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
@@ -615,6 +611,7 @@ export function PromptDisplayClient({
                         </AlertDialogContent>
                     </AlertDialog>
                 </div>
+                <p className="text-xs text-muted-foreground mt-2">Deleting this video recording is permanent. It removes the video, transcript, summary, and associated notes.</p>
             </div>
         )}
 

@@ -142,6 +142,7 @@ interface TopicPageContentProps {
   handleDownloadAttachment?: (attachment: LocalUIAttachment) => Promise<void>;
   handleDialogSaveWrapper: (attachment: Attachment) => Promise<void>;
   roleContext: 'SHARER' | 'EXECUTOR';
+  showBackButton: boolean;
 }
 
 // Error boundary fallback
@@ -249,7 +250,8 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
   hasPrevious,
   handleDownloadAttachment,
   handleDialogSaveWrapper,
-  roleContext
+  roleContext,
+  showBackButton
 }) => {
   // Add diagnostic log for promptCategory
   console.log('[DIAGNOSTIC] TopicPageContent rendering with promptCategory:',
@@ -373,8 +375,6 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                   attachment={thumbnailProps} // Pass the typed (or 'any') object
                   size="lg"
                   className="w-full h-full object-cover"
-                  onDownload={dummyDownloadHandler} // Use defined dummy handler
-                  onDelete={dummyDeleteHandler} // Use defined dummy handler
                 />
               </div>
             );
@@ -385,7 +385,7 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
       console.error('Error rendering gallery:', error);
       return <div className="text-red-500 text-xs">Error loading gallery</div>;
     }
-  }, [gallerySignedUrls, areUrlsLoading, galleryAttachments, setSelectedAttachment, roleContext, targetSharerId]);
+  }, [gallerySignedUrls, areUrlsLoading, setSelectedAttachment, roleContext, targetSharerId]);
 
   // Render
   if (!promptCategory) {
@@ -447,13 +447,14 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <TooltipProvider>
-        <div className="container mx-auto px-4 py-6 md:px-6 lg:px-8 max-w-7xl">
-          <div className="mb-6"> 
-            <BackButton />
-          </div>
+        <>
+          {showBackButton && (
+            <div className="mb-4">
+              <BackButton />
+            </div>
+          )}
 
-          <div className="py-6 px-4 md:px-6 md:py-8 space-y-4">
-            {/* Header */}
+          <div className="pt-1 pb-6 px-4 md:px-6 md:pb-8 space-y-4">
             <div>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-1">
                 <div>
@@ -488,13 +489,13 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
               </div>
             </div>
 
-            {/* FIX: Add categoryName prop back */}
             <TopicVideoCard
               promptCategoryId={promptCategory.id}
               categoryName={promptCategory.category}
+              targetSharerId={targetSharerId}
+              roleContext={roleContext}
             />
 
-            {/* Content */}
             {viewMode === 'grid' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {sortedPrompts.map((prompt: TopicPrompt) => {
@@ -609,7 +610,6 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                         <div className="flex justify-end h-9 items-center">
                            {renderGallery(promptResponse)}
                          </div>
-                        {/* Buttons */}
                         <div className="flex gap-2">
                           {hasResponse ? (
                             <>
@@ -881,7 +881,6 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
               </div>
             )}
 
-            {/* Recording Popup - Pass the new handleSaveForRecordingInterface */}
             {isRecordingPopupOpen && selectedPrompt && (
               <VideoPopup
                 open={isRecordingPopupOpen}
@@ -892,12 +891,11 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                 <RecordingInterface
                   promptId={selectedPrompt.id}
                   onClose={handleCloseRecording}
-                  onSave={handleSaveForRecordingInterface} // Pass the function that returns Promise<string>
+                  onSave={handleSaveForRecordingInterface}
                 />
               </VideoPopup>
             )}
 
-            {/* Upload Popup */}
             {isUploadPopupOpen && selectedPrompt && (
               <VideoPopup
                 key={`upload-${selectedPrompt.id}`}
@@ -916,7 +914,6 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
               </VideoPopup>
             )}
 
-            {/* Video Playback Popup (for watchers) */}
             {selectedPrompt && isVideoPopupOpen && selectedPrompt.PromptResponse?.[0]?.Video?.muxPlaybackId && (
               <VideoPopup
                 open={isVideoPopupOpen}
@@ -929,7 +926,6 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
               />
             )}
 
-            {/* Attachment Upload Dialog */}
             {selectedPromptResponse && (
               <AttachmentUpload
                 promptResponseId={selectedPromptResponse.id}
@@ -943,7 +939,6 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
               />
             )}
 
-            {/* Attachment View/Edit Dialog - use the wrapper */}
             {selectedAttachment && galleryAttachments.length > 0 && (
               <AttachmentDialog
                 isOpen={!!selectedAttachment}
@@ -959,7 +954,7 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
               />
             )}
           </div>
-        </div>
+        </>
       </TooltipProvider>
     </ErrorBoundary>
   );
@@ -1559,7 +1554,7 @@ export default function TopicPage() {
       // A full refresh might be needed if the optimistic update was incorrect
       // refreshData(); // Example: uncomment to force refresh on error
     }
-  }, [supabase, setGalleryAttachments, refreshData, selectedAttachment, setSelectedAttachment, targetSharerId]); // <-- ADDED targetSharerId
+  }, [supabase, setGalleryAttachments, refreshData, selectedAttachment, setSelectedAttachment]);
 
   const handleAttachmentDelete = useCallback(async (attachmentId: string) => {
     if (!attachmentId) {
@@ -1743,6 +1738,7 @@ export default function TopicPage() {
                 handleDownloadAttachment={handleDownloadAttachment}
                 handleDialogSaveWrapper={handleDialogSaveWrapper}
                 roleContext={roleContext}
+                showBackButton={true}
              />
         )}
 

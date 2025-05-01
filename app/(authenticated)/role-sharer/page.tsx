@@ -150,6 +150,7 @@ export default async function RoleSharerPage() {
           <SharerDashboardClient 
             initialCategories={allCategories}
             sharerId={effectiveSharerId}
+            userId={user.id}
           />
         )}
       </div>

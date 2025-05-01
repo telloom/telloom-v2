@@ -6,13 +6,13 @@ import { createClient } from '@/utils/supabase/middleware';
 // Define user roles as a type for better type checking
 type UserRole = 'SHARER' | 'EXECUTOR' | 'LISTENER' | 'ADMIN';
 
-// Role-related route maps
-const ROLE_PROTECTED_ROUTES: Record<UserRole, string[]> = {
-  'SHARER': ['/role-sharer'],
-  'EXECUTOR': ['/role-executor'],
-  'LISTENER': ['/role-listener'],
-  'ADMIN': ['/role-admin']
-};
+// Remove unused Role-related route maps
+// const ROLE_PROTECTED_ROUTES: Record<UserRole, string[]> = {
+//   'SHARER': ['/role-sharer'],
+//   'EXECUTOR': ['/role-executor'],
+//   'LISTENER': ['/role-listener'],
+//   'ADMIN': ['/role-admin']
+// };
 
 const PUBLIC_ROUTES = [
   '/login',
@@ -184,6 +184,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api/auth).*)',
+    // Add 'images' to the negative lookahead to exclude static image paths
+    '/((?!_next/static|_next/image|images|favicon.ico|api/auth).*)',
   ],
 };

@@ -85,6 +85,10 @@ export function toUIAttachment(attachment: PromptResponseAttachment & { signedUr
     ?.map(pt => pt.PersonTag)
     .filter((tag): tag is PersonTag => tag !== null && tag !== undefined) || [];
 
+  // Convert date strings to Date objects
+  const uploadedAtDate = typeof attachment.uploadedAt === 'string' ? new Date(attachment.uploadedAt) : attachment.uploadedAt;
+  const dateCapturedDate = typeof attachment.dateCaptured === 'string' ? new Date(attachment.dateCaptured) : attachment.dateCaptured;
+
   return {
     // Required fields
     id: attachment.id,
@@ -93,13 +97,13 @@ export function toUIAttachment(attachment: PromptResponseAttachment & { signedUr
     fileUrl: attachment.fileUrl,
     fileType: attachment.fileType,
     fileName: attachment.fileName,
-    uploadedAt: attachment.uploadedAt,
+    uploadedAt: uploadedAtDate, // Use converted Date object
     
     // Optional fields
     fileSize: attachment.fileSize,
     title: attachment.title,
     description: attachment.description,
-    dateCaptured: attachment.dateCaptured,
+    dateCaptured: dateCapturedDate, // Use converted Date object
     yearCaptured: attachment.yearCaptured,
     
     // URL fields

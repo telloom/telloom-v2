@@ -6,7 +6,7 @@ export default function Logo() {
     <div className="flex justify-center">
       <Link href="/">
         <Image
-          src="/images/Telloom Logo V1-Horizontal Green.png"
+          src="/images/Telloom-Logo-V1-Horizontal-Green.png"
           alt="Telloom Logo"
           width={160}
           height={40}

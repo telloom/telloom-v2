@@ -1,17 +1,11 @@
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2 } from 'lucide-react';
-import { VideoResponseSection } from '@/components/prompt-response-section/video-response-section';
-import { GetPromptDataResult, GetPromptDataError, Prompt, ProfileSharer, Profile, PromptResponse, Video, PromptResponseAttachment as ModelAttachment, Prompt as ModelPrompt, PromptResponse as ModelPromptResponse, Video as ModelVideo, PromptCategory as ModelPromptCategory } from '@/types/models';
+import { Loader2 } from 'lucide-react';
+import { Profile, PromptResponseAttachment as ModelAttachment, Prompt as ModelPrompt, PromptResponse as ModelPromptResponse, Video as ModelVideo, PromptCategory as ModelPromptCategory } from '@/types/models';
 import { getUserWithRoleData } from '@/utils/supabase/jwt-helpers';
 import { Suspense } from 'react';
-import { PageTitle } from '@/components/PageTitle';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PromptDisplayClient } from '@/components/prompt-response-section/PromptDisplayClient';
 import { ErrorDisplay } from '@/components/ErrorDisplay';
-import { ExecutorSharerHeader } from '@/components/executor/ExecutorSharerHeader';
 
 interface ExecutorPromptPageProps {
   params: {
@@ -144,16 +138,16 @@ export default async function ExecutorPromptPage({ params }: ExecutorPromptPageP
     }
 
     // --- Fetch Prompt Data and Siblings (Should be okay now) ---
-    const { data: prompt, error: promptError } = await supabase
-      .from('Prompt')
+  const { data: prompt, error: promptError } = await supabase
+    .from('Prompt')
       // Select fields - profileSharerId does not exist directly on Prompt
       .select('*, PromptCategory(id, category), PromptResponse(*, profileSharerId, Video(*, VideoTranscript(*)), PromptResponseAttachment(*))')
-      .eq('id', promptId)
-      .single();
+    .eq('id', promptId)
+    .single();
 
     if (promptError || !prompt) {
       console.error(`[ExecutorPromptPage Server] Error fetching prompt ${promptId}:`, promptError);
-      if (promptError) {
+  if (promptError) {
         console.error(`Supabase Error: ${promptError.message} (Code: ${promptError.code})`);
       }
       if (promptError?.code === 'PGRST116') {
@@ -195,14 +189,14 @@ export default async function ExecutorPromptPage({ params }: ExecutorPromptPageP
     let nextPromptId: string | null = null;
 
     if (promptWithDetails.promptCategoryId) {
-      const { data: siblingPrompts, error: siblingError } = await supabase
-        .from('Prompt')
+  const { data: siblingPrompts, error: siblingError } = await supabase
+    .from('Prompt')
         .select('id')
         .eq('promptCategoryId', promptWithDetails.promptCategoryId)
         .order('isContextEstablishing', { ascending: false })
-        .order('id');
+    .order('id');
 
-      if (siblingError) {
+  if (siblingError) {
           console.warn('[ExecutorPromptPage Server] Error fetching sibling prompts:', siblingError);
         } else if (siblingPrompts) {
             const currentIndex = siblingPrompts.findIndex((p) => p.id === promptId);
@@ -211,7 +205,7 @@ export default async function ExecutorPromptPage({ params }: ExecutorPromptPageP
             }
             if (currentIndex < siblingPrompts.length - 1) {
                 nextPromptId = siblingPrompts[currentIndex + 1].id;
-            }
+}
             console.log(`[ExecutorPromptPage Server] Found sibling IDs: Prev=${previousPromptId}, Next=${nextPromptId}`);
         }
     } else {
@@ -235,7 +229,7 @@ export default async function ExecutorPromptPage({ params }: ExecutorPromptPageP
                 sharerProfileHeaderData={sharerProfile} // Pass profile data here
             />
          {/* </div> */}
-       </Suspense>
+            </Suspense>
     );
 
   } catch (error) {

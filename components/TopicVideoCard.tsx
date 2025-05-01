@@ -23,6 +23,8 @@ import { toast } from 'sonner';
 interface TopicVideoCardProps {
   promptCategoryId: string;
   categoryName: string;
+  targetSharerId?: string;
+  roleContext: 'SHARER' | 'EXECUTOR';
 }
 
 interface TopicVideo {
@@ -49,7 +51,12 @@ interface PromptWithResponse {
   }>;
 }
 
-export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCardProps) {
+export function TopicVideoCard({
+  promptCategoryId,
+  categoryName,
+  targetSharerId,
+  roleContext
+}: TopicVideoCardProps) {
   const [video, setVideo] = useState<TopicVideo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showVideo, setShowVideo] = useState(false);
@@ -383,15 +390,37 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
     setShowUploader(false);
   };
 
-  const handleCardClick = () => {
-    // Don't navigate if any dialog is open
-    if (showVideo || showAttachments || showUploader || showPlaylist) {
+  // Handle navigation to the summary page
+  const handleNavigateToSummary = () => {
+    if (!promptCategoryId) {
+      console.error("[TopicVideoCard] Missing promptCategoryId for navigation");
       return;
     }
-    
-    if (video?.muxPlaybackId) {
-      router.push(`/role-sharer/topics/${promptCategoryId}/topic-summary`);
+
+    let path;
+    if (roleContext === 'EXECUTOR') {
+      if (!targetSharerId) {
+        console.error("[TopicVideoCard] Missing targetSharerId in executor context for navigation");
+        return;
+      }
+      path = `/role-executor/${targetSharerId}/topics/${promptCategoryId}/topic-summary`;
+    } else {
+      path = `/role-sharer/topics/${promptCategoryId}/topic-summary`;
     }
+
+    console.log(`[TopicVideoCard] Navigating to summary: ${path}`);
+    router.push(path);
+  };
+
+  const handleCardClick = () => {
+    if (video?.muxPlaybackId && !showAttachments && !showVideo && !showUploader && !showPlaylist) {
+      // If video exists and no other modal/view is active, navigate to summary
+      handleNavigateToSummary();
+    } else if (!video?.muxPlaybackId && !isLoading) {
+      // Only show uploader if no video exists and not loading
+      setShowUploader(true);
+    }
+    // Otherwise, do nothing (e.g., if a modal like attachments is already open)
   };
 
   const handleAttachmentsClick = (e: React.MouseEvent) => {
@@ -499,42 +528,43 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
             >
               <div className="flex items-center text-sm">
                 <Upload className="h-4 w-4 mr-2" />
-                Upload Video
+                Upload Topic Video
               </div>
             </Button>
           )}
           
           {playlistVideos.length > 0 && (
             <Button
-              variant="default"
+              variant="outline"
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
-                setShowPlaylist(true);
                 setCurrentVideoIndex(0);
+                setShowPlaylist(true);
                 setShowCompletionMessage(false);
               }}
-              className="rounded-full bg-[#1B4332] hover:bg-[#1B4332]/90"
+              className="rounded-full border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55]"
             >
-              <div className="flex items-center text-sm whitespace-nowrap">
+              <div className="flex items-center text-sm">
                 <Play className="h-4 w-4 mr-2" />
-                All Responses ({playlistVideos.length})
+                Watch Full Playlist ({playlistVideos.length})
               </div>
             </Button>
           )}
           
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleAttachmentsClick}
-            className="rounded-full border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55]"
-          >
-            <div className="flex items-center text-sm whitespace-nowrap">
-              <Paperclip className="h-4 w-4" />
-              <span className="ml-1 mr-2">{attachmentCount}</span>
-              All Topic Attachments
-            </div>
-          </Button>
+          {attachmentCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAttachmentsClick}
+              className="rounded-full border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55]"
+            >
+              <div className="flex items-center text-sm">
+                <Paperclip className="h-4 w-4 mr-2" />
+                View Attachments ({attachmentCount})
+              </div>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -658,20 +688,19 @@ export function TopicVideoCard({ promptCategoryId, categoryName }: TopicVideoCar
       {/* Upload Popup */}
       <div onClick={(e) => e.stopPropagation()}>
         <Dialog open={showUploader} onOpenChange={setShowUploader}>
-          <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-6">
+          <DialogContent className="max-w-3xl h-[80vh] flex flex-col">
             <DialogHeader>
-              <DialogTitle className="text-xl font-semibold">
-                Topic Video for {categoryName}
-              </DialogTitle>
-              <DialogDescription className="text-muted-foreground mb-4">
-                Create a summary video that captures the essence of this topic.
+              <DialogTitle>Upload Topic Video</DialogTitle>
+              <DialogDescription>
+                Upload a video summarizing this topic. This will replace any existing topic video.
               </DialogDescription>
             </DialogHeader>
-            <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="flex-grow min-h-0">
               <TopicVideoUploader
                 promptCategoryId={promptCategoryId}
                 onUploadSuccess={handleUploadSuccess}
                 categoryName={categoryName}
+                targetSharerId={targetSharerId}
               />
             </div>
           </DialogContent>

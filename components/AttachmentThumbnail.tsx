@@ -21,7 +21,7 @@ interface AttachmentThumbnailProps {
     signedUrl?: string | null;
     fileName: string;
     fileType?: string | null;
-    dateCaptured?: string | null; // Changed from Date | null
+    dateCaptured?: Date | null; // Changed back to Date | null
   };
   size?: 'sm' | 'md' | 'lg';
   className?: string;
@@ -29,8 +29,8 @@ interface AttachmentThumbnailProps {
   onError?: () => void;
   imageError?: boolean;
   // Add new props for actions
-  onDownload: (attachmentId: string, fileName: string, url?: string | null) => void;
-  onDelete: (attachmentId: string) => void;
+  onDownload?: (attachmentId: string, fileName: string, url?: string | null) => void; // Made optional
+  onDelete?: (attachmentId: string) => void; // Made optional
 }
 
 const sizeClasses = {
@@ -195,37 +195,39 @@ export default function AttachmentThumbnail({
           <FileWarning className="h-5 w-5 mx-auto mb-1" />
           Preview<br/>Unavailable
         </div>
-         {/* Add hover icons even on error state */}
-         <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-           <TooltipProvider delayDuration={100}>
-             <Tooltip>
-               <TooltipTrigger asChild>
-                 <Button
-                   variant="ghost"
-                   size="icon"
-                   className="h-6 w-6 rounded-full bg-black/50 text-white hover:bg-[#8fbc55] p-1"
-                   onClick={(e) => { e.stopPropagation(); onDownload(attachment.id, attachment.fileName, resolvedUrl); }}
-                 >
-                   <Download className="h-4 w-4" />
-                 </Button>
-               </TooltipTrigger>
-               <TooltipContent side="top"><p>Download</p></TooltipContent>
-             </Tooltip>
-             <Tooltip>
-               <TooltipTrigger asChild>
-                 <Button
-                   variant="ghost"
-                   size="icon"
-                   className="h-6 w-6 rounded-full bg-black/50 text-white hover:bg-red-500/80 p-1"
-                   onClick={(e) => { e.stopPropagation(); onDelete(attachment.id); }}
-                 >
-                   <Trash2 className="h-4 w-4" />
-                 </Button>
-               </TooltipTrigger>
-               <TooltipContent side="top"><p>Delete</p></TooltipContent>
-             </Tooltip>
-           </TooltipProvider>
-         </div>
+         {/* Add conditional rendering for icons */}
+         {onDownload && onDelete && (
+           <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+             <TooltipProvider delayDuration={100}>
+               <Tooltip>
+                 <TooltipTrigger asChild>
+                   <Button
+                     variant="ghost"
+                     size="icon"
+                     className="h-6 w-6 rounded-full bg-black/50 text-white hover:bg-[#8fbc55] p-1"
+                     onClick={(e) => { e.stopPropagation(); onDownload?.(attachment.id, attachment.fileName, resolvedUrl); }}
+                   >
+                     <Download className="h-4 w-4" />
+                   </Button>
+                 </TooltipTrigger>
+                 <TooltipContent side="top"><p>Download</p></TooltipContent>
+               </Tooltip>
+               <Tooltip>
+                 <TooltipTrigger asChild>
+                   <Button
+                     variant="ghost"
+                     size="icon"
+                     className="h-6 w-6 rounded-full bg-black/50 text-white hover:bg-red-500/80 p-1"
+                     onClick={(e) => { e.stopPropagation(); onDelete?.(attachment.id); }}
+                   >
+                     <Trash2 className="h-4 w-4" />
+                   </Button>
+                 </TooltipTrigger>
+                 <TooltipContent side="top"><p>Delete</p></TooltipContent>
+               </Tooltip>
+             </TooltipProvider>
+           </div>
+         )}
       </div>
     );
   }
@@ -240,37 +242,39 @@ export default function AttachmentThumbnail({
           <ImageOff className="h-5 w-5 mx-auto mb-1" />
           Image<br/>Not Found
         </div>
-         {/* Add hover icons even on error state */}
-         <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-           <TooltipProvider delayDuration={100}>
-             <Tooltip>
-               <TooltipTrigger asChild>
-                 <Button
-                   variant="ghost"
-                   size="icon"
-                   className="h-6 w-6 rounded-full bg-black/50 text-white hover:bg-[#8fbc55] p-1"
-                   onClick={(e) => { e.stopPropagation(); onDownload(attachment.id, attachment.fileName, resolvedUrl); }}
-                 >
-                   <Download className="h-4 w-4" />
-                 </Button>
-               </TooltipTrigger>
-               <TooltipContent side="top"><p>Download</p></TooltipContent>
-             </Tooltip>
-             <Tooltip>
-               <TooltipTrigger asChild>
-                 <Button
-                   variant="ghost"
-                   size="icon"
-                   className="h-6 w-6 rounded-full bg-black/50 text-white hover:bg-red-500/80 p-1"
-                   onClick={(e) => { e.stopPropagation(); onDelete(attachment.id); }}
-                 >
-                   <Trash2 className="h-4 w-4" />
-                 </Button>
-               </TooltipTrigger>
-               <TooltipContent side="top"><p>Delete</p></TooltipContent>
-             </Tooltip>
-           </TooltipProvider>
-         </div>
+         {/* Add conditional rendering for icons */}
+         {onDownload && onDelete && (
+           <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+             <TooltipProvider delayDuration={100}>
+               <Tooltip>
+                 <TooltipTrigger asChild>
+                   <Button
+                     variant="ghost"
+                     size="icon"
+                     className="h-6 w-6 rounded-full bg-black/50 text-white hover:bg-[#8fbc55] p-1"
+                     onClick={(e) => { e.stopPropagation(); onDownload?.(attachment.id, attachment.fileName, resolvedUrl); }}
+                   >
+                     <Download className="h-4 w-4" />
+                   </Button>
+                 </TooltipTrigger>
+                 <TooltipContent side="top"><p>Download</p></TooltipContent>
+               </Tooltip>
+               <Tooltip>
+                 <TooltipTrigger asChild>
+                   <Button
+                     variant="ghost"
+                     size="icon"
+                     className="h-6 w-6 rounded-full bg-black/50 text-white hover:bg-red-500/80 p-1"
+                     onClick={(e) => { e.stopPropagation(); onDelete?.(attachment.id); }}
+                   >
+                     <Trash2 className="h-4 w-4" />
+                   </Button>
+                 </TooltipTrigger>
+                 <TooltipContent side="top"><p>Delete</p></TooltipContent>
+               </Tooltip>
+             </TooltipProvider>
+           </div>
+         )}
       </div>
     );
   }
@@ -324,37 +328,39 @@ export default function AttachmentThumbnail({
         </div>
       )}
 
-      {/* Action Icons on Hover */}
-      <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"> {/* Ensure icons are above the button */}
-        <TooltipProvider delayDuration={100}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 rounded-full bg-black/50 text-white hover:bg-[#8fbc55] p-1"
-                onClick={(e) => { e.stopPropagation(); onDownload(attachment.id, attachment.fileName, resolvedUrl); }}
-              >
-                <Download className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top"><p>Download</p></TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 rounded-full bg-black/50 text-white hover:bg-red-500/80 p-1"
-                onClick={(e) => { e.stopPropagation(); onDelete(attachment.id); }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top"><p>Delete</p></TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </div>
+      {/* Action Icons on Hover - Add conditional rendering */}
+      {onDownload && onDelete && (
+        <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"> {/* Ensure icons are above the button */}
+          <TooltipProvider delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 rounded-full bg-black/50 text-white hover:bg-[#8fbc55] p-1"
+                  onClick={(e) => { e.stopPropagation(); onDownload?.(attachment.id, attachment.fileName, resolvedUrl); }}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top"><p>Download</p></TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 rounded-full bg-black/50 text-white hover:bg-red-500/80 p-1"
+                  onClick={(e) => { e.stopPropagation(); onDelete?.(attachment.id); }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top"><p>Delete</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      )}
     </div>
   );
 }

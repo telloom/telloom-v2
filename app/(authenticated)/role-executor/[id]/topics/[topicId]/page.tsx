@@ -123,13 +123,18 @@ export default async function ExecutorTopicPage({ params }: ExecutorTopicPagePro
 
   // 4. Render the page structure with the client component
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Add the standard BackButton above the header - Remove margin */}
-      <BackButton /> 
-      
-      {/* Use the new ExecutorSharerHeader component */}
-      <ExecutorSharerHeader sharerProfile={sharerProfile} />
+    <div className="container mx-auto px-4 py-6 md:px-6 lg:px-8 max-w-7xl">
+      {/* Back Button - Add small bottom margin */}
+      <div className="mb-4"> 
+        <BackButton />
+      </div>
+       
+      {/* Executor Header - Add minimal/no bottom margin */}
+      <div className="mb-1"> {/* Reduced margin significantly */}
+        <ExecutorSharerHeader sharerProfile={sharerProfile} />
+      </div>
 
+      {/* Suspense for Client Component */}
       <Suspense fallback={
           <div className="flex justify-center items-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
@@ -137,14 +142,11 @@ export default async function ExecutorTopicPage({ params }: ExecutorTopicPagePro
           </div>
         }
       >
-        {/* Wrap client component and apply negative margin to the wrapper */}
-        <div className="-mt-4"> 
         <ExecutorTopicPageClient
           targetSharerId={sharerId}
           topicId={topicId}
-          initialSharerProfile={sharerProfile} // Pass the fetched profile (now any)
+          initialSharerProfile={sharerProfile} 
         />
-        </div>
       </Suspense>
     </div>
   );
