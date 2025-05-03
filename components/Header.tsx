@@ -7,10 +7,9 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
-import Image from 'next/image';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useParams } from 'next/navigation';
 import { Avatar as AvatarComponent, AvatarImage, AvatarFallback } from './ui/avatar';
 import {
   DropdownMenu,
@@ -20,12 +19,12 @@ import {
   DropdownMenuSeparator,
 } from './ui/dropdown-menu';
 import { Button } from './ui/button';
-import { UserPlus, Users, UserCircle, Settings, LogOut, SwitchCamera, Bell, BellRing, CircleDot, X } from 'lucide-react';
+import { UserPlus, Users, UserCircle, Settings, LogOut, SwitchCamera, Bell, BellRing, CircleDot, X, Check, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserStore } from '@/stores/userStore';
 import InviteModal from './invite/InviteModal';
 import NotificationsBadge from '@/components/notifications/NotificationsBadge';
-import useSWR from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
 import { toast } from 'sonner';
 import { normalizeAvatarUrl, getSignedAvatarUrl } from '@/utils/avatar';
 import { 
@@ -37,35 +36,33 @@ import {
   SheetClose
 } from './ui/sheet';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import Logo from '@/components/Logo';
+import { createClient } from '@/utils/supabase/client';
+import ExecutorInviteModal from '@/components/executor/connections/ExecutorInviteModal';
+
+// Define interfaces for type safety
+interface Notification {
+  id: string;
+  type: 'INVITATION' | string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  related_entity_id?: string;
+  invitationStatus?: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED' | null;
+  data?: {
+    invitationId?: string;
+    [key: string]: any;
+  };
+  [key: string]: any;
+}
 
 // Restore NotificationsData interface
 interface NotificationsData {
   notifications: Notification[];
 }
 
-function useCurrentRole() {
-  const pathname = usePathname();
-  const [currentRole, setCurrentRole] = useState<'SHARER' | 'LISTENER' | 'EXECUTOR' | null>(null);
-
-  useEffect(() => {
-    if (pathname?.includes('/role-sharer')) {
-      setCurrentRole('SHARER');
-    } else if (pathname?.includes('/role-listener')) {
-      setCurrentRole('LISTENER');
-    } else if (pathname?.includes('/role-executor')) {
-      setCurrentRole('EXECUTOR');
-    } else {
-      setCurrentRole(null);
-    }
-  }, [pathname]);
-
-  return currentRole;
-}
-
-// Define interfaces for type safety
-interface Notification {
-  id: string;
-  [key: string]: any;
+interface NotificationsCountData {
+  count: number;
 }
 
 /**
@@ -75,18 +72,110 @@ const getInitials = (firstName: string = '', lastName: string = '') => {
   return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
 };
 
+// Fetcher function (keep as is)
+const fetcher = (url: string): Promise<any> => fetch(url).then(res => {
+  if (!res.ok) {
+    throw new Error('Network response was not ok');
+  }
+  return res.json();
+});
+
+// Keep useCurrentRole based on pathname for general layout/UI consistency
+function useCurrentRole() {
+  const pathname = usePathname();
+  // Use state for role derived from path
+  const [currentRoleFromPath, setCurrentRoleFromPath] = useState<'SHARER' | 'LISTENER' | 'EXECUTOR' | null>(null);
+
+  useEffect(() => {
+    if (pathname?.includes('/role-sharer')) {
+      setCurrentRoleFromPath('SHARER');
+    } else if (pathname?.includes('/role-listener')) {
+      setCurrentRoleFromPath('LISTENER');
+    } else if (pathname?.includes('/role-executor')) {
+      setCurrentRoleFromPath('EXECUTOR');
+    } else {
+      setCurrentRoleFromPath(null);
+    }
+  }, [pathname]);
+
+  return currentRoleFromPath; // Return role derived from path
+}
+
 export default function Header() {
   const { user, loading: authLoading, signOut } = useAuth();
   const { profile } = useUserStore();
   const router = useRouter();
-  const [showInviteModal, setShowInviteModal] = useState(false);
+  const params = useParams();
+  const pathname = usePathname();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [signedAvatarUrl, setSignedAvatarUrl] = useState<string | null>(null);
-  const currentRole = useCurrentRole();
+  const currentRoleFromPath = useCurrentRole(); // Role derived from path
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const isMobile = useMediaQuery('(max-width: 768px)');
-  
+  const { mutate } = useSWRConfig();
+  const [isSharerInviteModalOpen, setIsSharerInviteModalOpen] = useState(false);
+  const [isExecutorInviteModalOpen, setIsExecutorInviteModalOpen] = useState(false);
+
+  console.log("[HEADER RENDER] Profile from useUserStore:", profile); // Keep log temporarily
+
+  // SWR hooks for notifications and count
+  const notificationsKey = user ? '/api/notifications' : null;
+  const countKey = user ? '/api/notifications?count=true' : null;
+
+  const { data: notificationsData } = useSWR<NotificationsData>(notificationsKey, fetcher);
+  const { data: countData } = useSWR<NotificationsCountData>(countKey, fetcher, { refreshInterval: 15000 });
+
+  // --- NEW: Function to mark all notifications as read ---
+  const markAllNotificationsRead = useCallback(async () => {
+    if (!user || !notificationsData || countData?.count === 0) return; // Don't run if no user, no notifications, or count is 0
+
+    console.log('[HEADER] Attempting to mark all notifications as read...');
+
+    // Optimistic UI update for count
+    mutate(countKey, { count: 0 }, false); // Update count locally immediately, don't revalidate yet
+
+    // Optimistic UI update for notifications list
+    const updatedNotifications = notificationsData.notifications.map(n => ({ ...n, isRead: true }));
+    mutate(notificationsKey, { notifications: updatedNotifications }, false); // Update list locally, don't revalidate yet
+
+    try {
+      const response = await fetch('/api/notifications/mark-all-read', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to mark notifications as read');
+      }
+
+      console.log('[HEADER] Successfully marked notifications as read via API.');
+      // Trigger revalidation for both endpoints to confirm server state
+      mutate(notificationsKey); 
+      mutate(countKey);
+
+    } catch (error) {
+      console.error('[HEADER] Error marking notifications as read:', error);
+      toast.error('Failed to mark notifications as read.');
+      // Rollback optimistic updates on error
+      mutate(notificationsKey); // Re-fetch original data
+      mutate(countKey); // Re-fetch original count
+    }
+  }, [user, notificationsData, countData, mutate, notificationsKey, countKey]);
+
+  // Handler for opening the notifications dropdown/sheet
+  const handleNotificationsToggle = (open: boolean) => {
+    setNotificationsOpen(open);
+    if (open) {
+      // Call the function to mark all as read when the dropdown opens
+      markAllNotificationsRead();
+    } else {
+      // Reset processed state when dropdown closes (if still needed for accept/decline)
+      setProcessedNotifications({});
+      setProcessingNotificationId(null);
+    }
+  };
+
   useEffect(() => {
     const updateAvatar = async () => {
       if (profile?.avatarUrl) {
@@ -105,7 +194,7 @@ export default function Header() {
       }
     };
 
-    if (profile) { 
+    if (profile) {
       console.log('[HEADER] Profile updated, updating avatar.');
       updateAvatar();
     } else {
@@ -114,6 +203,25 @@ export default function Header() {
       setSignedAvatarUrl(null);
     }
   }, [profile]);
+
+  useEffect(() => {
+    const updateSignedAvatarUrl = async () => {
+      if (avatarUrl) {
+        try {
+          const signedUrl = await getSignedAvatarUrl(avatarUrl);
+          setSignedAvatarUrl(signedUrl);
+        } catch (error) {
+          console.error('[HEADER] Error getting signed avatar URL:', error);
+          setSignedAvatarUrl(avatarUrl); // Fallback
+        }
+      }
+    };
+
+    if (avatarUrl) {
+      console.log('[HEADER] Avatar updated, updating signed avatar URL.');
+      updateSignedAvatarUrl();
+    }
+  }, [avatarUrl]);
 
   const handleSignOut = async () => {
     try {
@@ -126,65 +234,96 @@ export default function Header() {
     }
   };
 
+  // Simplified check for user's ability to invite based *only* on profile roles
   const userRoles = profile?.roles?.map(r => r.role) || [];
-  
+  console.log('[HEADER] userRoles:', userRoles); // Keep log temporarily
   const canInvite = userRoles.some(role => ['SHARER', 'EXECUTOR'].includes(role));
+  console.log('[HEADER] canInvite:', canInvite); // Keep log temporarily
+
+  // Determine if the invite button should be shown based on SPECIFIC paths AND user's ability to invite
+  const isSharerPath = currentRoleFromPath === 'SHARER' && pathname?.startsWith('/role-sharer');
+  const isSpecificExecutorPath = currentRoleFromPath === 'EXECUTOR' && pathname?.match(/^\/role-executor\/[a-f0-9-]+\/?(.*)/);
+  
+  const shouldShowInviteButton = 
+    canInvite && 
+    (isSharerPath || isSpecificExecutorPath);
+    
+  console.log('[HEADER] Path:', pathname, ', RoleFromPath:', currentRoleFromPath, ', CanInvite:', canInvite, ', ShowButton:', shouldShowInviteButton); // Keep log temporarily
 
   const getConnectionsLink = () => {
-    // Determine based on currentRole state derived from pathname
-    switch (currentRole) {
-      case 'SHARER':
-        return '/role-sharer/connections';
-      case 'LISTENER':
-        return '/role-listener/connections';
-      case 'EXECUTOR':
-        return '/role-executor/connections';
-      default:
-        return ''; // Return empty string if no specific role context
+    if (currentRoleFromPath === 'SHARER') {
+      return '/role-sharer/connections';
+    } else if (currentRoleFromPath === 'EXECUTOR' && params?.id) {
+      return `/role-executor/${params.id}/connections`;
+    }
+    return null;
+  };
+
+  // State for dropdown actions
+  const [processingNotificationId, setProcessingNotificationId] = useState<string | null>(null);
+  const [processedNotifications, setProcessedNotifications] = useState<Record<string, 'accepted' | 'declined'>>({});
+
+  const supabase = createClient(); // Create supabase client instance
+
+  // Handler for accepting from dropdown
+  const handleDropdownAccept = async (event: React.MouseEvent, notification: Notification) => {
+    event.stopPropagation(); // Prevent closing dropdown / navigation
+    event.preventDefault();
+
+    const invitationId = notification.related_entity_id || notification.data?.invitationId;
+    if (!invitationId || processingNotificationId || processedNotifications[notification.id]) return;
+
+    setProcessingNotificationId(notification.id);
+    try {
+      const { data, error } = await supabase
+        .rpc('accept_invitation_by_id', { p_invitation_id: invitationId });
+
+      if (error || !data?.success) {
+        throw new Error(error?.message || data?.error || 'Failed to accept invitation.');
+      }
+
+      toast.success('Invitation accepted!');
+      setProcessedNotifications(prev => ({ ...prev, [notification.id]: 'accepted' }));
+      await mutate(notificationsKey); // Refresh notifications list
+      await mutate(countKey); // Refresh count might be needed if accept removes notification
+
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not accept invitation.');
+    } finally {
+      setProcessingNotificationId(null);
     }
   };
 
-  // Define a typed fetcher function
-  const fetcher = (url: string): Promise<NotificationsData> => fetch(url).then(res => res.json());
+  // Handler for declining from dropdown
+  const handleDropdownDecline = async (event: React.MouseEvent, notification: Notification) => {
+    event.stopPropagation(); // Prevent closing dropdown / navigation
+    event.preventDefault();
 
-  // Fetch notifications
-  const { data: notificationsData, mutate: mutateNotifications } = useSWR<NotificationsData>(
-    user ? '/api/notifications' : null, // Only fetch if user is authenticated
-    fetcher
-  );
+    const invitationId = notification.related_entity_id || notification.data?.invitationId;
+     if (!invitationId || processingNotificationId || processedNotifications[notification.id]) return;
 
-  const recentNotifications = notificationsData?.notifications?.slice(0, 3) || [];
+    setProcessingNotificationId(notification.id);
+    try {
+      const { data, error } = await supabase
+        .rpc('decline_invitation_by_id', { p_invitation_id: invitationId });
 
-  // Notification item component to reuse in both dropdown and sheet
-  const NotificationItem = ({ 
-    notification, 
-    onSelect, 
-    closeSheet 
-  }: { 
-    notification: Notification, 
-    onSelect: () => void,
-    closeSheet?: () => void
-  }) => (
-    <div
-      className="flex items-start gap-2 py-3 px-4 cursor-pointer hover:bg-[#8fbc55] hover:text-white"
-      onClick={() => {
-        onSelect();
-        if (closeSheet) closeSheet();
-      }}
-    >
-      {!notification.isRead && (
-        <CircleDot className="h-2 w-2 mt-1.5 shrink-0 text-[#8fbc55]" />
-      )}
-      <div className={`${!notification.isRead ? 'font-medium' : ''}`}>
-        {notification.message}
-        <div className="text-xs text-muted-foreground mt-1 group-hover:text-white/80">
-          {new Date(notification.createdAt).toLocaleString()}
-        </div>
-      </div>
-    </div>
-  );
+      if (error || !data?.success) {
+        throw new Error(error?.message || data?.error || 'Failed to decline invitation.');
+      }
 
-  // Profile menu item component to reuse in both dropdown and sheet
+      toast.success('Invitation declined.');
+      setProcessedNotifications(prev => ({ ...prev, [notification.id]: 'declined' }));
+       await mutate(notificationsKey); // Refresh notifications list
+       await mutate(countKey); // Refresh count might be needed if decline removes notification
+
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not decline invitation.');
+    } finally {
+      setProcessingNotificationId(null);
+    }
+  };
+
+  // Restore ProfileMenuItem component definition
   const ProfileMenuItem = ({ 
     icon, 
     label, 
@@ -232,56 +371,31 @@ export default function Header() {
     );
   };
 
-  const handleNotificationSelect = async (notification: Notification) => {
-    try {
-      // Mark as read
-      const res = await fetch(`/api/notifications/${notification.id}/mark-read`, {
-        method: 'POST',
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to mark notification as read');
-      }
-
-      // Update notifications data
-      await mutateNotifications();
-
-      // Close the sheet/dropdown
-      setNotificationsOpen(false);
-
-      // Navigate to the centralized notifications page
-      router.push('/notifications');
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-      toast.error('Failed to mark notification as read');
-    }
-  };
+  const recentNotifications = notificationsData?.notifications?.slice(0, 5) || [];
   
   const renderAuthLoading = authLoading;
   const renderAuthenticated = !authLoading && user && profile;
   const renderUnauthenticated = !authLoading && !user;
   const renderProfileStillLoading = !authLoading && user && !profile;
 
+  // Handle Invite button click
+  const handleInviteClick = () => {
+    // Open modal based on the role derived from the path
+    if (currentRoleFromPath === 'SHARER') {
+      setIsSharerInviteModalOpen(true);
+    } else if (currentRoleFromPath === 'EXECUTOR') {
+      // Open the executor modal state
+      setIsExecutorInviteModalOpen(true); 
+    } else {
+       console.error("Invite clicked with invalid role/path:", currentRoleFromPath, pathname);
+       toast.error("Cannot initiate invite from this context.");
+    }
+  };
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex items-center justify-between px-6 py-3">
-        <div>
-          <Link href="/">
-            <Image
-              src="/images/Telloom Logo V1-Horizontal Green.png"
-              alt="Telloom Logo"
-              width={104}
-              height={26}
-              priority={true}
-              quality={100}
-              style={{
-                width: 'auto',
-                height: 'auto',
-                maxWidth: 'auto'
-              }}
-            />
-          </Link>
-        </div>
+        <Logo />
         
         {(renderAuthLoading || renderProfileStillLoading) && (
           <div className="flex items-center space-x-2">
@@ -292,20 +406,20 @@ export default function Header() {
         
         {renderAuthenticated && (
           <div className="flex items-center space-x-3">
-            {canInvite && (
+            {shouldShowInviteButton && (
               <Button
+                onClick={handleInviteClick}
                 variant="outline"
                 size="sm"
-                onClick={() => setShowInviteModal(true)}
-                className="gap-2 rounded-full border-[1px] hover:bg-[#1B4332] hover:text-white transition-colors"
+                className="gap-1 rounded-full border-[1px] hover:bg-[#1B4332] hover:text-white transition-colors hidden md:inline-flex"
               >
-                <UserPlus className="h-4 w-4" />
-                <span className="hidden sm:inline">Invite</span>
+                <UserPlus className="h-4 w-4" /> 
+                Invite
               </Button>
             )}
             <div className="flex items-center gap-2">
               {isMobile ? (
-                <Sheet open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+                <Sheet open={notificationsOpen} onOpenChange={handleNotificationsToggle}>
                   <SheetTrigger asChild>
                     <button 
                       className="group relative inline-flex items-center justify-center w-10 h-10 focus:outline-none"
@@ -328,14 +442,72 @@ export default function Header() {
                     <div className="mt-4">
                       {recentNotifications.length > 0 ? (
                         <>
-                          {recentNotifications.map((notification: Notification) => (
-                            <NotificationItem 
-                              key={notification.id} 
-                              notification={notification} 
-                              onSelect={() => handleNotificationSelect(notification)}
-                              closeSheet={() => setNotificationsOpen(false)}
-                            />
-                          ))}
+                          {recentNotifications.map((notification: Notification) => {
+                            const isInvitation = notification.type === 'INVITATION';
+                            const isProcessing = processingNotificationId === notification.id;
+                            const sessionStatus = processedNotifications[notification.id];
+                            const dbStatus = notification.invitationStatus;
+                            
+                            const finalStatus = sessionStatus || (dbStatus === 'ACCEPTED' ? 'accepted' : dbStatus === 'DECLINED' ? 'declined' : null);
+                            const canTakeAction = isInvitation && !isProcessing && (!finalStatus || dbStatus === 'PENDING');
+
+                            return (
+                              <div 
+                                key={notification.id} 
+                                className="group flex items-start justify-between gap-2 py-3 px-4 cursor-pointer"
+                                onClick={(e) => {
+                                  if (!canTakeAction || !(e.target as HTMLElement).closest('[data-action-button="true"]')) {
+                                    setNotificationsOpen(false);
+                                    router.push('/notifications');
+                                  }
+                                }}
+                              >
+                                <div className="flex items-start gap-2 flex-grow">
+                                  {!notification.isRead && (
+                                    <CircleDot className="h-2 w-2 mt-1.5 shrink-0 text-[#8fbc55]" />
+                                  )}
+                                  <div className={`${!notification.isRead ? 'font-medium' : ''} group-hover:underline`}>
+                                    {notification.message}
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      {new Date(notification.createdAt).toLocaleString()}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center space-x-1 shrink-0">
+                                  {isProcessing && (
+                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                  )}
+                                  {canTakeAction && (
+                                    <>
+                                      <button
+                                        data-action-button="true"
+                                        onClick={(e) => handleDropdownDecline(e, notification)}
+                                        className="p-1 rounded hover:rounded-full hover:bg-red-100 text-muted-foreground hover:text-red-700"
+                                        aria-label="Decline Invitation"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        data-action-button="true"
+                                        onClick={(e) => handleDropdownAccept(e, notification)}
+                                        className="p-1 rounded hover:rounded-full hover:bg-green-100 text-muted-foreground hover:text-green-700"
+                                        aria-label="Accept Invitation"
+                                      >
+                                        <Check className="h-4 w-4" />
+                                      </button>
+                                    </>
+                                  )}
+                                   {finalStatus === 'accepted' && (
+                                      <span className="text-xs text-green-600 font-medium">Accepted</span>
+                                    )}
+                                     {finalStatus === 'declined' && (
+                                       <span className="text-xs text-red-600 font-medium">Declined</span>
+                                     )}
+                                </div>
+                              </div>
+                            );
+                          })}
                           <div className="border-t pt-2 pb-2 px-4 mt-2">
                             <Link 
                               href="/notifications"
@@ -355,7 +527,7 @@ export default function Header() {
                   </SheetContent>
                 </Sheet>
               ) : (
-                <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+                <DropdownMenu open={notificationsOpen} onOpenChange={handleNotificationsToggle}>
                   <DropdownMenuTrigger asChild>
                     <button 
                       className="group relative inline-flex items-center justify-center w-10 h-10 focus:outline-none"
@@ -374,25 +546,82 @@ export default function Header() {
                     </div>
                     {recentNotifications.length > 0 ? (
                       <>
-                        {recentNotifications.map((notification: Notification) => (
-                          <DropdownMenuItem
-                            key={notification.id}
-                            className="py-3 px-4 cursor-pointer"
-                            onClick={() => handleNotificationSelect(notification)}
-                          >
-                            <div className="flex items-start gap-2">
-                              {!notification.isRead && (
-                                <CircleDot className="h-2 w-2 mt-1.5 shrink-0 text-[#8fbc55]" />
-                              )}
-                              <div className={`${!notification.isRead ? 'font-medium' : ''}`}>
-                                {notification.message}
-                                <div className="text-xs text-muted-foreground mt-1 group-hover:text-white/80">
-                                  {new Date(notification.createdAt).toLocaleString()}
+                        {recentNotifications.map((notification: Notification) => {
+                          const isInvitation = notification.type === 'INVITATION';
+                          const isProcessing = processingNotificationId === notification.id;
+                          const sessionStatus = processedNotifications[notification.id];
+                          const dbStatus = notification.invitationStatus;
+
+                          const finalStatus = sessionStatus || (dbStatus === 'ACCEPTED' ? 'accepted' : dbStatus === 'DECLINED' ? 'declined' : null);
+
+                          const canTakeAction = isInvitation && !isProcessing && (!finalStatus || dbStatus === 'PENDING');
+
+                          return (
+                            <DropdownMenuItem
+                              key={notification.id}
+                              className="group py-3 px-4 cursor-pointer focus:bg-transparent focus:text-accent-foreground data-[highlighted]:bg-transparent data-[highlighted]:text-accent-foreground"
+                              onClick={(e) => {
+                                 if (!canTakeAction || !(e.target as HTMLElement).closest('[data-action-button="true"]')) {
+                                   router.push('/notifications');
+                                 }
+                              }}
+                              onSelect={(e) => {
+                                  if (canTakeAction) {
+                                     const target = e.target as HTMLElement;
+                                     if (target.closest('[data-action-button="true"]')) {
+                                        e.preventDefault(); 
+                                     }
+                                  }
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-2 w-full">
+                                <div className="flex items-start gap-2 flex-grow">
+                                  {!notification.isRead && (
+                                    <CircleDot className="h-2 w-2 mt-1.5 shrink-0 text-[#8fbc55]" />
+                                  )}
+                                  <div className={`${!notification.isRead ? 'font-medium' : ''} group-hover:underline`}>
+                                    {notification.message}
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      {new Date(notification.createdAt).toLocaleString()}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center space-x-1 shrink-0">
+                                  {isProcessing && (
+                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                  )}
+                                  {canTakeAction && (
+                                    <>
+                                      <button
+                                        data-action-button="true"
+                                        onClick={(e) => handleDropdownDecline(e, notification)}
+                                        className="p-1 rounded hover:rounded-full hover:bg-red-100 text-muted-foreground hover:text-red-700"
+                                        aria-label="Decline Invitation"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        data-action-button="true"
+                                        onClick={(e) => handleDropdownAccept(e, notification)}
+                                        className="p-1 rounded hover:rounded-full hover:bg-green-100 text-muted-foreground hover:text-green-700"
+                                        aria-label="Accept Invitation"
+                                      >
+                                        <Check className="h-4 w-4" />
+                                      </button>
+                                    </>
+                                  )}
+                                   {finalStatus === 'accepted' && (
+                                      <span className="text-xs text-green-600 font-medium">Accepted</span>
+                                    )}
+                                    {finalStatus === 'declined' && (
+                                      <span className="text-xs text-red-600 font-medium">Declined</span>
+                                    )}
                                 </div>
                               </div>
-                            </div>
-                          </DropdownMenuItem>
-                        ))}
+                            </DropdownMenuItem>
+                          );
+                        })}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem asChild className="py-2 px-4">
                           <Link 
@@ -553,14 +782,23 @@ export default function Header() {
             <Link href="/login">Login</Link>
           </div>
         )}
-
-        {showInviteModal && (
-          <InviteModal 
-            open={showInviteModal} 
-            onOpenChange={setShowInviteModal}
-          />
-        )}
       </div>
+
+      {/* Render Modals (Moved to bottom) */}
+      {currentRoleFromPath === 'SHARER' && (
+        <InviteModal 
+          open={isSharerInviteModalOpen} 
+          onOpenChange={setIsSharerInviteModalOpen} 
+        />
+      )}
+      {/* Keep ExecutorInviteModal rendering here, but ensure it gets correct props */}
+      {currentRoleFromPath === 'EXECUTOR' && params.id && (
+         <ExecutorInviteModal 
+           open={isExecutorInviteModalOpen} 
+           onOpenChange={setIsExecutorInviteModalOpen} 
+           sharerId={params.id as string} 
+         />
+      )}
     </header>
   );
 }

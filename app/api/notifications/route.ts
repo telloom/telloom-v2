@@ -1,7 +1,5 @@
 import { createRouteHandlerClient } from '@/utils/supabase/route-handler';
-import { createAdminClient } from '@/utils/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 
 interface Notification {
   id: string;
@@ -19,7 +17,6 @@ export async function GET(request: NextRequest) {
   
   try {
     const supabase = await createRouteHandlerClient();
-    const adminClient = createAdminClient();
     
     // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -36,55 +33,36 @@ export async function GET(request: NextRequest) {
     const countOnly = url.searchParams.get('count') === 'true';
     
     // Log user metadata for debugging
-    console.log('[NOTIFICATIONS_API] User metadata:', user.app_metadata);
+    // console.log('[NOTIFICATIONS_API] User metadata:', user.app_metadata);
     
-    // Use RPC function to get role information
-    const { data: roleInfo, error: roleError } = await adminClient.rpc(
-      'get_user_role_emergency',
-      { user_id: user.id }
-    );
+    // Call the new safe RPC function
+    console.log(`[NOTIFICATIONS_API] Calling RPC get_notifications_safe for user: ${user.id}, countOnly: ${countOnly}`);
+    const { data: result, error: rpcError } = await supabase
+      .rpc('get_notifications_safe', {
+          p_user_id: user.id,
+          p_count_only: countOnly,
+          p_limit: 50 // Pass limit even if counting, function ignores if needed
+       });
 
-    if (roleError) {
-      console.error('[NOTIFICATIONS_API] Error getting role info:', roleError);
-      return NextResponse.json({ error: 'Failed to check user roles' }, { status: 500 });
+    if (rpcError) {
+      console.error('[NOTIFICATIONS_API] Error calling get_notifications_safe RPC:', rpcError);
+      const errorMessage = rpcError.message || 'Failed to fetch notifications via RPC';
+      // Check if the error object from RPC has an 'error' field
+      const detailedError = (result as any)?.error || errorMessage;
+      return NextResponse.json({ error: detailedError }, { status: 500 });
     }
-    
-    console.log('[NOTIFICATIONS_API] User roles:', roleInfo?.roles || []);
-    
-    // Build the base query using admin client to bypass RLS
-    const query = adminClient
+
+    // The RPC now returns the data in the correct format
+    console.log(`[NOTIFICATIONS_API] Successfully fetched notifications via RPC. Result keys: ${Object.keys(result || {}).join(', ')}`);
+    return NextResponse.json(result || (countOnly ? { count: 0 } : { notifications: [] }));
+
+    // Remove old query logic
+    /*
+    const query = supabase
       .from('Notification')
-      .select(countOnly ? 'id' : '*')
-      .eq('userId', user.id)
-      .order('createdAt', { ascending: false });
+      // ... old query logic ...
+    */
     
-    // If we're only counting unread notifications, add that filter
-    if (countOnly) {
-      // Get unread notifications
-      const { data: unreadNotifications, error: countError } = await query
-        .eq('isRead', false);
-      
-      if (countError) {
-        console.error('[NOTIFICATIONS_API] Error counting notifications:', countError);
-        return NextResponse.json({ error: 'Failed to count notifications' }, { status: 500 });
-      }
-      
-      const count = unreadNotifications?.length || 0;
-      console.log('[NOTIFICATIONS_API] Returning unread count:', count);
-      return NextResponse.json({ count });
-    } else {
-      // Return all notifications with pagination
-      const { data: notifications, error: notificationsError } = await query
-        .limit(50);
-      
-      if (notificationsError) {
-        console.error('[NOTIFICATIONS_API] Error fetching notifications:', notificationsError);
-        return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 });
-      }
-      
-      console.log('[NOTIFICATIONS_API] Found notifications:', notifications?.length || 0);
-      return NextResponse.json(notifications || []);
-    }
   } catch (error) {
     console.error('[NOTIFICATIONS_API] Unexpected error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -93,9 +71,9 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: Request) {
   try {
-    const cookieStore = cookies();
     const supabase = await createRouteHandlerClient();
-    const adminClient = createAdminClient();
+    // Remove adminClient if no longer needed
+    // const adminClient = createAdminClient();
     
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
@@ -114,21 +92,29 @@ export async function PATCH(request: Request) {
       );
     }
 
-    // Use admin client to bypass RLS
+    // Call the safe RPC to mark notifications as read
+    console.log(`[NOTIFICATIONS_API PATCH] Calling RPC mark_notifications_read_safe for user ${user.id} with ${ids.length} IDs`);
+    const { data: success, error: rpcError } = await supabase
+      .rpc('mark_notifications_read_safe', { p_notification_ids: ids });
+
+    // Remove direct update logic
+    /*
     const { error: updateError } = await adminClient
       .from('Notification')
       .update({ isRead: true })
       .in('id', ids)
       .eq('userId', user.id);
+    */
 
-    if (updateError) {
-      console.error('Database error:', updateError);
+    if (rpcError || !success) {
+      console.error('[NOTIFICATIONS_API PATCH] Error calling RPC or RPC failed:', rpcError);
       return NextResponse.json(
-        { error: 'Failed to update notifications' },
+        { error: 'Failed to update notifications via RPC' },
         { status: 500 }
       );
     }
 
+    console.log(`[NOTIFICATIONS_API PATCH] Successfully marked ${ids.length} notifications as read via RPC for user ${user.id}`);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Unexpected error in notifications PATCH:', error);
@@ -160,8 +146,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const adminClient = createAdminClient();
-    const { error } = await adminClient
+    const { error } = await supabase
       .from('Notification')
       .insert({
         userId,

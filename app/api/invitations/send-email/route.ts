@@ -10,8 +10,7 @@ import { cookies } from 'next/headers';
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = cookies();
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
@@ -23,49 +22,50 @@ export async function POST(request: Request) {
 
     const { invitationId } = await request.json();
 
-    // Fetch the invitation details with the sharer's profile information
-    const { data: invitation, error: invitationError } = await supabase
-      .from('Invitation')
-      .select(`
-        *,
-        sharer:ProfileSharer!sharerId (
-          profile:Profile!profileId (
-            firstName,
-            lastName,
-            email
-          )
-        )
-      `)
-      .eq('id', invitationId)
-      .single();
+    // Fetch the invitation details using the new RPC function
+    console.log(`[API send-email] Calling RPC get_invitation_details_for_email for ID: ${invitationId}`);
+    const { data: invitation, error: rpcError } = await supabase
+      .rpc('get_invitation_details_for_email', { p_invitation_id: invitationId })
+      .single(); // Assuming the RPC returns a single JSON object
 
-    if (invitationError || !invitation) {
-      console.error('Error fetching invitation:', invitationError);
+    if (rpcError || !invitation) {
+      console.error('Error fetching invitation via RPC:', rpcError);
+      // If RPC raised an auth error or not found, it signals failure.
+      // Check for a specific error message from the RPC if needed.
+      const errorMessage = rpcError?.message || 'Invitation not found or access denied via RPC';
+      const status = errorMessage.includes('not authorized') ? 403 : 404;
       return NextResponse.json(
-        { error: 'Invitation not found' },
-        { status: 404 }
+        { error: errorMessage },
+        { status: status }
       );
     }
+    
+    console.log('[API send-email] Successfully fetched invitation details via RPC:', invitation);
 
-    // Verify the user has permission to send this invitation
+
+    // Optional: Verify the user ID fetched via RPC matches the current user if needed
+    // (The RPC already performs this check, so this is redundant but safe)
     if (invitation.inviterId !== user.id) {
-      return NextResponse.json(
-        { error: 'Not authorized to send this invitation' },
-        { status: 403 }
-      );
+       console.warn(`[API send-email] Mismatch between inviterId from RPC (${invitation.inviterId}) and authenticated user (${user.id}). This shouldn't happen.`);
+       return NextResponse.json(
+         { error: 'Authorization mismatch after RPC call' },
+         { status: 403 }
+       );
     }
 
-    // Generate the invitation URL with the token
+
+    // Generate the invitation URL with the token from RPC data
     const inviteUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/invitation/accept?token=${invitation.token}`;
 
-    // Get the sharer's name and email from the joined data
-    const inviterName = invitation.sharer?.profile?.firstName && invitation.sharer?.profile?.lastName
-      ? `${invitation.sharer.profile.firstName} ${invitation.sharer.profile.lastName}`
+    // Get the sharer's name and email from the RPC data
+    const inviterName = invitation.sharerFirstName && invitation.sharerLastName
+      ? `${invitation.sharerFirstName} ${invitation.sharerLastName}`
       : 'Someone';
-    const inviterEmail = invitation.sharer?.profile?.email || '';
+    const inviterEmail = invitation.sharerEmail || ''; // Use the email fetched by RPC
 
     try {
       // Send the email using Loops
+      console.log(`[API send-email] Sending transactional email to: ${invitation.inviteeEmail}`);
       await loops.sendTransactionalEmail({
         transactionalId: TRANSACTIONAL_EMAIL_IDS.INVITATION,
         email: invitation.inviteeEmail,

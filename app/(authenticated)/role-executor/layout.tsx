@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import RoleLayoutLoading from '@/components/RoleLayoutLoading';
 import ClearRoleTransition from '@/components/ClearRoleTransition';
-import { checkRole, hasExecutorRelationship } from '@/utils/supabase/server';
+import { checkRole } from '@/utils/supabase/server';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { getCookie } from '@/utils/next-cookies-helper';
 
@@ -15,7 +15,7 @@ async function RoleExecutorLayoutContent({
   console.log('[role-executor/layout] Starting layout processing');
   const supabase = await createClient();
   const adminClient = createAdminClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     console.log('[role-executor/layout] No user found, redirecting to login');

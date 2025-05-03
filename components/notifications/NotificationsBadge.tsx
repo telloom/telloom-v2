@@ -16,12 +16,12 @@ export default function NotificationsBadge() {
     refreshInterval: 15000, // Refresh every 15 seconds
   });
 
-  // Don't show badge if there's an error, no data, or unreadCount is 0 or undefined
-  if (error || !data || !data.unreadCount || data.unreadCount === 0) return null;
+  // Don't show badge if there's an error, no data, or count is 0 or undefined
+  if (error || !data || !data.count || data.count === 0) return null;
 
   return (
     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1B4332] text-[10px] font-medium text-white">
-      {data.unreadCount > 99 ? '99+' : data.unreadCount}
+      {data.count > 99 ? '99+' : data.count}
     </span>
   );
 } 

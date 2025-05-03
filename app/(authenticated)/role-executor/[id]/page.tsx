@@ -12,6 +12,17 @@ interface Props {
   };
 }
 
+// Define RPC result type for get_sharer_details_for_executor
+interface SharerDetailsRpcResult {
+  sharer_id: string;
+  profile_id: string;
+  created_at: string;
+  subscription_status: boolean | null;
+  profile_first_name: string | null;
+  profile_last_name: string | null;
+  profile_avatar_url: string | null;
+}
+
 // Reusable function to get sharer profile (copied from [topicId]/page.tsx for now)
 // TODO: Move to a shared lib file
 async function getSharerProfile(sharerId: string): Promise<any | null> {

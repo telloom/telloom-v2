@@ -10,6 +10,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { supabase } from '@/utils/supabase/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import Logo from '@/components/Logo';
 
 type Role = 'LISTENER' | 'SHARER' | 'EXECUTOR';
 
@@ -152,20 +153,9 @@ export default function SelectRoleClient({ userId }: SelectRoleClientProps) {
   if (isTransitioning) {
     return (
       <div className="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center">
-        <Link href="/" className="mb-8">
-          <Image
-            src="/images/Telloom Logo V1-Horizontal Green.png"
-            alt="Telloom Logo"
-            width={160}
-            height={40}
-            priority={true}
-            style={{
-              width: 'auto',
-              height: 'auto',
-              maxWidth: '160px'
-            }}
-          />
-        </Link>
+        <div className="mb-8">
+          <Logo />
+        </div>
         <div className="flex flex-col items-center space-y-4">
           <div className="h-10 w-10 animate-spin rounded-full border-3 border-[#1B4332] border-t-transparent" />
           <p className="text-lg text-[#1B4332]">

@@ -27,7 +27,11 @@ const PUBLIC_ROUTES = [
   '/debug-jwt',
   // Add Mux webhook routes here to bypass auth
   '/api/webhooks/mux',
-  '/api/webhooks/mux/topic-video' // Add specific sub-routes if needed
+  '/api/webhooks/mux/topic-video', // Add specific sub-routes if needed
+  // --- Add the invitation accept route --- 
+  '/invitation/accept',
+  // --- Add the invitation find API route --- 
+  '/api/invitations/find' 
 ];
 
 export async function middleware(request: NextRequest) {
@@ -185,6 +189,8 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     // Add 'images' to the negative lookahead to exclude static image paths
-    '/((?!_next/static|_next/image|images|favicon.ico|api/auth).*)',
+    // Explicitly EXCLUDE the connection deletion API route for testing
+    // This prevents the middleware from running on DELETE /api/sharer/connections/*
+    '/((?!api/sharer/connections/[^/]+$|_next/static|_next/image|images|favicon.ico|api/auth).*)',
   ],
 };

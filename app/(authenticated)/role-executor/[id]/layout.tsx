@@ -2,7 +2,6 @@ import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import RoleLayoutLoading from '@/components/RoleLayoutLoading';
-import { notFound } from 'next/navigation';
 
 interface Props {
   children: React.ReactNode;
@@ -83,7 +82,7 @@ async function RoleExecutorSharerLayoutContent({
     return children;
   } catch (error) {
     // Catch potential redirect errors specifically
-    if (error?.digest?.startsWith('NEXT_REDIRECT')) {
+    if (typeof error === 'object' && error !== null && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       // console.log('[LAYOUT DEBUG role-executor/[id]] Caught NEXT_REDIRECT, re-throwing...');
       throw error; // Re-throw to allow Next.js to handle the redirect
     }

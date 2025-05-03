@@ -1,10 +1,11 @@
 /**
  * File: app/api/invitations/find/route.ts
- * Description: API endpoint for finding an invitation by token using admin privileges
+ * Description: API endpoint for finding PENDING invitation details by token (publicly accessible).
  */
 
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/utils/supabase/admin';
+// Use the standard route handler client, not admin
+import createRouteHandlerClient from '@/utils/supabase/route-handler'; 
 
 export async function GET(request: Request) {
   try {
@@ -15,127 +16,40 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Token is required' }, { status: 400 });
     }
 
-    console.log(`[API] Finding invitation with token: ${token}`);
+    console.log(`[API /invitations/find] Finding PENDING invitation with token: ${token}`);
 
-    // Create a Supabase client with the service role key for admin operations
-    const supabase = createAdminClient();
+    // Create a standard route handler client (will operate as 'anon' if no user is logged in)
+    const supabase = await createRouteHandlerClient();
     
-    // Use direct SQL query to bypass RLS completely
-    console.log(`[API] Attempting direct SQL query for token: ${token}`);
-    const { data: invitation, error: invitationError } = await supabase
-      .rpc('find_invitation_by_token', { token_value: token });
+    // Call the new secure RPC function
+    console.log(`[API /invitations/find] Calling RPC get_pending_invitation_details_by_token for token: ${token}`);
+    const { data: result, error: rpcError } = await supabase
+      .rpc('get_pending_invitation_details_by_token', { token_value: token });
 
-    if (invitationError || !invitation?.invitation) {
-      console.log(`[API] Error finding invitation with direct SQL: ${invitationError?.message || 'No invitation found'}`);
-      
-      // Try case insensitive match as fallback
-      console.log(`[API] Attempting case insensitive SQL match for token: ${token}`);
-      const { data: caseInsensitiveResult, error: caseInsensitiveError } = await supabase
-        .rpc('find_invitation_by_token_case_insensitive', { token_value: token });
-
-      if (caseInsensitiveError || !caseInsensitiveResult?.invitation) {
-        console.log(`[API] Error finding invitation with case insensitive SQL: ${caseInsensitiveError?.message || 'No invitation found'}`);
-        return NextResponse.json({ 
-          error: 'Failed to find invitation', 
-          details: caseInsensitiveError || 'No invitation found with this token' 
-        }, { status: 404 });
-      }
-
-      const matchedInvitation = caseInsensitiveResult.invitation;
-      console.log(`[API] Found invitation with case insensitive SQL match: ${matchedInvitation.id}`);
-      
-      // Get sharer information
-      const { data: sharer, error: sharerError } = await supabase
-        .from('ProfileSharer')
-        .select(`
-          id,
-          Profile (
-            id,
-            firstName,
-            lastName,
-            fullName,
-            email
-          )
-        `)
-        .eq('id', matchedInvitation.sharerId)
-        .single();
-
-      if (sharerError) {
-        console.log(`[API] Error finding sharer: ${sharerError.message}`);
-        return NextResponse.json({ 
-          invitation: matchedInvitation,
-          error: 'Failed to find sharer information',
-          details: sharerError
-        });
-      }
-
-      // Extract profile data from the nested structure
-      const sharerProfile = sharer.Profile;
-
-      // Ensure executor information is included in the response
-      const invitationWithExecutorInfo = {
-        ...matchedInvitation,
-        executorFirstName: matchedInvitation.executorFirstName || null,
-        executorLastName: matchedInvitation.executorLastName || null,
-        executorPhone: matchedInvitation.executorPhone || null,
-        executorRelation: matchedInvitation.executorRelation || null
-      };
-
+    if (rpcError) {
+      console.error(`[API /invitations/find] RPC error finding invitation: ${rpcError.message}`);
       return NextResponse.json({ 
-        invitation: invitationWithExecutorInfo,
-        sharer: sharerProfile
-      });
+        error: 'Failed to query invitation', 
+        details: rpcError.message 
+      }, { status: 500 });
     }
 
-    const foundInvitation = invitation.invitation;
-    console.log(`[API] Found invitation with direct SQL: ${foundInvitation.id}`);
-    
-    // Get sharer information
-    const { data: sharer, error: sharerError } = await supabase
-      .from('ProfileSharer')
-      .select(`
-        id,
-        Profile (
-          id,
-          firstName,
-          lastName,
-          fullName,
-          email
-        )
-      `)
-      .eq('id', foundInvitation.sharerId)
-      .single();
-
-    if (sharerError) {
-      console.log(`[API] Error finding sharer: ${sharerError.message}`);
+    if (!result || !result.invitation) {
+      console.log(`[API /invitations/find] No PENDING invitation found for token: ${token}`);
       return NextResponse.json({ 
-        invitation: foundInvitation,
-        error: 'Failed to find sharer information',
-        details: sharerError
-      });
+        error: 'Invitation not found or already processed'
+      }, { status: 404 });
     }
 
-    // Extract profile data from the nested structure
-    const sharerProfile = sharer.Profile;
+    console.log(`[API /invitations/find] Successfully found PENDING invitation: ${result.invitation.id}`);
+    // The RPC function already structures the data with 'invitation' and 'sharer' keys
+    return NextResponse.json(result);
 
-    // Ensure executor information is included in the response
-    const invitationWithExecutorInfo = {
-      ...foundInvitation,
-      executorFirstName: foundInvitation.executorFirstName || null,
-      executorLastName: foundInvitation.executorLastName || null,
-      executorPhone: foundInvitation.executorPhone || null,
-      executorRelation: foundInvitation.executorRelation || null
-    };
-
+  } catch (error: any) {
+    console.error('[API /invitations/find] Unexpected error:', error);
     return NextResponse.json({ 
-      invitation: invitationWithExecutorInfo,
-      sharer: sharerProfile
-    });
-  } catch (error) {
-    console.error('[API] Unexpected error finding invitation:', error);
-    return NextResponse.json({ 
-      error: 'Failed to find invitation', 
-      details: error 
+      error: 'Internal server error', 
+      details: error.message 
     }, { status: 500 });
   }
 } 

@@ -8,8 +8,8 @@ export default function Logo() {
         <Image
           src="/images/Telloom-Logo-V1-Horizontal-Green.png"
           alt="Telloom Logo"
-          width={160}
-          height={40}
+          width={104}
+          height={26}
           priority={true}
           quality={100}
           style={{

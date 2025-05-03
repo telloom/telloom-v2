@@ -1,11 +1,11 @@
 /**
  * File: components/executor/connections/ExecutorInviteModal.tsx
- * Description: Modal component for executors to send invitations on behalf of a sharer
+ * Description: Modal component for Executors to invite Listeners or other Executors on behalf of a Sharer.
  */
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Loader2, UserPlus } from 'lucide-react';
+import { Loader2, UserPlus, AlertCircle } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -71,17 +71,20 @@ interface ExecutorInviteModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sharerId: string;
-  sharerName: string;
 }
 
 export default function ExecutorInviteModal({ 
   open, 
   onOpenChange, 
-  sharerId,
-  sharerName 
+  sharerId, 
 }: ExecutorInviteModalProps) {
-  const [activeTab, setActiveTab] = useState<'LISTENER' | 'EXECUTOR'>('LISTENER');
+  const [activeTab, setActiveTab] = useState<"listener" | "executor">("listener");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [fetchedSharerName, setFetchedSharerName] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const supabase = createClient();
 
   const listenerForm = useForm<ListenerFormValues>({
     resolver: zodResolver(listenerFormSchema),
@@ -101,88 +104,152 @@ export default function ExecutorInviteModal({
     },
   });
 
+  useEffect(() => {
+    listenerForm.reset();
+    executorForm.reset();
+    setSubmissionError(null);
+  }, [activeTab, listenerForm, executorForm]);
+
+  useEffect(() => {
+    async function getSharerName() {
+      if (!sharerId) return;
+
+      console.log(`[ExecutorInviteModal] Fetching sharer name for ID: ${sharerId}`);
+      setFetchError(null);
+      setFetchedSharerName(null);
+
+      try {
+        const { data: sharerDetailsData, error } = await supabase
+          .rpc('get_sharer_details_for_executor', { p_sharer_id: sharerId })
+          .maybeSingle();
+
+        if (error) {
+          throw error;
+        }
+
+        if (sharerDetailsData) {
+          const name = `${sharerDetailsData.profile_first_name || ''} ${sharerDetailsData.profile_last_name || ''}`.trim();
+          setFetchedSharerName(name || 'the Sharer');
+          console.log(`[ExecutorInviteModal] Fetched sharer name: ${name}`);
+        } else {
+          console.warn(`[ExecutorInviteModal] No profile found for sharerId: ${sharerId}`);
+          setFetchedSharerName('the Sharer');
+          setFetchError(`Could not find Sharer profile.`);
+        }
+      } catch (error: any) {
+        console.error('[ExecutorInviteModal] Error fetching sharer name:', error);
+        setFetchError('Failed to load Sharer details.');
+        setFetchedSharerName('the Sharer');
+      }
+    }
+
+    if (open && sharerId) {
+      getSharerName();
+    }
+  }, [open, sharerId, supabase]);
+
   const onSubmit = async (values: ListenerFormValues | ExecutorFormValues) => {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      toast.error('Authentication error. Please log in again.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmissionError(null);
+
+    const role = activeTab.toUpperCase() as 'LISTENER' | 'EXECUTOR';
+    const email = values.email;
+
+    if (!role) {
+        toast.error('Role not selected. Please select Listener or Executor.');
+        setIsSubmitting(false);
+        return;
+    }
+
     try {
-      setIsSubmitting(true);
-      const supabase = createClient();
-
-      // Get current user (executor) details
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { data: executor, error: executorError } = await supabase
-        .from('Profile')
-        .select('firstName, lastName')
-        .eq('id', user.id)
-        .single();
-
-      if (executorError || !executor) {
-        console.error('Error fetching executor:', executorError);
-        throw new Error('Failed to fetch executor details');
-      }
-
-      // Generate invitation token
-      const token = crypto.randomUUID();
-
-      // Create invitation
-      const { data: invitation, error: inviteError } = await supabase
-        .from('Invitation')
-        .insert([{
-          token,
-          sharerId,
-          inviterId: user.id,
-          inviteeEmail: values.email,
-          role: activeTab,
-          status: 'PENDING',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          ...(activeTab === 'EXECUTOR' && {
-            executorFirstName: (values as ExecutorFormValues).firstName,
-            executorLastName: (values as ExecutorFormValues).lastName,
-            executorRelation: (values as ExecutorFormValues).relation,
-            executorPhone: (values as ExecutorFormValues).phone,
-          }),
-        }])
-        .select()
-        .single();
-
-      if (inviteError) {
-        console.error('Error creating invitation:', inviteError);
-        throw new Error('Failed to create invitation');
-      }
-
-      // Send invitation email using the same endpoint as sharers
-      const response = await fetch('/api/invitations/send-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          invitationId: invitation.id,
+      const invitationData = {
+        p_sharer_id: sharerId,
+        p_invitee_email: email,
+        p_role: role,
+        ...(role === 'EXECUTOR' && {
+          p_executor_first_name: (values as ExecutorFormValues).firstName,
+          p_executor_last_name: (values as ExecutorFormValues).lastName,
+          p_executor_relation: (values as ExecutorFormValues).relation,
+          p_executor_phone: (values as ExecutorFormValues).phone,
         }),
-      });
+      };
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to send invitation');
-      }
+      console.log('Calling executor_create_invitation_safe with:', invitationData);
 
-      toast.success('Invitation sent successfully');
-      
-      // Reset the appropriate form
-      if (activeTab === 'LISTENER') {
-        listenerForm.reset();
+      const { data, error } = await supabase.rpc(
+        'executor_create_invitation_safe', 
+        invitationData
+      );
+
+      if (error) {
+        console.error('Error response from executor_create_invitation_safe:', error);
+        if (error.message.includes('An invitation already exists')) {
+            setSubmissionError('An invitation already exists for this email and role for this sharer.');
+        } else {
+            throw new Error(error.message || 'Failed to send invitation.');
+        }
+      } else if (data && data.error) {
+         console.error('Error payload from executor_create_invitation_safe:', data.error);
+         setSubmissionError(data.error.message || data.error || 'An unexpected error occurred.');
+      } else if (data) {
+        console.log('Invitation created via RPC:', data);
+        const invitationId = data.id;
+
+        if (!invitationId) {
+          throw new Error('RPC succeeded but did not return an invitation ID.');
+        }
+
+        try {
+          console.log(`Attempting to send email for invitation ID: ${invitationId}`);
+          const emailResponse = await fetch('/api/invitations/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ invitationId: invitationId }), 
+          });
+
+          if (!emailResponse.ok) {
+              const emailError = await emailResponse.json();
+              console.error('Error sending invitation email:', emailError);
+              toast.warning(`Invitation created, but failed to send email: ${emailError.message || 'Unknown error'}`);
+          } else {
+              console.log('Invitation email sent successfully.');
+              toast.success(`Invitation sent successfully to ${email} as ${role}.`);
+          }
+        } catch (emailErr: any) {
+            console.error('Error calling email sending API:', emailErr);
+            toast.warning(`Invitation created, but failed to send email: ${emailErr.message || 'Network error'}`);
+        }
+
+        if (role === 'LISTENER') {
+          listenerForm.reset();
+        } else {
+          executorForm.reset();
+        }
+        onOpenChange(false);
       } else {
-        executorForm.reset();
+         console.error('Unexpected null response from executor_create_invitation_safe');
+         throw new Error('Received an unexpected response from the server.');
       }
-      
-      onOpenChange(false);
-    } catch (error) {
-      console.error('Error sending invitation:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to send invitation');
+
+    } catch (err: any) {
+      console.error('Error sending invitation:', err);
+      setSubmissionError(err.message || 'An unexpected error occurred. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const getDialogTitle = () => {
+    if (fetchError) return `Invite someone on behalf of the Sharer`;
+    if (!fetchedSharerName) return `Loading Sharer details...`;
+    return `Invite someone on behalf of ${fetchedSharerName}`;
   };
 
   return (
@@ -193,7 +260,7 @@ export default function ExecutorInviteModal({
             <div className="flex items-center gap-2 mb-2">
               <UserPlus className="h-5 w-5" />
               <DialogTitle className="text-2xl font-semibold">
-                Invite on behalf of {sharerName}
+                {getDialogTitle()}
               </DialogTitle>
             </div>
             <DialogDescription className="text-muted-foreground">
@@ -202,13 +269,13 @@ export default function ExecutorInviteModal({
           </DialogHeader>
 
           <div className="mt-6">
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'LISTENER' | 'EXECUTOR')}>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'listener' | 'executor')}>
               <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="LISTENER">Invite Listener</TabsTrigger>
-                <TabsTrigger value="EXECUTOR">Invite Executor</TabsTrigger>
+                <TabsTrigger value="listener">Invite Listener</TabsTrigger>
+                <TabsTrigger value="executor">Invite Executor</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="LISTENER">
+              <TabsContent value="listener">
                 <Form {...listenerForm}>
                   <form onSubmit={listenerForm.handleSubmit(onSubmit)} className="space-y-4">
                     <FormField
@@ -248,7 +315,7 @@ export default function ExecutorInviteModal({
                 </Form>
               </TabsContent>
 
-              <TabsContent value="EXECUTOR">
+              <TabsContent value="executor">
                 <Form {...executorForm}>
                   <form onSubmit={executorForm.handleSubmit(onSubmit)} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -331,7 +398,7 @@ export default function ExecutorInviteModal({
                         name="relation"
                         render={({ field }) => (
                           <FormItem className="col-span-2">
-                            <FormLabel>Relation to {sharerName}</FormLabel>
+                            <FormLabel>Relation to {fetchedSharerName || 'Sharer'}</FormLabel>
                             <Select 
                               onValueChange={field.onChange} 
                               value={field.value}

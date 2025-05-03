@@ -114,8 +114,10 @@ export default function AcceptInvitationForm({
 
         if (signUpError) {
           // Handle specific error cases
-          if (signUpError.message.includes('already registered')) {
-            toast.error('This email is already registered. Please sign in instead.');
+          if (signUpError.message.includes('already registered') || signUpError.message.includes('User already registered')) {
+            toast.error('This email is already registered. Please sign in to accept the invitation.');
+            setIsLoading(false);
+            return;
           } else {
             console.error('Sign up error:', signUpError);
             toast.error(signUpError.message || 'Failed to sign up');
