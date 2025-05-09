@@ -30,12 +30,10 @@ interface TopicCardProps {
   onClick?: () => void;
   onFavoriteClick?: (e: React.MouseEvent) => void;
   onQueueClick?: (e: React.MouseEvent) => void;
-  currentRole?: 'SHARER' | 'EXECUTOR';
+  // Accept LISTENER role now
+  currentRole?: 'SHARER' | 'EXECUTOR' | 'LISTENER'; 
   relationshipId?: string;
   sharerId?: string;
-  // Remove direct count props if they are now part of promptCategory
-  // completedPromptCount?: number;
-  // totalPromptCount?: number;
 }
 
 export default function TopicCard({ 
@@ -62,8 +60,11 @@ export default function TopicCard({
 
   const progressValue = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
+  // Determine if the card should be interactive based on role
+  const isListener = currentRole === 'LISTENER';
+
   useEffect(() => {
-    // console.log(`[TOPICCARD] Rendering card for: ${promptCategory.category}`);
+    // console.log(`[TOPICCARD] Rendering card for: ${promptCategory.category} | Role: ${currentRole}`);
     // console.log(`[TOPICCARD] Card has favorite: ${promptCategory.isFavorite}`);
     // console.log(`[TOPICCARD] Card has queue: ${promptCategory.isInQueue}`);
     // console.log(`[TOPICCARD] Current role: ${currentRole} sharerId: ${sharerId}`);
@@ -79,46 +80,53 @@ export default function TopicCard({
     e.preventDefault();
     e.stopPropagation();
     
+    // Listeners cannot navigate to the topic page from the card
+    if (isListener) {
+      console.log("[TOPICCARD] Listener click ignored for navigation.");
+      // Optionally open the prompt list instead?
+      // setIsPromptListOpen(true);
+      return;
+    }
+    
     const topicId = promptCategory.id;
     // console.log(`[TOPICCARD] Attempting navigation: {currentRole: ${currentRole}, sharerId: ${sharerId}, topicId: ${topicId}}`);
 
-    if (!sharerId) {
-      // console.error(`[TOPICCARD] Navigation failed: sharerId is missing.`);
-      // Optionally, show a toast or error message to the user
-      return; // Prevent navigation without sharerId
+    if (!sharerId && currentRole === 'EXECUTOR') {
+      console.error(`[TOPICCARD] Navigation failed: sharerId is missing for EXECUTOR.`);
+      return;
     }
 
     if (!topicId) {
-      // console.error(`[TOPICCARD] Navigation failed: topicId is missing.`);
-      // Optionally, show a toast or error message to the user
-      return; // Prevent navigation without topicId
+      console.error(`[TOPICCARD] Navigation failed: topicId is missing.`);
+      return;
     }
 
     let path = '';
     if (currentRole === 'EXECUTOR') {
-      // Ensure sharerId exists for executor route
-      if (!sharerId) {
-        // console.error(`[TOPICCARD] Navigation failed: sharerId is missing for EXECUTOR role.`);
-        return;
-      }
       path = `/role-executor/${sharerId}/topics/${topicId}`;
     } else if (currentRole === 'SHARER') {
-      // Correct path for SHARER role - does not need sharerId in URL
       path = `/role-sharer/topics/${topicId}`;
     } else {
-      // console.warn(`[TOPICCARD] Navigation failed: Unknown currentRole: ${currentRole}`);
-      return; // Don't navigate if role is unexpected
+      console.warn(`[TOPICCARD] Navigation failed: Unknown currentRole: ${currentRole}`);
+      return;
     }
     
     // console.log(`[TOPICCARD] Navigating to: ${path}`);
     router.push(path);
   };
 
+  // Determine onClick handler for the card itself
+  const cardClickHandler = isListener ? undefined : (onClick || handleNavigate);
+
   return (
     <>
       <Card 
-        className="w-full min-h-[150px] border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 relative flex flex-col rounded-2xl"
-        onClick={onClick || handleNavigate}
+        className={cn(
+          "w-full min-h-[150px] border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] transition-all duration-300 relative flex flex-col rounded-2xl",
+          !isListener && "hover:shadow-[8px_8px_0_0_#8fbc55]", // Only apply hover shadow if not listener
+          isListener ? "cursor-default" : "cursor-pointer" // Change cursor based on role
+        )}
+        onClick={cardClickHandler} // Use determined handler
       >
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start gap-2">
@@ -141,7 +149,9 @@ export default function TopicCard({
         </CardHeader>
         <CardContent className="pt-0 mt-auto">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1">
+            {/* Left side controls: Now ENABLED for Listener */}
+            <div className={cn("flex items-center gap-1")} >
+              {/* Favorite Button */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -150,8 +160,10 @@ export default function TopicCard({
                       size="icon"
                       onClick={(e) => {
                         e.stopPropagation();
+                        // No need to check isListener here, allow click
                         onFavoriteClick && onFavoriteClick(e);
                       }}
+                      // Removed disabled={isListener}
                       className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
                     >
                       <svg 
@@ -172,12 +184,14 @@ export default function TopicCard({
                       </svg>
                     </Button>
                   </TooltipTrigger>
+                  {/* Removed !isListener condition */}
                   <TooltipContent>
-                    <p>{promptCategory.isFavorite ? "Remove from favorites" : "Add to favorites"}</p>
+                    <p>{promptCategory.isFavorite ? "Remove from my favorites" : "Add to my favorites"}</p> {/* Adjusted tooltip text */}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
 
+              {/* Queue Button */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -186,8 +200,10 @@ export default function TopicCard({
                       size="icon"
                       onClick={(e) => {
                         e.stopPropagation();
+                        // No need to check isListener here, allow click
                         onQueueClick && onQueueClick(e);
                       }}
+                      // Removed disabled={isListener}
                       className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
                     >
                       <svg 
@@ -209,14 +225,17 @@ export default function TopicCard({
                       </svg>
                     </Button>
                   </TooltipTrigger>
+                  {/* Removed !isListener condition */}
                   <TooltipContent>
-                    <p>{promptCategory.isInQueue ? "Remove from queue" : "Add to queue"}</p>
+                    <p>{promptCategory.isInQueue ? "Remove from my queue" : "Add to my queue"}</p> {/* Adjusted tooltip text */}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
 
+            {/* Right side controls: Keep View Prompts, keep Go To Topic hidden for listener */}
             <div className="flex items-center gap-2">
+              {/* View Prompts Button */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -253,46 +272,51 @@ export default function TopicCard({
                 </Tooltip>
               </TooltipProvider>
 
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleNavigate}
-                      className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
-                    >
-                      <svg 
-                        className="w-[20px] h-[20px] md:w-[22px] md:h-[22px] text-[#1B4332] hover:text-[#8fbc55] transition-colors"
-                        viewBox="0 0 24 24" 
-                        fill="none" 
-                        stroke="currentColor" 
-                        strokeWidth="4" 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round"
+              {/* Go to Topic/Record Button - Still HIDDEN for Listener */}
+              {!isListener && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleNavigate} // Only Sharer/Executor navigate
+                        className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
                       >
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                        <polyline points="12 5 19 12 12 19"></polyline>
-                      </svg>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{currentRole === 'EXECUTOR' ? 'View topic' : 'Start recording'}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+                        <svg 
+                          className="w-[20px] h-[20px] md:w-[22px] md:h-[22px] text-[#1B4332] hover:text-[#8fbc55] transition-colors"
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          strokeWidth="4" 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round"
+                        >
+                          <line x1="5" y1="12" x2="19" y2="12"></line>
+                          <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {/* Tooltip differs based on role */}
+                      <p>{currentRole === 'EXECUTOR' ? 'View topic' : 'Start recording'}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Keep the popup rendering logic, ensuring sharerId is passed */}
+      {/* PromptListPopup remains functional for all roles */}
       {isPromptListOpen && (
         <PromptListPopup
           promptCategory={promptCategory}
           sharerId={sharerId}
           isOpen={isPromptListOpen}
           onClose={() => setIsPromptListOpen(false)}
+          currentRole={currentRole} // Pass currentRole to the popup
         />
       )}
     </>

@@ -17,6 +17,7 @@ interface TopicsTableFiltersProps {
   activeFilters: ViewFilter[];
   onFilterChange: (filter: ViewFilter) => void;
   onResetFilters: () => void;
+  showHasResponses?: boolean;
 }
 
 const FilterButton = ({ 
@@ -58,7 +59,8 @@ export default function TopicsTableFilters({
   themes,
   activeFilters,
   onFilterChange,
-  onResetFilters
+  onResetFilters,
+  showHasResponses = true,
 }: TopicsTableFiltersProps) {
   return (
     <div className="flex flex-wrap gap-x-1.5 gap-y-2 items-center">
@@ -76,13 +78,15 @@ export default function TopicsTableFilters({
         isActive={activeFilters.includes('queue')}
         onClick={onFilterChange}
       />
-      <FilterButton
-        filter="has-responses"
-        label="Has Responses"
-        icon={MessageSquare}
-        isActive={activeFilters.includes('has-responses')}
-        onClick={onFilterChange}
-      />
+      {showHasResponses && (
+        <FilterButton
+          filter="has-responses"
+          label="Has Responses"
+          icon={MessageSquare}
+          isActive={activeFilters.includes('has-responses')}
+          onClick={onFilterChange}
+        />
+      )}
 
       {(activeFilters.length > 0 || searchQuery || statusFilter !== 'all' || themeFilter !== 'all') && (
         <Button

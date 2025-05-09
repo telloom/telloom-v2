@@ -101,15 +101,30 @@ function TopicsTableAllClientComponent({
     setExecutorTopicsView 
   } = useViewPreferences();
   
-  // Compute current view mode from store
-  const currentViewMode = currentRole === 'SHARER' ? sharerTopicsView : executorTopicsView;
+  // Local state for view mode, default to 'grid' (or match server default)
+  const [currentViewMode, setCurrentViewMode] = useState<'grid' | 'table'>('grid');
+  const [isMounted, setIsMounted] = useState(false); // Track mount state
+
+  useEffect(() => {
+    setIsMounted(true); // Component has mounted
+  }, []);
+
+  useEffect(() => {
+    // Only update from store/localStorage AFTER mount
+    if (isMounted) {
+      const preferredView = currentRole === 'SHARER' ? sharerTopicsView : executorTopicsView;
+      setCurrentViewMode(preferredView);
+    }
+  }, [isMounted, currentRole, sharerTopicsView, executorTopicsView]); // Depend on mount state and store values
 
   const handleViewModeChange = useCallback((mode: 'grid' | 'table') => {
+    // Update the Zustand store (which updates localStorage)
     if (currentRole === 'SHARER') {
       setSharerTopicsView(mode);
     } else {
       setExecutorTopicsView(mode);
     }
+    // No need to update local state directly here, the useEffect above will catch the change
   }, [currentRole, setSharerTopicsView, setExecutorTopicsView]);
 
   const toggleFavorite = useCallback(async (categoryId: string) => {

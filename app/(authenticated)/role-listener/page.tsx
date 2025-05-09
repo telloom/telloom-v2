@@ -2,87 +2,143 @@ import { createClient } from '@/utils/supabase/server';
 import { RequestFollowFormWrapper } from '@/components/listener/RequestFollowFormWrapper';
 import PendingFollowRequests from '@/components/listener/PendingFollowRequests';
 import { redirect } from 'next/navigation';
+import ListenerSharingCard from '@/components/listener/ListenerSharingCard';
+import { getSignedAvatarUrl } from '@/utils/avatar';
+
+// Define the expected structure for a pending request item
+// Adjust types (e.g., string/number for id) if they differ in your schema
+// This should ideally match the props definition in PendingFollowRequests component
+interface PendingRequest {
+  id: string;
+  status: string;
+  createdAt: string;
+  sharer: {
+    id: string;
+    profile: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      avatarUrl: string | null;
+    };
+  } | null; // Allow null if data is incomplete/missing due to RLS or joins
+}
+
+// Define structure for listener relationship, including sharer details
+interface ListenerRelationship {
+  id: string;
+  listenerId: string;
+  sharerId: string; // This is ProfileSharer.id
+  hasAccess: boolean;
+  sharedSince: string;
+  createdAt: string;
+  updatedAt: string;
+  sharer: { // Added Sharer details
+    id: string; // ProfileSharer.id
+    profileId: string; // Profile.id of the Sharer
+    profile: {
+      id: string; // Profile.id
+      firstName: string;
+      lastName: string;
+      email: string;
+      avatarUrl: string | null;
+    };
+  };
+}
 
 export default async function RoleListenerPage() {
   try {
     const supabase = await createClient();
-    
+
     // Check if user is authenticated
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-    // Check if user has any listener relationships
-    const { data: listenerRelationships, error: relationshipsError } = await supabase
-      .from('ProfileListener')
-      .select('*')
-      .eq('listenerId', user.id)
-      .eq('hasAccess', true);
-
-    // Fetch pending follow requests
-    const { data: pendingRequests, error: requestsError } = await supabase
-      .from('FollowRequest')
-      .select(`
-        id,
-        status,
-        createdAt,
-        sharer:ProfileSharer!sharerId (
-          id,
-          profile:Profile!profileId (
-            firstName,
-            lastName,
-            email,
-            avatarUrl
-          )
-        )
-      `)
-      .eq('requestorId', user.id)
-      .eq('status', 'PENDING')
-      .order('createdAt', { ascending: false });
-
-    if (relationshipsError) {
-      console.error('Error fetching listener relationships:', relationshipsError);
+    if (userError || !user) {
+      console.error('Authentication error or user not found:', userError);
+      return redirect('/login');
     }
 
-    if (requestsError) {
-      console.error('Error fetching pending requests:', requestsError);
+    // Fetch listener relationships and pending requests using the RPC function
+    const { data: pageData, error: rpcError } = await supabase
+      .rpc('get_listener_page_data', { p_user_id: user.id });
+
+    if (rpcError) {
+      console.error('Error fetching listener page data via RPC:', rpcError.message);
+      // Consider rendering an error state here
+    }
+
+    // Extract data safely, providing empty arrays as defaults
+    const listenerRelationships: ListenerRelationship[] = pageData?.listenerRelationships ?? [];
+    const pendingRequests: PendingRequest[] = pageData?.pendingRequests ?? [];
+
+    // Process avatar URLs to get signed URLs (Similar to role-executor/page.tsx)
+    for (const relationship of listenerRelationships) {
+      if (relationship.sharer.profile.avatarUrl) {
+        relationship.sharer.profile.avatarUrl = await getSignedAvatarUrl(
+          relationship.sharer.profile.avatarUrl
+        );
+      }
+    }
+
+    // Also process pending request avatar URLs if needed by PendingFollowRequests component
+    // (Assuming PendingFollowRequests might use avatars too)
+    for (const request of pendingRequests) {
+      if (request.sharer?.profile.avatarUrl) {
+        request.sharer.profile.avatarUrl = await getSignedAvatarUrl(
+          request.sharer.profile.avatarUrl
+        );
+      }
     }
 
     return (
       <div className="flex h-full">
         <div className="container max-w-4xl mx-auto px-4 pt-6">
-          {(!listenerRelationships || listenerRelationships.length === 0) ? (
+          {/* State 1: No Connections/Pending Requests */}
+          {listenerRelationships.length === 0 && pendingRequests.length === 0 && (
             <div className="max-w-lg mx-auto">
               <h1 className="text-2xl font-bold text-center mb-3 text-black">
                 Connect with a Sharer
               </h1>
               <p className="text-center text-muted-foreground mb-4">
-                Enter their email address below to send a follow request.
+                Enter the email address of the person whose stories you'd like to follow to send a request.
               </p>
               <RequestFollowFormWrapper />
-              
-              {pendingRequests && pendingRequests.length > 0 && (
-                <div className="mt-4">
-                  <PendingFollowRequests requests={pendingRequests} />
-                </div>
-              )}
             </div>
-          ) : (
+          )}
+
+          {/* Always show pending requests if they exist */}
+          {pendingRequests.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-xl font-semibold mb-3 text-black">Pending Requests</h2>
+              <PendingFollowRequests requests={pendingRequests} />
+            </div>
+          )}
+
+          {/* State 2: Has Connections - Show Sharer list */}
+          {listenerRelationships.length > 0 && (
             <div>
-              <h1 className="text-2xl font-bold text-center mb-4 text-black">
-                Your Sharers
+              <h1 className="text-2xl font-bold mb-1 text-black">
+                Select a Sharer
               </h1>
-              {pendingRequests && pendingRequests.length > 0 && (
-                <div className="mb-4">
-                  <PendingFollowRequests requests={pendingRequests} />
-                </div>
-              )}
-              {/* We'll add the content for viewing sharers here later */}
+              <p className="text-muted-foreground mb-4">
+                Choose an individual to dive into their stories, family history, and perspectives through video interviews, photos, and succinct write‑ups—all neatly organized for effortless viewing.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {listenerRelationships.map(relationship => (
+                  <ListenerSharingCard
+                    key={relationship.id} // Use ProfileListener.id as key
+                    listenerRelationship={relationship}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>
       </div>
     );
   } catch (error) {
-    console.error('Error in RoleListenerPage:', error);
-    return redirect('/login');
+    // Catch any unexpected errors during component execution
+    console.error('Unexpected error in RoleListenerPage:', error);
+    // Redirect to login or an error page as a fallback
+    return redirect('/login?error=unexpected');
   }
 }

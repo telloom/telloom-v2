@@ -952,3 +952,7 @@ try {
 
 - **RPC Functions for Complex Queries:**
   Use RPC functions with `SECURITY DEFINER` for complex relationship queries to bypass RLS safely while maintaining security boundaries.
+
+## SQL Function Storage
+
+When using MCP to create or modify SQL functions, ensure the full SQL definition is saved to a file in the `supabase/mcp_functions/` directory. Name the file descriptively, e.g., `get_listener_topic_prompts_and_responses.sql`.
