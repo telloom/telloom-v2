@@ -16,15 +16,15 @@ import styles from './UploadInterface.module.css';
 interface TopicVideoUploaderProps {
   promptCategoryId: string;
   onUploadSuccess?: (playbackId: string) => Promise<void>;
-  categoryName?: string;
   targetSharerId?: string;
+  categoryName: string;
 }
 
 export function TopicVideoUploader({
   promptCategoryId,
   onUploadSuccess,
-  categoryName,
-  targetSharerId
+  targetSharerId,
+  categoryName
 }: TopicVideoUploaderProps) {
   const supabase = createClient();
   const [isUploading, setIsUploading] = useState(false);
@@ -38,16 +38,6 @@ export function TopicVideoUploader({
   const uploadLock = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const hasStartedUpload = useRef(false);
-
-  const handleVideoReady = useCallback((playbackId: string) => {
-    setProcessingState('ready');
-    setMuxPlaybackId(playbackId);
-    setExistingVideo(null);
-    toast.success('Video uploaded successfully');
-    if (onUploadSuccess) {
-      onUploadSuccess(playbackId);
-    }
-  }, [onUploadSuccess]);
 
   const handleVideoError = useCallback(() => {
     setProcessingState('error');
@@ -289,7 +279,7 @@ export function TopicVideoUploader({
         }
       }
     },
-    [supabase, promptCategoryId, pollVideoStatus, handleVideoError, targetSharerId]
+    [promptCategoryId, pollVideoStatus, handleVideoError, targetSharerId]
   );
 
   const handleDrop = useCallback(
@@ -367,7 +357,7 @@ export function TopicVideoUploader({
         {processingState === 'idle' && !isUploading && !muxPlaybackId && (
           <div className="mb-4">
             <h2 className="text-lg font-normal tracking-tight">
-              Select a video file to upload
+              Select a video file to upload for &quot;{categoryName}&quot;
             </h2>
           </div>
         )}
@@ -424,8 +414,7 @@ export function TopicVideoUploader({
                   </div>
                   <div className="w-full max-w-3xl mx-auto bg-secondary rounded-full h-6 overflow-hidden">
                     <div
-                      className="h-full bg-primary rounded-full transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
+                      className={`h-full bg-primary rounded-full transition-all duration-300 w-[${uploadProgress}%]`}
                     />
                   </div>
                 </div>

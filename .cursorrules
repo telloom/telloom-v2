@@ -513,6 +513,85 @@ Remember to approach each task with analytical rigor, break down problems into s
 - Ensure keyboard navigation works
 - Use semantic HTML elements
 
+## Dynamic Styles with CSS Custom Properties
+
+When dealing with dynamic inline styles in React components that change based on JavaScript variables (e.g., progress bars, audio visualizers), prefer using CSS Custom Properties (CSS Variables) over directly manipulating the `style` attribute with JavaScript string templates for properties like `width` or `height` expressed in percentages or other units.
+
+**Rationale:**
+- **Separation of Concerns**: Keeps styling logic primarily within CSS files, making components cleaner.
+- **Performance**: Potentially better performance as the browser can optimize CSS variable changes more effectively than direct style manipulations in some cases.
+- **Maintainability**: Easier to manage and update styles from a central CSS location.
+- **Linter Compliance**: Helps avoid "no-inline-styles" linter warnings without needing to disable the rule.
+
+**Pattern:**
+
+1.  **In your component (`.tsx` file):**
+    *   Add a `useRef` to the HTML element whose style needs to be dynamic.
+    *   Use a `useEffect` hook that listens to changes in the relevant JavaScript variable(s).
+    *   Inside the `useEffect`, update the CSS custom property on the referenced element: `elementRef.current.style.setProperty('--my-dynamic-width', `${value}%`);`
+    *   Assign a dedicated CSS class to the element instead of using an inline `style` for the dynamic property.
+
+    ```typescript
+    // ExampleComponent.tsx
+    import React, { useEffect, useRef, useState } from 'react';
+    import './ExampleComponent.css'; // Or your module.css
+
+    const ExampleComponent = () => {
+      const [progress, setProgress] = useState(0);
+      const progressBarRef = useRef<HTMLDivElement>(null);
+
+      useEffect(() => {
+        if (progressBarRef.current) {
+          progressBarRef.current.style.setProperty('--progress-width', `${progress}%`);
+        }
+      }, [progress]);
+
+      // Simulate progress update
+      useEffect(() => {
+        const timer = setInterval(() => {
+          setProgress(prev => (prev >= 100 ? 0 : prev + 10));
+        }, 1000);
+        return () => clearInterval(timer);
+      }, []);
+
+      return (
+        <div className="progress-bar-container">
+          <div ref={progressBarRef} className="progress-bar-inner">
+            {progress}%
+          </div>
+        </div>
+      );
+    };
+
+    export default ExampleComponent;
+    ```
+
+2.  **In your CSS file (`.css` or `.module.css`):**
+    *   Define the style for the dedicated class, using the CSS custom property with a fallback value.
+
+    ```css
+    /* ExampleComponent.css or styles.module.css */
+    .progress-bar-container {
+      width: 100%;
+      background-color: #e0e0e0;
+      border-radius: 4px;
+      padding: 2px;
+    }
+
+    .progress-bar-inner {
+      height: 20px;
+      background-color: #4caf50; /* Or your brand color */
+      color: white;
+      text-align: center;
+      line-height: 20px;
+      border-radius: 2px;
+      transition: width 0.3s ease-in-out; /* Optional: for smooth transitions */
+      width: var(--progress-width, 0%); /* Use the CSS variable */
+    }
+    ```
+
+This approach provides a clean, maintainable, and linter-friendly way to handle dynamic styles derived from component state or props.
+
 ## Dynamic Route Parameters in Next.js Server Components
 
 When working with dynamic route parameters in Next.js server components (e.g., [id] folders), follow these rules to properly handle the params object:

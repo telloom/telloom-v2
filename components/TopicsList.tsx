@@ -5,10 +5,6 @@
 import React, { useEffect, useState } from 'react';
 import { PromptCategory } from '@/types/models';
 import TopicCard from './TopicCard';
-import Link from 'next/link';
-import { Star, ListPlus, MessageSquare, ArrowRight } from 'lucide-react';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { Navigation, A11y, Mousewheel } from 'swiper/modules';
 import { useRouter } from 'next/navigation';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { createClient } from '@/utils/supabase/client';
@@ -17,140 +13,92 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { useCurrentRole } from '@/hooks/useCurrentRole';
 
-// Import Swiper styles
-import 'swiper/css';
-import 'swiper/css/navigation';
-import 'swiper/css/mousewheel';
-import 'swiper/css/bundle';
-import { useWindowSize } from '@/hooks/useWindowSize';
-
 export default function TopicsList({ promptCategories: initialPromptCategories }: { promptCategories: PromptCategory[] }) {
   const isDesktop = useMediaQuery('(min-width: 768px)');
   const [promptCategories, setPromptCategories] = useState<PromptCategory[]>(initialPromptCategories || []);
   const router = useRouter();
   const supabase = createClient();
   
-  // Add fallback for when useCurrentRole returns null
-  const currentRoleInfo = useCurrentRole();
-  const role = currentRoleInfo?.role || 'SHARER'; // Default to SHARER
-  const relationshipId = currentRoleInfo?.relationshipId;
-  
-  // Track sharerId separately with a local state
-  const [effectiveSharerId, setEffectiveSharerId] = useState<string | undefined>(
-    currentRoleInfo?.sharerId
-  );
-  
-  // Function to fetch favorites and queue items safely via RPC
-  const fetchUserTopicRelations = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+  const roleStringFromHook = useCurrentRole(); // Assume this returns 'SHARER' | 'EXECUTOR' | 'LISTENER' | null
 
-      console.log('[TOPICSLIST] Fetching favorites and queue items via RPC');
-      
-      // Use the emergency role function to get role info
-      const { data: roleInfo, error: roleError } = await supabase.rpc(
-        'get_user_role_emergency',
-        { user_id: user.id }
-      );
-      
-      if (roleError) {
-        console.error('[TOPICSLIST] Error getting role info:', roleError);
-        return;
-      }
-      
-      console.log('[TOPICSLIST] Got role info:', roleInfo);
-      setEffectiveSharerId(roleInfo?.sharerId);
+  // State for role details, populated by RPC
+  const [role, setRole] = useState<'SHARER' | 'EXECUTOR' | 'LISTENER'>(roleStringFromHook || 'SHARER');
+  const [relationshipId, setRelationshipId] = useState<string | undefined>();
+  const [effectiveSharerId, setEffectiveSharerId] = useState<string | undefined>();
+  
+  // Function to fetch favorites, queue items, AND role details
+  useEffect(() => {
+    const fetchUserTopicRelationsAndRole = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setRole(roleStringFromHook || 'SHARER'); 
+          setEffectiveSharerId(undefined);
+          setRelationshipId(undefined);
+          setPromptCategories(prev => prev.map(cat => ({ ...cat, isFavorite: false, isInQueue: false })));
+          return;
+        }
 
-      // Use rpc function to get topic relations instead of direct table access
-      // This should avoid infinite recursion in RLS policies
-      const { data: relations, error: relationsError } = await supabase.rpc(
-        'get_topic_relations',
-        { profile_id: user.id }
-      );
-      
-      if (relationsError) {
-        console.error('[TOPICSLIST] Error fetching topic relations via RPC:', relationsError);
-        // Try fallback approach with minimal queries
-        try {
-          console.log('[TOPICSLIST] Using fallback approach with admin client');
-          
-          // Update categories with dummy values for now
-          // The functionality will work when adding/removing favorites or queue items
+        console.log('[TOPICSLIST] Fetching role details and topic relations via RPC for user:', user.id);
+        
+        const { data: rpcRoleInfo, error: roleError } = await supabase.rpc(
+          'get_user_role_emergency',
+          { user_id: user.id } 
+        );
+        
+        if (roleError) {
+          console.error('[TOPICSLIST] Error getting role info from RPC:', roleError);
+          setRole(roleStringFromHook || 'SHARER');
+        } else if (rpcRoleInfo) {
+          console.log('[TOPICSLIST] Got role info from RPC:', rpcRoleInfo);
+          // Adjust property names if your RPC returns them differently:
+          setRole(rpcRoleInfo.role || (roleStringFromHook || 'SHARER')); 
+          setEffectiveSharerId(rpcRoleInfo.sharer_id); 
+          setRelationshipId(rpcRoleInfo.relationship_id); 
+        }
+
+        const { data: relations, error: relationsError } = await supabase.rpc(
+          'get_topic_relations',
+          { profile_id: user.id }
+        );
+        
+        if (relationsError) {
+          console.error('[TOPICSLIST] Error fetching topic relations via RPC:', relationsError);
+          setPromptCategories(prev => prev.map(cat => ({ ...cat, isFavorite: false, isInQueue: false })));
+          return;
+        }
+        
+        if (relations) {
+          console.log('[TOPICSLIST] Got topic relations from RPC:', relations);
+          const favoriteIds = new Set(relations.favorites || []);
+          const queuedIds = new Set(relations.queue_items || []);
           setPromptCategories(prev => prev.map(cat => ({
             ...cat,
-            isFavorite: false,
-            isInQueue: false
+            isFavorite: favoriteIds.has(cat.id),
+            isInQueue: queuedIds.has(cat.id)
           })));
-        } catch (fallbackError) {
-          console.error('[TOPICSLIST] Fallback approach failed:', fallbackError);
+        } else {
+          setPromptCategories(prev => prev.map(cat => ({ ...cat, isFavorite: false, isInQueue: false })));
         }
-        return;
-      }
-      
-      console.log('[TOPICSLIST] Got topic relations:', relations);
-      
-      if (!relations) return;
-      
-      // Extract favorite and queue IDs
-      const favoriteIds = new Set(relations.favorites || []);
-      const queuedIds = new Set(relations.queue_items || []);
-      
-      // Update state with favorite and queue status
-      setPromptCategories(prev => prev.map(cat => ({
-        ...cat,
-        isFavorite: favoriteIds.has(cat.id),
-        isInQueue: queuedIds.has(cat.id)
-      })));
-      
-    } catch (error) {
-      console.error('[TOPICSLIST] Error in fetchUserTopicRelations:', error);
-    }
-  };
-
-  // Add this to the useEffect that currently gets the sharerId
-  useEffect(() => {
-    const getEffectiveSharerId = async () => {
-      if (effectiveSharerId) return; // Already have it
-      
-      try {
-        // For SHARER role, we need to get our own ID
-        if (role === 'SHARER') {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return;
-          
-          const { data, error } = await supabase.rpc('get_user_role_emergency',
-            { user_id: user.id }
-          );
-          
-          if (error) {
-            console.error('[TOPICSLIST] Error getting user role info:', error);
-            return;
-          }
-          
-          if (data?.sharerId) {
-            console.log('[TOPICSLIST] Setting effective sharerId:', data.sharerId);
-            setEffectiveSharerId(data.sharerId);
-          }
-        }
+        
       } catch (error) {
-        console.error('[TOPICSLIST] Error getting sharerId:', error);
+        console.error('[TOPICSLIST] General error in fetchUserTopicRelationsAndRole:', error);
+        setRole(roleStringFromHook || 'SHARER');
+        setPromptCategories(prev => prev.map(cat => ({ ...cat, isFavorite: false, isInQueue: false })));
       }
     };
-    
-    getEffectiveSharerId();
-    // Load favorites and queue items
-    fetchUserTopicRelations();
-  }, [effectiveSharerId, role, supabase]);
+
+    fetchUserTopicRelationsAndRole();
+  }, [roleStringFromHook, supabase]); // Re-run if hook value changes or supabase client instance
   
-  console.log('[TOPICSLIST] Current role info:', { 
-    role, 
-    relationshipId, 
-    effectiveSharerId,
-    hookSharerId: currentRoleInfo?.sharerId
+  console.log('[TOPICSLIST] Current role context (state/hook):', { 
+    roleState: role, 
+    relationshipIdState: relationshipId, 
+    effectiveSharerIdState: effectiveSharerId,
+    roleDirectlyFromHook: roleStringFromHook
   });
   
-  console.log('[TOPICSLIST] Received categories:', initialPromptCategories?.length || 0);
+  console.log('[TOPICSLIST] Received categories (initial prop):', initialPromptCategories?.length || 0);
   console.log('[TOPICSLIST] First category sample:', initialPromptCategories?.[0] ? {
     id: initialPromptCategories[0].id,
     category: initialPromptCategories[0].category,

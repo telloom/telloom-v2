@@ -100,7 +100,7 @@ export function ListenerVideoPopup({
           {/* Video Player Area */}
           <div className="flex items-center justify-center w-full">
             {videoId ? ( // Ensure videoId exists before rendering player
-              <div className="relative w-full max-w-[800px]" style={{ width: 'min(60vw, calc(55vh * 16/9))' }}>
+              <div className="relative w-full max-w-[800px] w-[min(60vw,calc(55vh*16/9))]">
                 <div className="w-full">
                   <div className="aspect-video bg-black rounded-md overflow-hidden relative">
                     <div className="absolute inset-0">

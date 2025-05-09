@@ -32,11 +32,11 @@ export async function login(formData: FormData) {
 }
 
 export async function signup(formData: FormData) {
-  console.log('Starting signup process...');
-  
+  console.log('Starting direct signup process in server action...');
+
   try {
     // Extract and validate form data
-    const data = {
+    const rawData = {
       email: formData.get('email'),
       password: formData.get('password'),
       firstName: formData.get('firstName'),
@@ -44,52 +44,80 @@ export async function signup(formData: FormData) {
       phone: formData.get('phone')
     };
 
-    const result = signupSchema.safeParse(data);
-    if (!result.success) {
-      console.error('Validation error:', result.error.errors);
-      return { 
+    const validationResult = signupSchema.safeParse(rawData);
+    if (!validationResult.success) {
+      console.error('Validation error in server action:', validationResult.error.errors);
+      return {
         error: 'Invalid form data',
-        details: result.error.errors,
-        code: 'VALIDATION_ERROR'
+        details: validationResult.error.errors,
+        code: 'VALIDATION_ERROR',
+        success: false,
       };
     }
 
-    const validatedData = result.data;
+    const { email, password, firstName, lastName, phone } = validationResult.data;
 
-    // Construct absolute URL using the base URL from environment variables.
-    const apiUrl = new URL('/api/auth/signup', process.env.NEXT_PUBLIC_APP_URL!).toString();
+    const supabase = await createClient();
 
-    // Make API call to signup endpoint using the absolute URL
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    // Construct the email redirect URL using NEXT_PUBLIC_APP_URL
+    const emailRedirectTo = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/confirm?next=/select-role`;
+    console.log('Email redirect URL for signup:', emailRedirectTo);
+
+
+    const { data: { user }, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          firstName,
+          lastName,
+          phone,
+          fullName: `${firstName} ${lastName}`,
+        },
+        emailRedirectTo,
       },
-      body: JSON.stringify(validatedData),
     });
 
-    const responseData = await response.json();
-
-    if (!response.ok) {
-      console.error('Signup error:', responseData);
-      return { 
-        error: responseData.error || 'Failed to sign up',
-        details: responseData.details,
-        code: responseData.code || 'UNKNOWN_ERROR'
+    if (signUpError) {
+      console.error('Supabase signup error in server action:', signUpError);
+      return {
+        error: signUpError.message,
+        details: signUpError.code ? [{ path: ['general'], message: signUpError.message, code: signUpError.code }] : undefined,
+        code: signUpError.code || 'SUPABASE_SIGNUP_ERROR',
+        success: false,
       };
     }
 
-    return { 
+    if (!user) {
+      console.error('Supabase signup in server action: No user returned, but no error reported.');
+      return {
+        error: 'Failed to create user account (no user object returned).',
+        code: 'NO_USER_RETURNED',
+        success: false,
+      };
+    }
+    
+    console.log('User signed up successfully in server action:', user.id);
+    // The SignUp.tsx component expects a success field and a message
+    // It handles client-side redirect to /check-email
+    return {
       success: true,
-      user: responseData.user,
-      message: responseData.message
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName,
+        lastName,
+      },
+      message: 'Sign-up successful! Please check your email to confirm your account.'
     };
+
   } catch (error: any) {
-    console.error('Unexpected error during signup:', error);
-    return { 
-      error: 'An unexpected error occurred',
+    console.error('Unexpected error during signup in server action:', error);
+    return {
+      error: 'An unexpected error occurred during signup.',
       details: error.message,
-      code: 'UNEXPECTED_ERROR'
+      code: 'UNEXPECTED_SERVER_ACTION_ERROR',
+      success: false,
     };
   }
 }

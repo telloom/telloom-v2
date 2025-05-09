@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'; // Added useRouter
 // Removed Image from next/image as AttachmentThumbnail will handle images
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Loader2, PlayCircle, Paperclip, Star, VideoOff } from 'lucide-react'; // Added VideoOff
+import { PlayCircle, Paperclip, VideoOff } from 'lucide-react'; // Added VideoOff
 import {
   Tooltip,
   TooltipContent,

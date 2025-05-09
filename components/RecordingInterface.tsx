@@ -79,6 +79,7 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const chunkRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const audioLevelDivRef = useRef<HTMLDivElement>(null);
 
   const [processingState, setProcessingState] = useState<'idle' | 'uploading' | 'processing' | 'ready' | 'error'>('idle');
   const [muxPlaybackId, setMuxPlaybackId] = useState<string | null>(null);
@@ -749,6 +750,14 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Update CSS Custom Property for audio level width
+  useEffect(() => {
+    if (audioLevelDivRef.current) {
+      const widthPercent = Math.min(100, (audioLevel / 128) * 100);
+      audioLevelDivRef.current.style.setProperty('--audio-level-width', `${widthPercent}%`);
+    }
+  }, [audioLevel]);
+
   return (
     <div className="flex flex-col h-full max-h-[90vh] p-4">
       <div className="space-y-4 flex-1 overflow-y-auto">
@@ -939,9 +948,9 @@ export function RecordingInterface({ promptId, onClose, onSave }: RecordingInter
                             audioLevel > 50 && "animate-pulse"
                           )} />
                       <div className="w-12 h-1 bg-gray-600 rounded-full overflow-hidden">
-                            <div 
-                          className="h-full bg-green-500 transition-all duration-100"
-                          style={{ width: `${Math.min(100, (audioLevel / 128) * 100)}%` }}
+                            <div
+                          ref={audioLevelDivRef}
+                          className="h-full bg-green-500 transition-all duration-100 audio-level-bar-dynamic-width"
                             />
                           </div>
                         </div>

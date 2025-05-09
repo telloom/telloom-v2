@@ -18,26 +18,12 @@ import { useAuth } from '@/hooks/useAuth';
 interface UploadInterfaceProps {
   promptId: string;
   onUploadSuccess?: (videoId: string, playbackId: string) => Promise<void>;
-  promptText?: string;
   targetSharerId: string;
-}
-
-interface ProfileRole {
-  role: string;
-}
-
-interface Profile {
-  id: string;
-  ProfileRole?: ProfileRole[];
-  ProfileSharer?: Array<{
-    id: string;
-  }>;
 }
 
 export function UploadInterface({
   promptId,
   onUploadSuccess,
-  promptText,
   targetSharerId
 }: UploadInterfaceProps) {
   const supabase = createClient();
@@ -50,20 +36,9 @@ export function UploadInterface({
     'idle' | 'uploading' | 'processing' | 'ready' | 'error'
   >('idle');
   const [muxPlaybackId, setMuxPlaybackId] = useState<string | null>(null);
-  const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   const uploadLock = useRef(false);
-  const [error, setError] = useState<string | null>(null);
   const hasStartedUpload = useRef(false);
-
-  const handleVideoReady = useCallback((playbackId: string) => {
-    setProcessingState('ready');
-    setMuxPlaybackId(playbackId);
-    setExistingVideo(null); // Clear existing video check after successful upload
-    toast.success('Upload Successful!');
-    if (onUploadSuccess) {
-      onUploadSuccess(currentVideoId || '', playbackId);
-    }
-  }, [onUploadSuccess, currentVideoId]);
+  const progressBarRef = useRef<HTMLDivElement>(null);
 
   const handleVideoError = useCallback(() => {
     setProcessingState('error');
@@ -138,8 +113,6 @@ export function UploadInterface({
       hasStartedUpload.current = true;
       setIsUploading(true);
       setUploadProgress(0);
-      setError(null);
-      setExistingVideo(null); // Clear any existing video warning
       setProcessingState('idle'); // Reset processing state
 
       try {
@@ -147,16 +120,19 @@ export function UploadInterface({
         const supabase = createClient();
         
         if (authLoading) {
+          toast.error('Authentication in progress');
           throw new Error('Authentication in progress');
         }
         
         if (!user) {
+          toast.error('Please sign in to upload videos');
           throw new Error('Please sign in to upload videos');
         }
 
         // Get JWT token
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         if (sessionError || !session?.access_token) {
+          toast.error('Failed to get authorization token');
           throw new Error('Failed to get authorization token');
         }
 
@@ -187,9 +163,9 @@ export function UploadInterface({
         }
 
         const { uploadUrl, uploadId, videoId } = await response.json();
-        setCurrentVideoId(videoId);
 
         if (!uploadUrl || !uploadId) {
+          toast.error('Failed to get upload URL');
           throw new Error('Failed to get upload URL');
         }
 
@@ -216,7 +192,7 @@ export function UploadInterface({
               handleVideoError();
             }
           } else {
-            setError(`Upload failed: ${xhr.statusText || 'Unknown error'}`);
+            toast.error(`Upload failed: ${xhr.statusText || 'Unknown error'}`);
             setIsUploading(false);
             setProcessingState('error');
           }
@@ -260,9 +236,9 @@ export function UploadInterface({
         
         // Show appropriate error message
         if (error instanceof Error) {
-          setError(error.message);
+          toast.error(error.message);
         } else {
-          setError('Failed to upload video');
+          toast.error('Failed to upload video');
         }
       }
     },
@@ -329,6 +305,13 @@ export function UploadInterface({
     checkExistingVideo();
   }, [promptId, supabase]);
 
+  // Update CSS Custom Property for upload progress width
+  useEffect(() => {
+    if (progressBarRef.current) {
+      progressBarRef.current.style.setProperty('--upload-progress-width', `${uploadProgress}%`);
+    }
+  }, [uploadProgress]);
+
   if (isLoading) {
     return (
       <Card className="w-full max-w-4xl mx-auto !border-0 !shadow-none p-4">
@@ -359,7 +342,7 @@ export function UploadInterface({
                     </div>
                   </div>
                   <div className="text-sm text-[#16A34A] bg-[#DCFCE7] p-3 rounded-md text-center mt-4 w-full">
-                    Video uploaded and processed successfully! You can close this popup when you're done reviewing your video.
+                    Video uploaded and processed successfully! You can close this popup when you&apos;re done reviewing your video.
                   </div>
                 </div>
               </div>
@@ -403,8 +386,8 @@ export function UploadInterface({
                   </div>
                   <div className="w-full max-w-3xl mx-auto bg-secondary rounded-full h-6 overflow-hidden">
                     <div
-                      className="h-full bg-primary rounded-full transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
+                      ref={progressBarRef}
+                      className="h-full bg-primary rounded-full transition-all duration-300 upload-progress-bar-dynamic-width"
                     />
                   </div>
                 </div>

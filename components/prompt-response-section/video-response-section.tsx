@@ -1,15 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { useForm, Controller, useWatch } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Loader2, Pencil, Trash2, Check, X, Info, Upload } from 'lucide-react';
+import { Loader2, Pencil, Check, X, Info, Upload } from 'lucide-react';
 
-import { createClient } from '@/utils/supabase/client';
-import { type Tables } from '@/lib/database.types';
 import { type PromptResponse, type Video, type PromptResponseAttachment as ModelAttachment } from '@/types/models';
 
 import { Button } from '@/components/ui/button';
@@ -27,7 +25,6 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 import { PromptResponseGallery } from '@/components/PromptResponseGallery';
-import { ErrorDisplay } from '@/components/ErrorDisplay';
 import { VideoDownloadButton } from '@/components/video/VideoDownloadButton';
 
 const AttachmentUpload = dynamic(() => import('@/components/AttachmentUpload'), {
@@ -50,8 +47,6 @@ const videoResponseSchema = z.object({
 type VideoResponseFormData = z.infer<typeof videoResponseSchema>;
 
 interface VideoResponseSectionProps {
-  promptTitle: string;
-  promptText: string;
   response: PromptResponseWithRelations;
   sharerName: string;
   promptCategoryName: string;
@@ -59,8 +54,6 @@ interface VideoResponseSectionProps {
 }
 
 export function VideoResponseSection({
-  promptTitle,
-  promptText,
   response,
   sharerName,
   promptCategoryName,
@@ -68,7 +61,6 @@ export function VideoResponseSection({
 }: VideoResponseSectionProps) {
   console.log(`[VideoResponseSection] Render. Received promptCategoryName: ${promptCategoryName}`);
 
-  const supabase = createClient();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +78,7 @@ export function VideoResponseSection({
     handleSubmit,
     control,
     reset,
-    formState: { isDirty, errors },
+    formState: { isDirty },
   } = useForm<VideoResponseFormData>({
     resolver: zodResolver(videoResponseSchema),
     defaultValues: {

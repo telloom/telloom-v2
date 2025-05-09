@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -196,7 +196,7 @@ export default function RequestFollowForm() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Sharer's Email</FormLabel>
+                  <FormLabel>Sharer&apos;s Email</FormLabel>
                   <FormControl>
                     <Input 
                       placeholder="Enter their email address" 

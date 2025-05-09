@@ -3,8 +3,7 @@
 // app/(authenticated)/role-listener/[id]/topics/[topicId]/ListenerTopicPageClient.tsx
 // Client component for displaying topic content (prompts and responses) for a Listener.
 
-import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -12,19 +11,11 @@ import { ErrorBoundary } from 'react-error-boundary';
 // For now, we'll define the structure within this file.
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
-import { Loader2, AlertCircle, PlayCircle, MessageSquareText, Info, Paperclip, Star } from 'lucide-react'; // Added necessary icons
+import { Loader2, AlertCircle, Info } from 'lucide-react'; // Added necessary icons
 import type { Database } from '@/lib/database.types';
-import { Attachment, AttachmentDialog } from '@/components/AttachmentDialog';
 import { PersonTag } from '@/types/models';
 import { useAuth } from '@/hooks/useAuth';
 import { RealtimeChannel } from '@supabase/supabase-js';
-import { cn } from '@/lib/utils';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 // Import newly created listener-specific components
 import { ListenerVideoPopup } from '@/components/listener/ListenerVideoPopup';
@@ -35,14 +26,12 @@ import { ListenerTopicVideoCard } from '@/components/listener/ListenerTopicVideo
 // IMPORT SHARED TYPES
 import type { 
     ListenerTopicData as RpcListenerTopicData,
-    ListenerTopicPrompt as RpcListenerTopicPrompt,
-    ListenerPromptResponse as RpcListenerPromptResponse,
     RpcTopicAttachment
 } from '@/types/listener-topic-types';
 
 // StatefulAttachment will no longer hold signedFileUrl directly.
 // It will be looked up from a separate map.
-interface StatefulAttachment extends RpcTopicAttachment {}
+type StatefulAttachment = RpcTopicAttachment;
 
 interface StatefulPromptResponse {
   id: string;
@@ -105,7 +94,6 @@ export default function ListenerTopicPageClient({
     topicId, 
     categoryName
 }: ListenerTopicPageClientProps) {
-  const router = useRouter();
   const supabase = createClient();
   const { user } = useAuth(); // Get current user (Listener)
 
@@ -124,7 +112,6 @@ export default function ListenerTopicPageClient({
 
   // NEW: State for signed URLs, mapping attachment ID to its signed URL or null if fetch failed
   const [gallerySignedUrls, setGallerySignedUrls] = useState<Record<string, string | null>>({});
-  const [areUrlsLoading, setAreUrlsLoading] = useState(false);
 
   // State for ListenerAttachmentDialog (new flow)
   // Ensure ListenerAttachmentType is compatible or also extended if it uses signedFileUrl
@@ -282,8 +269,6 @@ export default function ListenerTopicPageClient({
 
     const fetchAllSignedUrls = async () => {
       console.log("[ListenerClient fetchAllSignedUrls] Starting to process attachments for signed URLs.");
-      setAreUrlsLoading(true);
-      let newSignedUrlsFound = false;
 
       const allAttachments: { id: string; fileUrl: string | null }[] = [];
       topicData.prompts?.forEach(prompt => {
@@ -296,7 +281,6 @@ export default function ListenerTopicPageClient({
 
       if (allAttachments.length === 0) {
         console.log("[ListenerClient fetchAllSignedUrls] No new attachments to fetch signed URLs for.");
-        setAreUrlsLoading(false);
         return;
       }
 
@@ -323,7 +307,6 @@ export default function ListenerTopicPageClient({
             } else if (data?.signedUrl) {
               console.log(`[ListenerClient fetchAllSignedUrls] Successfully created signed URL for Attachment ID: ${att.id}, Path: "${path}"`);
               newUrlsMap[att.id] = data.signedUrl;
-              newSignedUrlsFound = true;
             } else {
               console.warn(`[ListenerClient fetchAllSignedUrls] No signed URL and no error for Attachment ID: ${att.id}, Path: "${path}"`);
               newUrlsMap[att.id] = null; // Mark as processed (failed)
@@ -339,14 +322,13 @@ export default function ListenerTopicPageClient({
         console.log("[ListenerClient fetchAllSignedUrls] Updating gallerySignedUrls state.");
         setGallerySignedUrls(prev => ({ ...prev, ...newUrlsMap }));
       }
-      setAreUrlsLoading(false);
     };
 
     void fetchAllSignedUrls();
 
   // Rerun if topicData.prompts changes (new attachments appear) or initial load completes.
   // Avoids re-running just because gallerySignedUrls changes.
-  }, [topicData?.prompts, supabase, isInitialLoadComplete]); 
+  }, [topicData, supabase, isInitialLoadComplete, gallerySignedUrls]); 
   
   const handleResetError = () => {
     setError(null);

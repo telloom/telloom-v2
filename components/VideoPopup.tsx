@@ -114,7 +114,7 @@ export function VideoPopup({
           {/* Content area */}
           <div className="flex items-center justify-center w-full">
             {children || (videoId && !showCompletionMessage && (
-              <div className="relative w-full max-w-[800px]" style={{ width: 'min(60vw, calc(55vh * 16/9))' }}>
+              <div className="relative w-full max-w-[800px] video-popup-player-width">
                 <div className="w-full">
                   <div className="aspect-video bg-black rounded-md overflow-hidden relative">
                     <div className="absolute inset-0">
@@ -129,7 +129,7 @@ export function VideoPopup({
             ))}
             {showCompletionMessage && (
               <div className="text-center">
-                <h3 className="text-xl font-semibold mb-4">You've watched all responses!</h3>
+                <h3 className="text-xl font-semibold mb-4">You&apos;ve watched all responses!</h3>
                 <Button
                   onClick={(e) => {
                     e.stopPropagation();

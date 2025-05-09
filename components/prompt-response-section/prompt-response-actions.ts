@@ -41,26 +41,6 @@ async function isOwner(supabase: any, responseId?: string, videoId?: string): Pr
   return false;
 }
 
-// --- Helper: Check if user owns the attachment --- 
-// (Adapt or reuse isOwner logic based on profileSharerId on the attachment)
-async function isAttachmentOwner(supabase: any, attachmentId: string): Promise<boolean> {
-  const { roleData } = await getUserWithRoleData();
-  if (!roleData.sharerId) return false;
-
-  const { data, error } = await supabase
-    .from('PromptResponseAttachment')
-    .select('profileSharerId')
-    .eq('id', attachmentId)
-    .single();
-
-  if (error || !data) {
-    console.error('[isAttachmentOwner] Error fetching attachment or attachment not found:', error);
-    return false;
-  }
-
-  return data.profileSharerId === roleData.sharerId;
-}
-
 // --- Zod Schemas for Validation ---
 const NotesSchema = z.object({
   responseId: z.string().uuid(),

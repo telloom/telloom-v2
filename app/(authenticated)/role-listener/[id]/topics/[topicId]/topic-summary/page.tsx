@@ -13,7 +13,7 @@ import { UIAttachment, toUIAttachment } from '@/types/component-interfaces';
 import { PromptResponseAttachment } from '@/types/models';
 import { ArrowLeft, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
 import { toast } from 'sonner';
 
 // Helper function to validate UUID (optional but recommended)
@@ -22,14 +22,6 @@ const isValidUUID = (uuid: string): boolean => {
   const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
   return uuidRegex.test(uuid);
 };
-
-// Define the expected shape of the sharer profile data (mirroring the header component)
-interface SharerProfileData {
-  avatarUrl?: string | null;
-  firstName?: string | null;
-  lastName?: string | null;
-  // Add other fields if needed by the header or page
-}
 
 // Interface for the expected structure from get_listener_topic_prompts_and_responses RPC
 interface ListenerTopicDetailsRpcResponse {
@@ -290,7 +282,7 @@ export default function ListenerTopicSummaryPage() {
     } else {
         console.log('[ListenerTopicSummaryPage V2] Params not yet available for initial fetch.');
     }
-  }, [params.id, params.topicId, validateAndFetchData]);
+  }, [sharerIdParam, topicIdParam, validateAndFetchData, params.id, params.topicId]);
 
   // Render loading state
   if (isLoading) {

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, X } from 'lucide-react';
-import { createClient } from '@/utils/supabase/client';
+
 import { toast } from 'sonner';
 import { InvitationStatus } from '@/types/models';
 
@@ -23,10 +23,9 @@ interface Invitation {
 
 interface InvitationsListProps {
   sharerId: string;
-  role: 'EXECUTOR';
 }
 
-export default function InvitationsList({ sharerId, role }: InvitationsListProps) {
+export default function InvitationsList({ sharerId }: InvitationsListProps) {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

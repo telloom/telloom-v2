@@ -236,8 +236,10 @@ export function ListenerTopicVideoCard({
   }, [promptCategoryId, targetSharerId, listenerProfileId]);
 
   const handleCardClick = () => {
-    if (video?.muxPlaybackId && !showAttachments && !showVideo && !showPlaylist) {
-      setShowVideo(true); 
+    if (targetSharerId && promptCategoryId) {
+      router.push(`/role-listener/${targetSharerId}/topics/${promptCategoryId}/topic-summary`);
+    } else {
+      console.warn('[LTVC] Missing targetSharerId or promptCategoryId for navigation');
     }
   };
 

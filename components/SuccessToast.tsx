@@ -13,7 +13,6 @@ export default function SuccessToast() {
       console.log('Showing toast with message:', message); // Debug log
       toast.success(message, {
         duration: 4000,
-        important: true,
       });
     }
   }, [message]);

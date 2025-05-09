@@ -51,7 +51,7 @@ export default function Following() {
         <table className="w-full">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="py-3 px-4 text-left" style={{ width: '48px' }}></th>
+              <th className="py-3 px-4 text-left w-[48px]"></th>
               <th className="py-3 px-4 text-left">Name</th>
               <th className="py-3 px-4 text-left">Email</th>
               <th className="py-3 px-4 text-left">Status</th>

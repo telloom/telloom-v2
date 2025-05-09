@@ -596,7 +596,6 @@ export function TopicVideoResponseSection({
           <UploadPopup
             open={showUploadPopup}
             onClose={() => setShowUploadPopup(false)}
-            promptText={topicName}
             promptId={topicId}
             onUploadSuccess={async (playbackId) => {
               if (onVideoUpload) {
@@ -679,7 +678,7 @@ export function TopicVideoResponseSection({
                 {attachments.map((attachment) => {
                   const thumbnailAttachment = toThumbnailAttachment({
                     ...attachment,
-                    dateCaptured: attachment.dateCaptured ? attachment.dateCaptured.toISOString() : null
+                    dateCaptured: attachment.dateCaptured ? (attachment.dateCaptured instanceof Date ? attachment.dateCaptured : new Date(attachment.dateCaptured)) : null
                   });
                   return (
                     <div
@@ -903,17 +902,17 @@ export function TopicVideoResponseSection({
                     setTranscript(e.target.value);
                     autoResize(transcriptTextareaRef.current);
                   }}
-                  className="min-h-[100px] w-full resize-none transition-height duration-150 whitespace-pre-wrap bg-white focus-visible:ring-0 border-0 focus-visible:ring-offset-0 text-base"
-                  style={{ overflow: 'hidden' }}
+                  className="min-h-[100px] w-full resize-none transition-height duration-150 whitespace-pre-wrap bg-white focus-visible:ring-0 border-0 focus-visible:ring-offset-0 text-base overflow-hidden"
                 />
               ) : (
                 <div className="space-y-2">
                   <div
                     ref={transcriptContentRef}
                     className={`relative bg-white rounded-lg whitespace-pre-wrap transition-all duration-200 text-base ${
-                      !isTranscriptExpanded ? "max-h-[16em]" : ""
+                      isTranscriptExpanded ? "max-h-none overflow-visible" : "max-h-64 overflow-hidden"
+                    } ${
+                      !isTranscriptExpanded && transcriptOverflows ? "pb-20" : "" // Add padding for gradient
                     }`}
-                    style={getContentStyle(isTranscriptExpanded)}
                   >
                     {transcript || 'No transcript available'}
                     {!isTranscriptExpanded && transcriptOverflows && (
@@ -1022,8 +1021,7 @@ export function TopicVideoResponseSection({
                     setSummary(e.target.value);
                     autoResize(summaryTextareaRef.current);
                   }}
-                  className="min-h-[100px] w-full resize-none transition-height duration-150 whitespace-pre-wrap bg-white focus-visible:ring-0 border-0 focus-visible:ring-offset-0 text-base"
-                  style={{ overflow: 'hidden' }}
+                  className="min-h-[100px] w-full resize-none transition-height duration-150 whitespace-pre-wrap bg-white focus-visible:ring-0 border-0 focus-visible:ring-offset-0 text-base overflow-hidden"
                   placeholder="Enter a summary..."
                 />
               ) : (
@@ -1031,9 +1029,10 @@ export function TopicVideoResponseSection({
                   <div
                     ref={summaryContentRef}
                     className={`relative bg-white rounded-lg whitespace-pre-wrap transition-all duration-200 text-base ${
-                      !isSummaryExpanded ? "max-h-[16em]" : ""
+                      isSummaryExpanded ? "max-h-none overflow-visible" : "max-h-64 overflow-hidden"
+                    } ${
+                      !isSummaryExpanded && summaryOverflows ? "pb-20" : "" // Add padding for gradient
                     }`}
-                    style={getContentStyle(isSummaryExpanded)}
                   >
                     {summary || 'No summary available'}
                     {!isSummaryExpanded && summaryOverflows && (
@@ -1077,11 +1076,12 @@ export function TopicVideoResponseSection({
           description: imageAttachments[selectedImageIndex].description,
           dateCaptured: imageAttachments[selectedImageIndex].dateCaptured ? 
             (imageAttachments[selectedImageIndex].dateCaptured instanceof Date ? 
-              imageAttachments[selectedImageIndex].dateCaptured.toISOString() : 
-              imageAttachments[selectedImageIndex].dateCaptured) : null,
+              imageAttachments[selectedImageIndex].dateCaptured : 
+              new Date(imageAttachments[selectedImageIndex].dateCaptured as string)) : null,
           yearCaptured: imageAttachments[selectedImageIndex].yearCaptured,
           displayUrl: imageAttachments[selectedImageIndex].signedUrl || '',
-          PersonTags: imageAttachments[selectedImageIndex].PersonTags || []
+          PersonTags: imageAttachments[selectedImageIndex].PersonTags || [],
+          title: imageAttachments[selectedImageIndex].fileName
         } : null}
         isOpen={selectedImageIndex !== null}
         onClose={() => setSelectedImageIndex(null)}
@@ -1097,7 +1097,6 @@ export function TopicVideoResponseSection({
         }}
         hasNext={selectedImageIndex !== null && selectedImageIndex < imageAttachments.length - 1}
         hasPrevious={selectedImageIndex !== null && selectedImageIndex > 0}
-        signedUrl={selectedImageIndex !== null ? imageAttachments[selectedImageIndex]?.signedUrl : undefined}
         onSave={async () => {
           await router.refresh();
           return Promise.resolve();

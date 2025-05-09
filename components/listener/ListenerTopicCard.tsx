@@ -3,7 +3,7 @@
 'use client';
 
 import React from 'react';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -54,7 +54,7 @@ export default function ListenerTopicCard({
   const handleNavigateToTopicSummary = () => {
     if (sharerId && promptCategory.id) {
       // Navigate to the topic summary page
-      router.push(`/role-listener/${sharerId}/topics/${promptCategory.id}/topic-summary`);
+      router.push(`/role-listener/${sharerId}/topics/${promptCategory.id}`);
     } else {
       console.warn('[ListenerTopicCard] Missing sharerId or topicId for summary navigation');
     }

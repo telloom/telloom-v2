@@ -9,20 +9,16 @@ import { Table } from '@/components/ui/table';
 
 interface TopicPageContentProps {
   topic: PromptCategory;
-  relationshipId: string;
   sharerId: string;
   sharerName: string;
   sharerAvatarUrl: string | null;
-  currentRole: 'EXECUTOR' | 'SHARER';
 }
 
 export default function TopicPageContent({
   topic,
-  relationshipId,
   sharerId,
   sharerName,
   sharerAvatarUrl,
-  currentRole,
 }: TopicPageContentProps) {
   const router = useRouter();
 

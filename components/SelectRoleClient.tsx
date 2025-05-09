@@ -6,9 +6,6 @@ import { Headphones, Share2, UserCog, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import Image from 'next/image';
-import Link from 'next/link';
-import { supabase } from '@/utils/supabase/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Logo from '@/components/Logo';
 
@@ -19,10 +16,6 @@ interface RoleInfo {
   title: string;
   description: string;
   icon: React.ElementType;
-}
-
-interface SelectRoleClientProps {
-  userId?: string;
 }
 
 const ROLES: RoleInfo[] = [
@@ -46,7 +39,7 @@ const ROLES: RoleInfo[] = [
   },
 ];
 
-export default function SelectRoleClient({ userId }: SelectRoleClientProps) {
+export default function SelectRoleClient() {
   const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
   const [isLoadingRoles, setIsLoadingRoles] = useState(true);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);

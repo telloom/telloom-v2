@@ -57,6 +57,7 @@ export default function ActiveConnections({ sharerId, role }: ActiveConnectionsP
     const fetchConnections = async () => {
       setIsLoading(true);
       setError(null);
+      console.log(`Fetching connections in role: ${role} for sharerId: ${sharerId}`);
 
       try {
         const response = await fetch(`/api/connections?sharerId=${sharerId}`);
@@ -77,7 +78,7 @@ export default function ActiveConnections({ sharerId, role }: ActiveConnectionsP
     };
 
     fetchConnections();
-  }, [sharerId]);
+  }, [sharerId, role]);
 
   const handleRemoveConnection = async (connectionId: string) => {
     try {

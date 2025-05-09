@@ -10,7 +10,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { ListenerPromptResponseDisplay } from '@/components/listener/ListenerPromptResponseDisplay';
 import { UIAttachment, toUIAttachment } from '@/types/component-interfaces';
-import { PromptResponseAttachment } from '@/types/models'; // For raw attachment type
 import { ArrowLeft, AlertTriangle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';

@@ -6,18 +6,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Video as VideoIcon, Download, ChevronDown, ChevronUp, Paperclip } from 'lucide-react';
+import { Video as VideoIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { createClient } from '@/utils/supabase/client'; // For storage interactions like download
 import { toast } from 'sonner';
-import { UIAttachment, toThumbnailAttachment } from '@/types/component-interfaces';
-import { AttachmentDialog, Attachment as AttachmentDialogType } from '@/components/AttachmentDialog'; // Re-check props for AttachmentDialogType
-import AttachmentThumbnail from '@/components/AttachmentThumbnail';
+import { UIAttachment } from '@/types/component-interfaces';
+import { Attachment as AttachmentDialogType } from '@/components/AttachmentDialog'; // Re-check props for AttachmentDialogType
 import { VideoDownloadButton } from '@/components/video/VideoDownloadButton';
 import { PersonTag } from '@/types/models'; // For PersonTags in AttachmentDialogType if needed
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ScrollArea } from '@/components/ui/scroll-area'; // Useful for long content
-import Image from 'next/image';
+
 import { ListenerAttachmentDialog } from '@/components/listener/ListenerAttachmentDialog'; // Import the Listener dialog
 import ListenerAttachmentThumbnail from '@/components/listener/ListenerAttachmentThumbnail'; // Import the Listener thumbnail
 import { cn } from '@/lib/utils';
@@ -105,11 +102,6 @@ export function ListenerTopicVideoDisplay({
       clearTimeout(timeoutId);
     };
   }, [transcript, summary]); // Re-check if transcript/summary content changes
-
-  const getContentStyle = (isExpanded: boolean) => ({
-    maxHeight: isExpanded ? 'none' : '16em', // Tailwind's em scale, approx 12 lines of base text
-    overflow: isExpanded ? 'visible' : 'hidden',
-  });
 
   const handleDownloadAttachment = async (attachment: UIAttachment) => {
     if (!attachment.fileUrl) {

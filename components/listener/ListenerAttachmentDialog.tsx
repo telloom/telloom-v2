@@ -1,16 +1,15 @@
 // components/listener/ListenerAttachmentDialog.tsx
 // LISTENER-SPECIFIC: A dialog component ONLY for viewing attachment metadata and content.
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 // Removed Input, Label, Textarea, Select, Command, Popover as editing is disabled
 import { Label } from "@/components/ui/label";
 import { createClient } from '@/utils/supabase/client';
-import { FileText, Tag, X, ChevronLeft, ChevronRight, Loader2, ImageOff, Download, FileWarning } from 'lucide-react'; // Removed Edit, Check, PlusCircle, Trash2
-import { toast } from 'sonner';
+import { Tag, ChevronLeft, ChevronRight, Loader2, Download, FileWarning } from 'lucide-react'; // Removed Edit, Check, PlusCircle, Trash2, FileText, X, ImageOff
 import { Badge } from "@/components/ui/badge";
-import { PersonRelation, PersonTag, PromptResponseAttachmentPersonTag as PromptResponseAttachmentPersonTagType } from '@/types/models';
+import { PersonTag } from '@/types/models';
 import NextImage from 'next/image';
 import AttachmentThumbnail from '@/components/AttachmentThumbnail'; // Keep using shared thumbnail for now
 // Removed useAuth and useQuery as they were likely for editing/tag fetching
@@ -99,7 +98,8 @@ export function ListenerAttachmentDialog({
               if (pathSegments.length > 1) {
                   filePath = pathSegments[1];
               } else { /* Handle old format if needed */ }
-          } catch (e) { /* Handle parse error */ }
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          } catch (_e) { /* Handle parse error */ }
       } else if (originalFileUrl) {
           filePath = originalFileUrl;
       }
@@ -145,7 +145,7 @@ export function ListenerAttachmentDialog({
     fetchUrl();
 
     return () => { isMounted = false; };
-  }, [viewingAttachment?.id, viewingAttachment?.fileUrl, supabase]); // Depend on viewing state
+  }, [viewingAttachment, supabase]); // Depend on viewing state
 
 
   const handleClose = useCallback(() => {
@@ -177,7 +177,7 @@ export function ListenerAttachmentDialog({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={handleClose}>
-        {console.log('[LAD Dialog Render] isOpen inside Dialog component:', isOpen, 'viewingAttachmentId:', viewingAttachment?.id)}
+        {/* {console.log('[LAD Dialog Render] isOpen inside Dialog component:', isOpen, 'viewingAttachmentId:', viewingAttachment?.id)} */}
         <DialogContent
           className="max-w-[95vw] md:max-w-4xl h-[90vh] flex flex-col p-4 md:p-6 mx-auto overflow-y-auto"
           aria-describedby="attachment-details-description"

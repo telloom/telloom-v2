@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { createClient } from '@/utils/supabase/client';
 import { TopicVideoUploader } from './TopicVideoUploader';
 import { Button } from './ui/button';
-import { Paperclip, Play, Upload, Loader2 } from 'lucide-react';
+import { Paperclip, Play, Upload } from 'lucide-react';
 import { VideoPopup } from './VideoPopup';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from './ui/dialog';
 import { useRouter } from 'next/navigation';
@@ -44,10 +44,10 @@ interface PromptWithResponse {
   isContextEstablishing: boolean;
   PromptResponse: Array<{
     id: string;
-    Video: {
+    Video: Array<{
       id: string;
       muxPlaybackId: string;
-    } | null;
+    }> | null;
   }>;
 }
 
@@ -182,7 +182,7 @@ export function TopicVideoCard({
                 )
               `)
               .in('promptResponseId', chunk)
-              .order('dateCaptured', { ascending: false, nullsLast: true });
+              .order('dateCaptured', { ascending: false, nullsFirst: false });
 
             if (attachmentError) {
               console.error('Error fetching attachments chunk:', attachmentError.message);
@@ -329,20 +329,20 @@ export function TopicVideoCard({
         const videos: PlaylistVideo[] = [];
         const contextEstablishingPrompts = (prompts as PromptWithResponse[] || []).filter(p => 
           p.isContextEstablishing && 
-          p.PromptResponse?.[0]?.Video?.muxPlaybackId
+          p.PromptResponse?.[0]?.Video?.[0]?.muxPlaybackId
         );
         
         const regularPrompts = (prompts as PromptWithResponse[] || []).filter(p => 
           !p.isContextEstablishing && 
-          p.PromptResponse?.[0]?.Video?.muxPlaybackId
+          p.PromptResponse?.[0]?.Video?.[0]?.muxPlaybackId
         );
 
         // Add context establishing videos first
         contextEstablishingPrompts.forEach(prompt => {
-          if (prompt.PromptResponse?.[0]?.Video?.muxPlaybackId) {
+          if (prompt.PromptResponse?.[0]?.Video?.[0]?.muxPlaybackId) {
             videos.push({
-              id: prompt.PromptResponse[0].Video.id,
-              muxPlaybackId: prompt.PromptResponse[0].Video.muxPlaybackId,
+              id: prompt.PromptResponse[0].Video[0].id,
+              muxPlaybackId: prompt.PromptResponse[0].Video[0].muxPlaybackId,
               promptText: prompt.promptText
             });
           }
@@ -350,10 +350,10 @@ export function TopicVideoCard({
 
         // Then add regular videos
         regularPrompts.forEach(prompt => {
-          if (prompt.PromptResponse?.[0]?.Video?.muxPlaybackId) {
+          if (prompt.PromptResponse?.[0]?.Video?.[0]?.muxPlaybackId) {
             videos.push({
-              id: prompt.PromptResponse[0].Video.id,
-              muxPlaybackId: prompt.PromptResponse[0].Video.muxPlaybackId,
+              id: prompt.PromptResponse[0].Video[0].id,
+              muxPlaybackId: prompt.PromptResponse[0].Video[0].muxPlaybackId,
               promptText: prompt.promptText
             });
           }
@@ -430,13 +430,28 @@ export function TopicVideoCard({
     setCurrentAttachmentIndex(0);
   };
 
-  const handleAttachmentSave = async (updatedAttachment: UIAttachment) => {
-    const newAttachments = [...attachments];
-    const index = newAttachments.findIndex(a => a.id === updatedAttachment.id);
-    if (index !== -1) {
-      newAttachments[index] = updatedAttachment;
-      setAttachments(newAttachments);
-    }
+  const handleAttachmentSave = async (updatedData: Partial<UIAttachment> & { id: string }) => {
+    setAttachments(prevAttachments =>
+      prevAttachments.map(att => {
+        if (att.id === updatedData.id) {
+          // Handle dateCaptured specifically if it's in updatedData and might be a string
+          let newDateCaptured = att.dateCaptured; // Keep original by default
+          if (Object.prototype.hasOwnProperty.call(updatedData, 'dateCaptured')) {
+              const dialogDate = updatedData.dateCaptured;
+              if (dialogDate instanceof Date) {
+                newDateCaptured = dialogDate;
+              } else if (typeof dialogDate === 'string') {
+                const parsedDate = new Date(dialogDate);
+                newDateCaptured = !isNaN(parsedDate.getTime()) ? parsedDate : null;
+              } else {
+                newDateCaptured = null; // If dialogDate is null or undefined
+              }
+          }
+          return { ...att, ...updatedData, dateCaptured: newDateCaptured };
+        }
+        return att;
+      })
+    );
   };
 
   const handleNext = () => {
@@ -608,12 +623,26 @@ export function TopicVideoCard({
           isOpen={showAttachments}
           onClose={() => setShowAttachments(false)}
           attachment={
-            attachments.length > 0 ? {
-              ...attachments[currentAttachmentIndex],
-              dateCaptured: attachments[currentAttachmentIndex]?.dateCaptured instanceof Date
-                ? attachments[currentAttachmentIndex].dateCaptured.toISOString()
-                : null,
-            } : null
+            attachments.length > 0 ? (() => {
+              const currentUiAttachment = attachments[currentAttachmentIndex];
+              if (!currentUiAttachment) return null;
+
+              let processedDateCaptured: Date | null = null;
+              if (currentUiAttachment.dateCaptured) {
+                if (currentUiAttachment.dateCaptured instanceof Date) {
+                  processedDateCaptured = currentUiAttachment.dateCaptured;
+                } else if (typeof currentUiAttachment.dateCaptured === 'string') {
+                  const parsedDate = new Date(currentUiAttachment.dateCaptured);
+                  if (!isNaN(parsedDate.getTime())) {
+                    processedDateCaptured = parsedDate;
+                  }
+                }
+              }
+              return {
+                ...currentUiAttachment,
+                dateCaptured: processedDateCaptured,
+              };
+            })() : null
           }
           onNext={handleNext}
           onPrevious={handlePrevious}

@@ -1,0 +1,3 @@
+.upload-popup-video-container-width {
+  width: min(60vw, calc(55vh * 16 / 9));
+} 
