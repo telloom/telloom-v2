@@ -1,5 +1,7 @@
 // app/(authenticated)/profile/page.tsx
 
+export const dynamic = 'force-dynamic';
+
 import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import ProfileForm from '@/components/profile/ProfileForm';
@@ -7,6 +9,7 @@ import ClientWrapper from '@/components/ClientWrapper';
 import BackButton from '@/components/profile/BackButton';
 import { getUSStates } from '@/utils/states';
 import { Profile } from '@/types/models'; // Assuming you have a Profile type definition
+import { ProfileFormData } from '@/components/profile/ProfileForm'; // Added import
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -26,9 +29,9 @@ export default async function ProfilePage() {
     .rpc('get_profile_safe', { target_user_id: user.id }); // Pass user.id to the function
 
   // The RPC returns a JSONB object, not a direct row like .select().single()
-  const profile: Profile | null = profileData as Profile | null;
+  const profileResult: Profile | null = profileData as Profile | null;
 
-  if (profileRpcError || !profile || !profile.id) { // Check if profile object or its id is null/undefined
+  if (profileRpcError || !profileResult || !profileResult.id) { // Check if profile object or its id is null/undefined
     console.error('[ProfilePage] Profile not found via RPC or error fetching profile', {
       userId: user?.id,
       profileRpcError,
@@ -37,7 +40,22 @@ export default async function ProfilePage() {
     notFound(); // Call notFound if RPC fails or returns no valid profile data
   }
 
-  console.log('[ProfilePage] Successfully fetched profile via RPC:', profile.id);
+  console.log('[ProfilePage] Successfully fetched profile via RPC:', profileResult.id);
+
+  // Sanitize the profile data to match ProfileFormData
+  const sanitizedProfile: ProfileFormData = {
+    id: profileResult.id,
+    firstName: profileResult.firstName ?? null,
+    lastName: profileResult.lastName ?? null,
+    email: profileResult.email ?? null,
+    phone: profileResult.phone ?? null, // Ensure phone is string or null
+    avatarUrl: profileResult.avatarUrl ?? null,
+    addressStreet: profileResult.addressStreet ?? null,
+    addressUnit: profileResult.addressUnit ?? null,
+    addressCity: profileResult.addressCity ?? null,
+    addressState: profileResult.addressState ?? null,
+    addressZipcode: profileResult.addressZipcode ?? null,
+  };
 
   // Get US states from the database
   const states = await getUSStates();
@@ -48,7 +66,7 @@ export default async function ProfilePage() {
       <h1 className="text-2xl font-bold mb-6">Edit Profile</h1>
       <div className="bg-card border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] rounded-lg p-6">
         <ClientWrapper>
-          <ProfileForm initialData={profile} states={states} />
+          <ProfileForm initialData={sanitizedProfile} states={states} />
         </ClientWrapper>
       </div>
     </div>

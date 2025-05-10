@@ -32,7 +32,7 @@ import Image from 'next/image';
 import { USState } from '@/utils/states';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
-interface ProfileFormData {
+export interface ProfileFormData {
   id: string;
   firstName: string | null;
   lastName: string | null;
