@@ -7,6 +7,8 @@ import { getCookie } from '@/utils/next-cookies-helper';
 import { getUserWithRoleData } from '@/utils/supabase/jwt-helpers';
 import { createAdminClient } from '@/utils/supabase/admin';
 
+export const dynamic = 'force-dynamic';
+
 async function RoleSharerLayoutContent({
   children,
 }: {

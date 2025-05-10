@@ -7,6 +7,8 @@ import { checkRole } from '@/utils/supabase/server';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { getCookie } from '@/utils/next-cookies-helper';
 
+export const dynamic = 'force-dynamic';
+
 async function RoleExecutorLayoutContent({
   children,
 }: {

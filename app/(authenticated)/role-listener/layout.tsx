@@ -5,6 +5,8 @@ import RoleLayoutLoading from '@/components/RoleLayoutLoading';
 import ClearRoleTransition from '@/components/ClearRoleTransition';
 import { getCookie } from '@/utils/next-cookies-helper';
 
+export const dynamic = 'force-dynamic';
+
 async function RoleListenerLayoutContent({
   children,
 }: {
