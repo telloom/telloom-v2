@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { createDirectClient } from '@/utils/supabase/direct-client';
 import { validateJwtClaims } from '@/utils/supabase/jwt-helpers';

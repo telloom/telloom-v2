@@ -1,5 +1,7 @@
 // app/(authenticated)/profile/page.tsx
 
+export const dynamic = 'force-dynamic';
+
 import { redirect } from 'next/navigation';
 import UserProfile from '@/components/UserProfile';
 import { prisma } from '@/lib/prisma';
