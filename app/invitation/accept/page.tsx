@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { z } from 'zod';
 import Logo from '@/components/Logo';
+import { Suspense } from 'react';
 
 // Base validation schemas for individual fields
 const emailSchema = z.string().email('Invalid email address');
@@ -69,7 +70,19 @@ interface SharerProfile {
   fullName: string;
 }
 
-export default function AcceptInvitationPage() {
+// Define a simple loading component for the Suspense fallback
+function LoadingFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="animate-pulse text-lg">
+        Loading invitation details...
+      </div>
+    </div>
+  );
+}
+
+// New component to contain the actual page logic and UI
+function AcceptInvitationPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
@@ -795,5 +808,14 @@ export default function AcceptInvitationPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// The main page component, now simplified to use Suspense
+export default function AcceptInvitationPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <AcceptInvitationPageContent />
+    </Suspense>
   );
 } 
