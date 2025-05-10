@@ -3,13 +3,11 @@
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;
 
-import { Suspense } from 'react'; // Added Suspense
-// Client-specific imports will be moved to IndexPageContent
-// import { useEffect, useState } from 'react';
-// import { useRouter, useSearchParams } from 'next/navigation';
-// import { createClient } from '@/utils/supabase/client';
-// import { AlertCircle } from 'lucide-react';
-// import { Button } from '@/components/ui/button';
+import { Suspense, useEffect, useState } from 'react'; // Grouped React imports
+import { useRouter, useSearchParams } from 'next/navigation';
+import { createClient } from '@/utils/supabase/client';
+import { AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 // Define a simple loading component for the Suspense fallback
 function LoadingFallback() {
@@ -26,12 +24,7 @@ function LoadingFallback() {
 function IndexPageContent() {
   'use client'; // This component is a client component
 
-  // ES6 imports for client-side hooks and components
-  import { useEffect, useState } from 'react';
-  import { useRouter, useSearchParams } from 'next/navigation';
-  import { createClient } from '@/utils/supabase/client';
-  import { AlertCircle } from 'lucide-react';
-  import { Button } from '@/components/ui/button';
+  // Imports are now at the top of the file module
 
   const router = useRouter();
   const searchParams = useSearchParams();
