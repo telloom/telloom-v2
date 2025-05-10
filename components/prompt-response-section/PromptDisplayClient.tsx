@@ -584,7 +584,7 @@ export function PromptDisplayClient({
                                 ) : (
                                     <Trash2 className="mr-2 h-4 w-4" />
                                 )}
-                                {isDeleting ? 'Deleting...' : 'Delete topic video'}
+                                {isDeleting ? 'Deleting...' : 'Delete Video'}
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>

@@ -9,10 +9,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from 'lucide-react'; // Removed RotateCcw as restart isn't needed for simple playback
-import { MuxPlayer } from '../MuxPlayer'; // Adjusted path assuming MuxPlayer is in parent dir
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { MuxPlayer } from '../MuxPlayer';
 
 // Interface Props adjusted for Listener playback only
 interface ListenerVideoPopupProps {
@@ -53,7 +54,7 @@ export function ListenerVideoPopup({
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        className="max-w-5xl h-[90vh] flex flex-col p-6 m-4 overflow-hidden"
+        className="w-full max-w-5xl h-[95vh] sm:h-[90vh] flex flex-col p-3 md:p-4 lg:p-6 overflow-hidden rounded-lg shadow-xl"
         aria-describedby="video-dialog-description"
         onClick={handleContentClick}
       >
@@ -68,13 +69,17 @@ export function ListenerVideoPopup({
             {/* Removed progress indicator as it was tied to playlist/recording */}
           </div>
         </DialogHeader>
-        <div className="flex items-center justify-center p-4 relative flex-1 min-h-0 overflow-auto">
+        <DialogClose className="absolute right-3 top-3 md:right-4 md:top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-20">
+          <X className="h-5 w-5" />
+          <span className="sr-only">Close</span>
+        </DialogClose>
+        <div className="flex-1 min-h-0 flex items-center justify-center p-1 sm:p-2 relative">
           {/* Navigation buttons for playlist */}
           {hasPrevious && (
             <Button
               variant="ghost"
               size="icon"
-              className="absolute left-6 top-1/2 -translate-y-1/2 z-10"
+              className="absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 bg-black/30 hover:bg-black/50 text-white rounded-full p-2"
               onClick={(e) => {
                 e.stopPropagation();
                 onPrevious?.();
@@ -87,7 +92,7 @@ export function ListenerVideoPopup({
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-6 top-1/2 -translate-y-1/2 z-10"
+              className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 bg-black/30 hover:bg-black/50 text-white rounded-full p-2"
               onClick={(e) => {
                 e.stopPropagation();
                 onNext?.();
@@ -98,18 +103,13 @@ export function ListenerVideoPopup({
           )}
 
           {/* Video Player Area */}
-          <div className="flex items-center justify-center w-full">
+          <div className="flex items-center justify-center w-full h-full">
             {videoId ? ( // Ensure videoId exists before rendering player
-              <div className="relative w-full max-w-[800px] w-[min(60vw,calc(55vh*16/9))]">
-                <div className="w-full">
-                  <div className="aspect-video bg-black rounded-md overflow-hidden relative">
-                    <div className="absolute inset-0">
-                      <MuxPlayer
-                        playbackId={videoId} // Pass the videoId prop here
-                        // Removed onEnded prop if not needed for simple playback or playlist handled differently
-                      />
-                    </div>
-                  </div>
+              <div className="relative aspect-video bg-black rounded-md overflow-hidden w-auto max-w-full h-auto max-h-full">
+                <div className="absolute inset-0">
+                  <MuxPlayer
+                    playbackId={videoId} // Pass the videoId prop here
+                  />
                 </div>
               </div>
             ) : (
