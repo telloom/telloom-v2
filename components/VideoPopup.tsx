@@ -1,19 +1,20 @@
 // components/VideoPopup.tsx
-// This component provides a modal dialog for both video recording and playback
+// This component provides a modal dialog for video recording/playback.
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, RotateCcw, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MuxPlayer } from './MuxPlayer';
+import { CheckCircle2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface VideoPopupProps {
   open: boolean;
@@ -29,7 +30,6 @@ interface VideoPopupProps {
   currentVideo?: number;
   totalVideos?: number;
   showCompletionMessage?: boolean;
-  onRestart?: () => void;
   onVideoEnd?: () => void;
 }
 
@@ -47,102 +47,163 @@ export function VideoPopup({
   currentVideo,
   totalVideos,
   showCompletionMessage = false,
-  onRestart,
   onVideoEnd
 }: VideoPopupProps) {
-  // Add cleanup on close
-  const handleClose = useCallback(() => {
-    if (onClose) {
+  const actualMuxPlayerRef = useRef<any>(null);
+  const [playerReady, setPlayerReady] = useState(false);
+
+  useEffect(() => {
+    if (open && videoId && playerReady && actualMuxPlayerRef.current) {
+      // Try to play the video
+      actualMuxPlayerRef.current.play?.();
+    }
+  }, [open, videoId, playerReady]);
+
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
       onClose();
     }
-  }, [onClose]);
+  };
 
   const handleContentClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
   }, []);
 
-  return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent
-        className="w-full max-w-5xl h-[95vh] sm:h-[90vh] flex flex-col p-3 md:p-4 lg:p-6 overflow-hidden rounded-lg shadow-xl"
-        aria-describedby="video-dialog-description"
-        onClick={handleContentClick}
-      >
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <DialogTitle>{promptText}</DialogTitle>
-              <DialogDescription id="video-dialog-description">
-                {videoId ? "Watch and respond to the video prompt." : "Record your video response."}
-              </DialogDescription>
-            </div>
-            {showProgress && currentVideo && totalVideos && (
-              <div className="bg-[#8fbc55] text-[#1B4332] px-4 py-1.5 rounded-full text-sm font-semibold ml-2 shrink-0">
-                {currentVideo}/{totalVideos}
-              </div>
-            )}
-          </div>
-        </DialogHeader>
-        <DialogClose className="absolute right-3 top-3 md:right-4 md:top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-20">
-          <X className="h-5 w-5" />
-          <span className="sr-only">Close</span>
-        </DialogClose>
-        <div className="flex-1 min-h-0 flex items-center justify-center p-1 sm:p-2 relative">
-          {/* Navigation buttons */}
-          {hasPrevious && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 bg-black/30 hover:bg-black/50 text-white rounded-full p-2"
-              onClick={(e) => {
-                e.stopPropagation();
-                onPrevious?.();
-              }}
-            >
-              <ChevronLeft className="h-6 w-6" />
-            </Button>
-          )}
-          {hasNext && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 bg-black/30 hover:bg-black/50 text-white rounded-full p-2"
-              onClick={(e) => {
-                e.stopPropagation();
-                onNext?.();
-              }}
-            >
-              <ChevronRight className="h-6 w-6" />
-            </Button>
-          )}
+  const dialogHeaderContent = () => (
+    <div className='flex items-center justify-between w-full'>
+      <div className="flex-1 min-w-0 pr-8">
+        <DialogTitle className="whitespace-normal break-words text-left">{promptText}</DialogTitle>
+        <DialogDescription id="video-dialog-description" className="text-left sr-only">
+          {/* Screen reader description, visually empty when videoId is present */}
+          {videoId && !children ? "Video player" : "Record your video response."}
+        </DialogDescription>
+      </div>
+      {showProgress && currentVideo && totalVideos && (
+        <div className="bg-[#8fbc55] text-[#1B4332] px-3 py-1 rounded-full text-xs font-semibold ml-2 sm:ml-4 shrink-0">
+          {currentVideo}/{totalVideos}
+        </div>
+      )}
+    </div>
+  );
 
-          {/* Content area */}
-          <div className="flex items-center justify-center w-full h-full">
-            {children || (videoId && !showCompletionMessage && (
-              <div className="relative aspect-video bg-black rounded-md overflow-hidden w-auto max-w-full h-auto max-h-full">
-                <div className="absolute inset-0">
-                  <MuxPlayer
-                    playbackId={videoId}
-                    onEnded={onVideoEnd}
-                  />
-                </div>
-              </div>
-            ))}
-            {showCompletionMessage && (
-              <div className="text-center">
-                <h3 className="text-xl font-semibold mb-4">You&apos;ve watched all responses!</h3>
-                <Button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRestart?.();
-                  }}
-                  className="rounded-full bg-[#1B4332] hover:bg-[#1B4332]/90"
-                >
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  Start Over
-                </Button>
-              </div>
-            )}
+  const PlayerAreaContentComponent = () => {
+    if (children && !videoId) {
+      return <div className="p-4 flex-grow w-full flex items-center justify-center">{children}</div>;
+    }
+
+    if (showCompletionMessage) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[200px] p-4 text-center">
+          <CheckCircle2 size={48} className="text-green-500 mb-4" />
+          <p className="text-lg font-semibold">Video marked as watched!</p>
+          <p className="text-sm text-muted-foreground">You can now close this window.</p>
+        </div>
+      );
+    }
+
+    if (videoId && !showCompletionMessage) {
+      return (
+        // This container defines the aspect ratio for the MuxPlayer.
+        <div
+          className="w-full bg-black relative rounded-lg overflow-hidden"
+          style={{
+            aspectRatio: '16/9', // Enforce 16:9 aspect ratio
+            maxHeight: '70vh' // Explicitly constrain the max height of this aspect ratio box
+          }}
+          key={`mux-player-aspect-container-${videoId}`}
+        >
+          <MuxPlayer
+            ref={actualMuxPlayerRef}
+            key={`mux-player-${videoId}`}
+            playbackId={videoId}
+            autoFocus={true} 
+            autoplay={true}
+            playsinline={false} 
+            onPlayerReady={() => {
+              setPlayerReady(true);
+              console.log('[VideoPopup MUXPLAYER] MuxPlayer onPlayerReady. Ref:', actualMuxPlayerRef.current);
+            }}
+            onPlay={() => console.log(`[VideoPopup MUXPLAYER] onPlay event for ${videoId}`)}
+            onPause={() => console.log(`[VideoPopup MUXPLAYER] onPause event for ${videoId}`)}
+            onEnded={onVideoEnd}
+            // Player fills its constrained aspect-ratio defined parent container.
+            style={{ 
+              display: 'block', 
+              width: '100%', 
+              height: '100%', // Fill the parent which has aspectRatio and maxHeight
+              position: 'absolute', 
+              top: 0, 
+              left: 0 
+            }}
+          />
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center justify-center min-h-[200px] text-muted-foreground p-4">
+        No video content available.
+      </div>
+    );
+  };
+  
+  const navigationButtons = (
+    // Positioned absolutely over the player aspect ratio container
+    <>
+      {hasPrevious && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-black/40 hover:bg-black/60 text-white rounded-full p-2"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPrevious?.();
+          }}
+          aria-label="Previous video"
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </Button>
+      )}
+      {hasNext && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-black/40 hover:bg-black/60 text-white rounded-full p-2"
+          onClick={(e) => {
+            e.stopPropagation();
+            onNext?.();
+          }}
+          aria-label="Next video"
+        >
+          <ChevronRight className="h-6 w-6" />
+        </Button>
+      )}
+    </>
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange} modal={true}>
+      <DialogContent
+        className={cn(
+          "w-[95vw] max-w-3xl flex flex-col bg-white rounded-lg shadow-xl p-0", // Changed max-w-5xl to max-w-3xl
+          "max-h-[90vh] sm:max-h-[85vh]", // Max height, allows shrinking
+        )}
+        aria-describedby="video-dialog-description"
+      >
+        <DialogHeader className="p-3 sm:p-4 relative min-h-[60px] sm:min-h-[70px]">
+          {dialogHeaderContent()}
+          {/* The default X button from DialogContent should be visible */}
+        </DialogHeader>
+        
+        {/* Scrollable main content area - padding removed */}
+        <div 
+          className="flex-1 flex flex-col items-center justify-center min-h-0 overflow-y-auto"
+          onClick={handleContentClick}
+        >
+          {/* Wrapper to control max-width of player and center it */}
+          <div className="w-full max-w-3xl relative"> {/* max-w- controls video width on large screens, adjust as needed */}
+            <PlayerAreaContentComponent />
+            {/* Navigation buttons are placed here to overlay the PlayerAreaContentComponent */}
+            {videoId && !children && !showCompletionMessage && navigationButtons}
           </div>
         </div>
       </DialogContent>

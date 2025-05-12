@@ -57,6 +57,7 @@
     "@swc/helpers": "^0.5.15",
     "@tanstack/react-table": "^8.20.5",
     "@types/pdfjs-dist": "^2.10.377",
+    "@use-gesture/react": "10.3.1",
     "@vercel/postgres": "^0.10.0",
     "ai": "^3.3.25",
     "airtable": "^0.12.2",
@@ -91,6 +92,8 @@
     "react-hook-form": "^7.54.2",
     "react-image-crop": "^11.0.7",
     "react-resizable-panels": "^2.1.2",
+    "react-spring": "9.7.3",
+    "react-spring-bottom-sheet": "3.5.0-alpha.0",
     "recharts": "^2.13.0",
     "replicate": "^0.34.1",
     "rimraf": "^5.0.10",
@@ -147,6 +150,8 @@
   },
   "overrides": {
     "pac-resolver": "5.0.0",
-    "proxy-agent": "5.0.0"
+    "proxy-agent": "5.0.0",
+    "@use-gesture/react": "10.3.1",
+    "react-spring": "9.7.3"
   }
 }

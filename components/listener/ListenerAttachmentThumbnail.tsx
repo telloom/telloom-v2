@@ -58,7 +58,8 @@ export default function ListenerAttachmentThumbnail({
 
   const sizeClass = sizeClasses[size];
   const isImage = attachment?.fileType?.startsWith('image/');
-  const isClickable = !!onClick;
+  const isPdf = attachment?.fileType === 'application/pdf';
+  const isClickable = !!onClick && (isImage || isPdf);
   const commonClasses = cn(
     'relative bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center',
     sizeClass,
@@ -229,14 +230,14 @@ export default function ListenerAttachmentThumbnail({
       className: cn(
           commonClasses, 
           'group', // Group needed for icon hover
-          isImage ? clickableClasses : nonClickableClasses, // Apply clickable styles if isImage is true
+          isClickable ? clickableClasses : nonClickableClasses, // Use updated isClickable
           className // Apply any passed className
       ),
-      onClick: isImage ? onClick : undefined, // Apply onClick if isImage is true
-      role: isImage ? 'button' : undefined, // Add role=button for accessibility if isImage is true
-      tabIndex: isImage ? 0 : undefined, // Make div focusable if isImage is true
-      'aria-label': isImage ? `View details for ${attachment.fileName}` : attachment.fileName,
-      onKeyDown: isImage ? (e: React.KeyboardEvent<HTMLDivElement>) => {
+      onClick: isClickable ? onClick : undefined, // Use updated isClickable
+      role: isClickable ? 'button' : undefined, // Use updated isClickable
+      tabIndex: isClickable ? 0 : undefined, // Use updated isClickable
+      'aria-label': isClickable ? `View details for ${attachment.fileName}` : attachment.fileName,
+      onKeyDown: isClickable ? (e: React.KeyboardEvent<HTMLDivElement>) => { // Use updated isClickable
           if (e.key === 'Enter' || e.key === ' ') {
               onClick?.();
           }

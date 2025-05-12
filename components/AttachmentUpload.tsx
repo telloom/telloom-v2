@@ -141,7 +141,7 @@ export default function AttachmentUpload({
           setError(null); // Clear potential previous errors
         } else {
           // --- Executor Context: Use RPC ---
-          console.log('[AttachmentUpload] Executor context detected. Using RPC get_sharer_details_for_executor.');
+          console.log(`[AttachmentUpload] Executor context detected. Using RPC get_sharer_details_for_executor.`);
         const { data: sharerDetailsData, error: rpcError } = await supabase
           .rpc('get_sharer_details_for_executor', { p_sharer_id: targetSharerId })
             .maybeSingle();
@@ -159,8 +159,8 @@ export default function AttachmentUpload({
         } else {
           setError(null);
           console.log(`[AttachmentUpload] Fetched Sharer details via RPC for ${targetSharerId}:`, sharerDetailsData);
-            setSharerFirstName(sharerDetailsData.profile_first_name || 'Unknown');
-            setSharerLastName(sharerDetailsData.profile_last_name || 'Sharer');
+            setSharerFirstName((sharerDetailsData as any).profile_first_name || 'Unknown');
+            setSharerLastName((sharerDetailsData as any).profile_last_name || 'Sharer');
           }
         }
 
@@ -211,7 +211,7 @@ export default function AttachmentUpload({
             setPromptCategory('untitled');
           } else {
             const responseData = responseDataArray[0];
-            const cat = responseData.Prompt?.PromptCategory?.category || 'untitled';
+            const cat = responseData.Prompt[0]?.PromptCategory[0]?.category || 'untitled';
             console.log(`[AttachmentUpload] Fetched prompt category: ${cat}`);
             setPromptCategory(cat);
           }

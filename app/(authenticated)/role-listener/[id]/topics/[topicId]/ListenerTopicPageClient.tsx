@@ -442,7 +442,7 @@ export default function ListenerTopicPageClient({
   };
 
   // Ensure topicData has prompts before sorting or mapping
-  const sortedPrompts = [...(topicData?.prompts || [])].sort((a, b) => {
+  const sortedPrompts = [...(topicData?.prompts || [])].filter(prompt => !!prompt.sharerResponse).sort((a, b) => {
     if (a.isContextEstablishing && !b.isContextEstablishing) return -1;
     if (!a.isContextEstablishing && b.isContextEstablishing) return 1;
     // Fallback to sorting by promptText if creation/order is not available

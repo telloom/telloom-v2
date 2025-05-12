@@ -12,15 +12,12 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { UploadInterface } from './UploadInterface';
-import { MuxPlayer } from './MuxPlayer';
 
 interface UploadPopupProps {
   open: boolean;
   onClose: () => void;
   promptId: string;
-  onUploadSuccess: (muxId: string) => Promise<void>;
-  showSuccessView?: boolean;
-  muxPlaybackId?: string;
+  onUploadSuccess: (playbackId: string) => Promise<void>;
   targetSharerId: string;
 }
 
@@ -29,8 +26,6 @@ export function UploadPopup({
   onClose,
   promptId,
   onUploadSuccess,
-  showSuccessView = false,
-  muxPlaybackId,
   targetSharerId
 }: UploadPopupProps) {
   return (
@@ -43,32 +38,15 @@ export function UploadPopup({
           </DialogDescription>
         </DialogHeader>
         <div className="flex items-center justify-center p-4 relative flex-1 min-h-0 overflow-auto">
-          {showSuccessView && muxPlaybackId ? (
-            <div className="flex flex-col items-center justify-center flex-1 min-h-0">
-              <div className="relative w-full max-w-[800px] upload-popup-video-container-width">
-                <div className="w-full">
-                  <div className="aspect-video bg-black rounded-md overflow-hidden relative">
-                    <div className="absolute inset-0">
-                      <MuxPlayer playbackId={muxPlaybackId} />
-                    </div>
-                  </div>
-                  <div className="text-sm text-[#16A34A] bg-[#DCFCE7] p-3 rounded-md text-center mt-4 w-full">
-                    Video uploaded and processed successfully! You can close this popup when you&apos;re done reviewing your video.
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <UploadInterface
-              promptId={promptId}
-              onUploadSuccess={async (videoId, playbackId) => {
-                if (onUploadSuccess) {
-                  await onUploadSuccess(playbackId);
-                }
-              }}
-              targetSharerId={targetSharerId}
-            />
-          )}
+          <UploadInterface
+            promptId={promptId}
+            onUploadSuccess={async (videoId, playbackId) => {
+              if (onUploadSuccess) {
+                await onUploadSuccess(playbackId);
+              }
+            }}
+            targetSharerId={targetSharerId}
+          />
         </div>
       </DialogContent>
     </Dialog>

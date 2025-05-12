@@ -17,5 +17,5 @@
   border-radius: 9999px;
   background: hsl(var(--primary));
   transition: width 300ms ease;
-  width: var(--upload-progress, 0%);
+  width: var(--progress-width, 0%);
 } 

@@ -1,19 +1,19 @@
 // components/listener/ListenerVideoPopup.tsx
-// LISTENER-SPECIFIC: Provides a modal dialog ONLY for video playback.
+// LISTENER-SPECIFIC: Provides a modal dialog for video playback.
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MuxPlayer } from '../MuxPlayer';
+import { cn } from '@/lib/utils';
 
 // Interface Props adjusted for Listener playback only
 interface ListenerVideoPopupProps {
@@ -25,8 +25,7 @@ interface ListenerVideoPopupProps {
   onPrevious?: () => void; // For playlist navigation
   hasNext?: boolean;
   hasPrevious?: boolean;
-  // Removed props related to recording/uploading/completion/restart
-  // Removed children prop as it's not used for playback only
+  onVideoEnd?: () => void; // Added to align with VideoPopup
 }
 
 export function ListenerVideoPopup({
@@ -38,85 +37,137 @@ export function ListenerVideoPopup({
   onPrevious,
   hasNext = false,
   hasPrevious = false,
+  onVideoEnd, // Added
 }: ListenerVideoPopupProps) {
+  const actualMuxPlayerRef = useRef<any>(null);
+  const [playerReady, setPlayerReady] = useState(false);
 
-  const handleClose = useCallback(() => {
-    if (onClose) {
+  useEffect(() => {
+    console.log(`[ListenerVideoPopup AUTOPLAY useEffect] Fired. open: ${open}, videoId: ${!!videoId}, playerReady: ${playerReady}, ref_exists: ${!!actualMuxPlayerRef.current}`);
+    if (open && videoId && playerReady && actualMuxPlayerRef.current) {
+      console.log('[ListenerVideoPopup AUTOPLAY useEffect] Conditions met. Attempting to play...');
+      actualMuxPlayerRef.current.play?.();
+    } else {
+      if (!open) console.log('[ListenerVideoPopup AUTOPLAY useEffect] Condition not met: open is false');
+      if (!videoId) console.log('[ListenerVideoPopup AUTOPLAY useEffect] Condition not met: videoId is missing');
+      if (!playerReady) console.log('[ListenerVideoPopup AUTOPLAY useEffect] Condition not met: playerReady is false');
+      if (!actualMuxPlayerRef.current) console.log('[ListenerVideoPopup AUTOPLAY useEffect] Condition not met: actualMuxPlayerRef.current is null');
+    }
+  }, [open, videoId, playerReady]);
+
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
       onClose();
     }
-  }, [onClose]);
+  };
 
-  // Prevent clicks inside content from closing the dialog accidentally
   const handleContentClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
   }, []);
 
-  return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent
-        className="w-full max-w-5xl h-[95vh] sm:h-[90vh] flex flex-col p-3 md:p-4 lg:p-6 overflow-hidden rounded-lg shadow-xl"
-        aria-describedby="video-dialog-description"
-        onClick={handleContentClick}
-      >
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <DialogTitle>{promptText}</DialogTitle>
-              <DialogDescription id="video-dialog-description">
-                Watch the video response.
-              </DialogDescription>
-            </div>
-            {/* Removed progress indicator as it was tied to playlist/recording */}
-          </div>
-        </DialogHeader>
-        <DialogClose className="absolute right-3 top-3 md:right-4 md:top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-20">
-          <X className="h-5 w-5" />
-          <span className="sr-only">Close</span>
-        </DialogClose>
-        <div className="flex-1 min-h-0 flex items-center justify-center p-1 sm:p-2 relative">
-          {/* Navigation buttons for playlist */}
-          {hasPrevious && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 bg-black/30 hover:bg-black/50 text-white rounded-full p-2"
-              onClick={(e) => {
-                e.stopPropagation();
-                onPrevious?.();
-              }}
-            >
-              <ChevronLeft className="h-6 w-6" />
-            </Button>
-          )}
-          {hasNext && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 bg-black/30 hover:bg-black/50 text-white rounded-full p-2"
-              onClick={(e) => {
-                e.stopPropagation();
-                onNext?.();
-              }}
-            >
-              <ChevronRight className="h-6 w-6" />
-            </Button>
-          )}
+  const dialogHeaderContent = () => (
+    <div className='flex items-center justify-between w-full'>
+      <div className="flex-1 min-w-0 pr-8">
+        <DialogTitle className="whitespace-normal break-words text-left">{promptText}</DialogTitle>
+        <DialogDescription id="listener-video-dialog-description" className="text-left sr-only">
+          Video player
+        </DialogDescription>
+      </div>
+      {/* No progress indicator needed for listener popup */}
+    </div>
+  );
 
-          {/* Video Player Area */}
-          <div className="flex items-center justify-center w-full h-full">
-            {videoId ? ( // Ensure videoId exists before rendering player
-              <div className="relative aspect-video bg-black rounded-md overflow-hidden w-auto max-w-full h-auto max-h-full">
-                <div className="absolute inset-0">
-                  <MuxPlayer
-                    playbackId={videoId} // Pass the videoId prop here
-                  />
-                </div>
-              </div>
-            ) : (
-              // Optional: Add a placeholder or message if videoId is missing
-              <div className="text-muted-foreground">Video not available.</div>
-            )}
-            {/* Removed completion message/restart button */}
+  const PlayerAreaContentComponent = () => {
+    // Listener always has a videoId for playback
+    return (
+      <div
+        className="w-full bg-black relative rounded-lg overflow-hidden"
+        style={{
+          aspectRatio: '16/9',
+          maxHeight: '70vh',
+        }}
+        key={`mux-player-aspect-container-${videoId}`}
+      >
+        <MuxPlayer
+          ref={actualMuxPlayerRef}
+          key={`mux-player-${videoId}`}
+          playbackId={videoId}
+          autoFocus={true}
+          autoplay={true}
+          playsinline={false}
+          onPlayerReady={() => {
+            setPlayerReady(true);
+            console.log('[ListenerVideoPopup MUXPLAYER] MuxPlayer onPlayerReady. Player should be ready now. Ref:', actualMuxPlayerRef.current);
+          }}
+          onPlay={() => console.log(`[ListenerVideoPopup MUXPLAYER] onPlay event for ${videoId}`)}
+          onPause={() => console.log(`[ListenerVideoPopup MUXPLAYER] onPause event for ${videoId}`)}
+          onEnded={onVideoEnd}
+          style={{
+            display: 'block',
+            width: '100%',
+            height: '100%',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+          }}
+        />
+      </div>
+    );
+  };
+
+  const navigationButtons = (
+    <>
+      {hasPrevious && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-black/40 hover:bg-black/60 text-white rounded-full p-2"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPrevious?.();
+          }}
+          aria-label="Previous video"
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </Button>
+      )}
+      {hasNext && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-black/40 hover:bg-black/60 text-white rounded-full p-2"
+          onClick={(e) => {
+            e.stopPropagation();
+            onNext?.();
+          }}
+          aria-label="Next video"
+        >
+          <ChevronRight className="h-6 w-6" />
+        </Button>
+      )}
+    </>
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange} modal={true}>
+      <DialogContent
+        className={cn(
+          "w-[95vw] max-w-3xl flex flex-col bg-white rounded-lg shadow-xl p-0",
+          "max-h-[90vh] sm:max-h-[85vh]",
+        )}
+        aria-describedby="listener-video-dialog-description"
+      >
+        <DialogHeader className="p-3 sm:p-4 relative min-h-[60px] sm:min-h-[70px]">
+          {dialogHeaderContent()}
+        </DialogHeader>
+        
+        <div
+          className="flex-1 flex flex-col items-center justify-center min-h-0 overflow-y-auto"
+          onClick={handleContentClick}
+        >
+          <div className="w-full max-w-3xl relative">
+            <PlayerAreaContentComponent />
+            {navigationButtons}
           </div>
         </div>
       </DialogContent>

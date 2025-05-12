@@ -4,6 +4,8 @@
  * date captured, year, and person tags. Supports image preview and navigation between multiple attachments.
  */
 
+'use client';
+
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -38,7 +40,6 @@ import NextImage from 'next/image';
 import AttachmentThumbnail from '@/components/AttachmentThumbnail';
 import { urlCache } from '@/utils/url-cache';
 import { useAuth } from '@/hooks/useAuth';
-import { useQuery } from '@tanstack/react-query';
 
 // Remove the local PersonRelation constant and update the type
 type PersonRelationType = PersonRelation;

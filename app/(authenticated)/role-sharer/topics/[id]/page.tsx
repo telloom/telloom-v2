@@ -133,7 +133,7 @@ interface TopicPageContentProps {
   selectedAttachment: LocalUIAttachment | null;
   handleAttachmentSave: (updatedAttachment: LocalUIAttachment) => Promise<void>;
   handleAttachmentDelete: (attachmentId: string) => Promise<void>;
-  handleUploadFinished: (videoId: string, _playbackId: string) => Promise<void>;
+  handleUploadFinished: (videoId: string, playbackId: string) => Promise<void>;
   targetSharerId: string;
   handleNextAttachment?: () => void;
   handlePreviousAttachment?: () => void;
@@ -549,7 +549,6 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                         hasResponse && "cursor-pointer"
                       )}
                       onClick={(e) => {
-                        e.preventDefault();
                         console.log('[TopicPageContent Card onClick] Event triggered.');
                         console.log(`[TopicPageContent Card onClick] roleContext: ${roleContext}, targetSharerId: ${targetSharerId}, prompt.id: ${prompt.id}`);
                         if (
@@ -560,10 +559,13 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                           const calculatedPath = roleContext === 'EXECUTOR'
                               ? `/role-executor/${targetSharerId}/prompts/${prompt.id}`
                               : `/role-sharer/prompts/${prompt.id}`;
-                          console.log(`[TopicPageContent Card onClick] Calculated path: ${calculatedPath}`);
-                          router.push(calculatedPath);
+                          console.log(`[TopicPageContent Card onClick] Preparing to navigate to: ${calculatedPath}`);
+                          setTimeout(() => {
+                            console.log(`[TopicPageContent Card onClick] Navigating (deferred) to: ${calculatedPath}`);
+                            router.push(calculatedPath);
+                          }, 0);
                         } else {
-                          console.log('[TopicPageContent Card onClick] Conditions not met for navigation.');
+                          console.log('[TopicPageContent Card onClick] Conditions not met for navigation or click on interactive child.');
                         }
                       }}
                     >
@@ -759,7 +761,6 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                             hasResponse && "cursor-pointer"
                           )}
                           onClick={(e) => {
-                            e.preventDefault();
                             console.log('[TopicPageContent TableRow onClick] Event triggered.');
                             console.log(`[TopicPageContent TableRow onClick] Role: ${roleContext}, Sharer: ${targetSharerId}, Prompt: ${prompt.id}`);
                             if (
@@ -770,10 +771,13 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                               const calculatedPath = roleContext === 'EXECUTOR'
                                   ? `/role-executor/${targetSharerId}/prompts/${prompt.id}`
                                   : `/role-sharer/prompts/${prompt.id}`;
-                              console.log(`[TopicPageContent TableRow onClick] Calculated path: ${calculatedPath}`);
-                              router.push(calculatedPath);
+                              console.log(`[TopicPageContent TableRow onClick] Preparing to navigate to: ${calculatedPath}`);
+                              setTimeout(() => {
+                                console.log(`[TopicPageContent TableRow onClick] Navigating (deferred) to: ${calculatedPath}`);
+                                router.push(calculatedPath);
+                              }, 0);
                             } else {
-                              console.log('[TopicPageContent TableRow onClick] Conditions not met for nav.');
+                              console.log('[TopicPageContent TableRow onClick] Conditions not met for nav or click on interactive child.');
                             }
                           }}
                         >
@@ -908,7 +912,6 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                   key={`upload-interface-${selectedPrompt.id}-${isUploadPopupOpen}`}
                   promptId={selectedPrompt.id}
                   onUploadSuccess={handleUploadFinished}
-                  promptText={selectedPrompt.promptText}
                   targetSharerId={targetSharerId}
                 />
               </VideoPopup>
@@ -1470,17 +1473,44 @@ export default function TopicPage() {
   // Update handleUploadFinished to potentially start polling as well
   // For consistency, although UploadInterface might already handle delay
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleUploadFinished = useCallback(async (videoId: string, _playbackId: string) => {
+  const handleUploadFinished = useCallback(async (videoId: string, playbackId: string) => {
+    console.log(`[handleUploadFinished] Received success for videoId: ${videoId}, playbackId: ${playbackId}`);
     if (!targetSharerId) {
-        toast.error("Failed to finalize upload: Sharer context missing.");
-        return;
+      toast.error("Failed to finalize upload: Sharer context missing.");
+      return;
     }
-    // Start polling for the uploaded video
-    startPollingVideoStatus(videoId);
-    // Keep the initial success message or move it to when polling succeeds
-    // toast.success("Video upload finalized!"); // Optional: Keep or remove
-    await refreshData(); // Initial refresh is still good
-  }, [refreshData, targetSharerId, startPollingVideoStatus]);
+
+    // Stop any existing page-level polling
+    stopPolling();
+
+    // Find the prompt associated with this videoId to open the popup
+    let promptToSelect: TopicPrompt | null = null;
+    if (promptCategory?.Prompt) {
+      for (const prompt of promptCategory.Prompt) {
+        // Find the PromptResponse that contains the matching Video ID
+        const matchingResponse = prompt.PromptResponse?.find(pr => pr.videoId === videoId);
+        if (matchingResponse) {
+          promptToSelect = prompt;
+          // Optionally update the selected response state if needed for the popup
+          setSelectedPromptResponse(matchingResponse);
+          break;
+        }
+      }
+    }
+
+    if (promptToSelect) {
+      console.log(`[handleUploadFinished] Found prompt ${promptToSelect.id} for video ${videoId}. Opening popup.`);
+      setSelectedPrompt(promptToSelect); // Ensure the correct prompt context is set
+      setIsVideoPopupOpen(true); // Open the video popup
+    } else {
+       console.warn(`[handleUploadFinished] Could not find prompt associated with videoId ${videoId} in current state. Popup won\'t open automatically.`);
+       // Might happen if state update after refreshData is slow, but refreshData should handle UI update.
+    }
+
+    // Refresh data to ensure UI consistency
+    await refreshData();
+
+  }, [refreshData, targetSharerId, stopPolling, promptCategory, setSelectedPrompt, setIsVideoPopupOpen, setSelectedPromptResponse]);
 
   const handleAttachmentSave = useCallback(async (updatedAttachment: LocalUIAttachment) => {
     if (!updatedAttachment?.id) {
