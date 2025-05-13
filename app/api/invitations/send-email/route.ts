@@ -8,6 +8,16 @@ import { createClient } from '@/utils/supabase/server';
 import { loops, TRANSACTIONAL_EMAIL_IDS } from '@/utils/loops';
 import { cookies } from 'next/headers';
 
+interface InvitationDetails {
+  inviterId: string;
+  token: string;
+  sharerFirstName: string | null;
+  sharerLastName: string | null;
+  sharerEmail: string | null;
+  inviteeEmail: string;
+  role: string;
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -24,14 +34,12 @@ export async function POST(request: Request) {
 
     // Fetch the invitation details using the new RPC function
     console.log(`[API send-email] Calling RPC get_invitation_details_for_email for ID: ${invitationId}`);
-    const { data: invitation, error: rpcError } = await supabase
+    const { data: rpcData, error: rpcError } = await supabase
       .rpc('get_invitation_details_for_email', { p_invitation_id: invitationId })
-      .single(); // Assuming the RPC returns a single JSON object
+      .single(); 
 
-    if (rpcError || !invitation) {
+    if (rpcError || !rpcData) {
       console.error('Error fetching invitation via RPC:', rpcError);
-      // If RPC raised an auth error or not found, it signals failure.
-      // Check for a specific error message from the RPC if needed.
       const errorMessage = rpcError?.message || 'Invitation not found or access denied via RPC';
       const status = errorMessage.includes('not authorized') ? 403 : 404;
       return NextResponse.json(
@@ -40,6 +48,8 @@ export async function POST(request: Request) {
       );
     }
     
+    // Cast the data to the defined interface
+    const invitation = rpcData as InvitationDetails;
     console.log('[API send-email] Successfully fetched invitation details via RPC:', invitation);
 
 
@@ -55,7 +65,15 @@ export async function POST(request: Request) {
 
 
     // Generate the invitation URL with the token from RPC data
-    const inviteUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/invitation/accept?token=${invitation.token}`;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    if (!baseUrl) {
+      console.error('[API send-email] CRITICAL: NEXT_PUBLIC_BASE_URL is not defined. Cannot construct invitation URL.');
+      return NextResponse.json(
+        { error: 'Server configuration error: Base URL not set. Please ensure NEXT_PUBLIC_BASE_URL is configured in the deployment environment.' },
+        { status: 500 }
+      );
+    }
+    const inviteUrl = `${baseUrl}/invitation/accept?token=${invitation.token}`;
 
     // Get the sharer's name and email from the RPC data
     const inviterName = invitation.sharerFirstName && invitation.sharerLastName

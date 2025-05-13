@@ -53,55 +53,46 @@ export default function RequestFollowForm() {
         return null
       }
 
-      // Direct profile lookup with RLS
-      const { data: profile, error: profileError } = await supabase
-        .from('Profile')
-        .select(`
-          id,
-          firstName,
-          lastName,
-          email,
-          avatarUrl,
-          ProfileSharer:ProfileSharer (
-            id
-          )
-        `)
-        .eq('email', normalizedEmail)
-        .maybeSingle()
+      // Call the RPC function instead of querying the table directly
+      const { data: sharerData, error: rpcError } = await supabase
+        .rpc('search_sharer_by_email', { 
+          p_email: normalizedEmail,
+          p_requestor_id: user.id 
+        });
 
-      if (profileError) {
-        console.error('Profile search error:', profileError)
-        toast.error('An error occurred while searching')
-        return null
+      if (rpcError) {
+        console.error('RPC search_sharer_by_email error:', rpcError);
+        toast.error('An error occurred while searching');
+        return null;
       }
 
-      if (!profile) {
-        toast.error('No user found with that email address')
-        return null
+      // The RPC returns NULL if no sharer found, already connected, or request pending
+      if (!sharerData) {
+        // Check if profile exists at all to give a more specific message
+        const { data: existingProfile } = await supabase
+          .from('Profile')
+          .select('id')
+          .eq('email', normalizedEmail)
+          .maybeSingle();
+
+        if (!existingProfile) {
+          toast.error('No user found with that email address.');
+        } else {
+          // Sharer exists but isn't suitable (e.g., not a sharer, already connected, request pending)
+          // Improve this message based on exact checks in RPC if needed.
+          toast.info('This user cannot be requested at this time. They may not be a sharer, or you might already be connected or have a pending request.');
+        }
+        setFoundSharer(null); // Ensure foundSharer is cleared
+        return null;
       }
 
-      // Check if they have a ProfileSharer record
-      const sharerProfile = profile.ProfileSharer?.[0]
-      if (!sharerProfile) {
-        toast.error('This user is not a sharer')
-        return null
-      }
-
-      const sharerData = {
-        id: profile.id,
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        email: profile.email,
-        avatarUrl: profile.avatarUrl,
-        sharerId: sharerProfile.id
-      };
-      
-      setFoundSharer(sharerData)
-      return sharerData
+      // RPC returned valid sharer data - structure should match SharerProfile interface
+      setFoundSharer(sharerData as SharerProfile);
+      return sharerData as SharerProfile;
     } catch (error) {
-      console.error('Unexpected error:', error)
-      toast.error('An error occurred while searching')
-      return null
+      console.error('Unexpected error during searchSharer:', error);
+      toast.error('An error occurred while searching');
+      return null;
     } finally {
       setIsSearching(false)
     }
