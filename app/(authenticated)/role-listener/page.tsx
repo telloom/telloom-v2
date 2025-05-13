@@ -91,33 +91,21 @@ export default async function RoleListenerPage() {
 
     return (
       <div className="flex h-full">
-        <div className="container max-w-4xl mx-auto px-4 pt-6">
-          {/* State 1: No Connections/Pending Requests */}
-          {listenerRelationships.length === 0 && pendingRequests.length === 0 && (
-            <div className="max-w-lg mx-auto">
-              <h1 className="text-2xl font-bold text-center mb-3 text-black">
-                Connect with a Sharer
-              </h1>
-              <p className="text-center text-muted-foreground mb-4">
-                Enter the email address of the person whose stories you'd like to follow to send a request.
-              </p>
-              <RequestFollowFormWrapper />
-            </div>
-          )}
-
-          {/* Always show pending requests if they exist */}
+        <div className="container max-w-4xl mx-auto px-4 pt-6 pb-12 space-y-8">
+          
+          {/* Section: Pending Requests (if any) */}
           {pendingRequests.length > 0 && (
-            <div className="mb-8">
+            <div>
               <h2 className="text-xl font-semibold mb-3 text-black">Pending Requests</h2>
               <PendingFollowRequests requests={pendingRequests} />
             </div>
           )}
 
-          {/* State 2: Has Connections - Show Sharer list */}
+          {/* Section: Connected Sharers (if any) */}
           {listenerRelationships.length > 0 && (
             <div>
               <h1 className="text-2xl font-bold mb-1 text-black">
-                Select a Sharer
+                Listen to a Sharer
               </h1>
               <p className="text-muted-foreground mb-4">
                 Choose an individual to dive into their stories, family history, and perspectives through video interviews, photos, and succinct write‑ups—all neatly organized for effortless viewing.
@@ -125,13 +113,35 @@ export default async function RoleListenerPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {listenerRelationships.map(relationship => (
                   <ListenerSharingCard
-                    key={relationship.id} // Use ProfileListener.id as key
+                    key={relationship.id}
                     listenerRelationship={relationship}
                   />
                 ))}
               </div>
             </div>
           )}
+
+          {/* Section: Request to Follow (Always visible, styled based on context) */}
+          <div className={
+            (listenerRelationships.length > 0 || pendingRequests.length > 0) 
+            ? "pt-8 border-t"
+            : "max-w-lg mx-auto"
+          }>
+             <h1 className={
+                `text-2xl font-bold text-black mb-3 
+                ${(listenerRelationships.length > 0 || pendingRequests.length > 0) ? '' : 'text-center'}`
+             }>
+               Connect with a New Sharer
+             </h1>
+             <p className={
+                `text-muted-foreground mb-4 
+                ${(listenerRelationships.length > 0 || pendingRequests.length > 0) ? '' : 'text-center'}`
+             }>
+               Enter the email address of the person whose stories you'd like to follow to send a request.
+             </p>
+            <RequestFollowFormWrapper />
+          </div>
+
         </div>
       </div>
     );

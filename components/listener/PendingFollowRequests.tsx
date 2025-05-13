@@ -1,8 +1,8 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { UserCircle, Clock } from 'lucide-react';
+import { UserCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface PendingRequest {
@@ -27,13 +27,7 @@ interface PendingFollowRequestsProps {
 export default function PendingFollowRequests({ requests }: PendingFollowRequestsProps) {
   return (
     <Card className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
-      <CardHeader className="py-2 px-4">
-        <CardTitle className="text-black flex items-center gap-2 text-lg">
-          <Clock className="h-4 w-4" />
-          Pending Follow Requests
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="py-2 px-4">
+      <CardContent className="p-4">
         <div className="space-y-1">
           {requests.map((request) => (
             <div
