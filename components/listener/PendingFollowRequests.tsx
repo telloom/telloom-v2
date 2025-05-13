@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -22,12 +22,18 @@ interface PendingRequest {
 
 interface PendingFollowRequestsProps {
   requests: PendingRequest[];
+  title?: string;
 }
 
-export default function PendingFollowRequests({ requests }: PendingFollowRequestsProps) {
+export default function PendingFollowRequests({ requests, title }: PendingFollowRequestsProps) {
   return (
     <Card className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
-      <CardContent className="p-4">
+      {title && (
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold text-black">{title}</CardTitle>
+        </CardHeader>
+      )}
+      <CardContent className={`p-4 ${!title ? 'pt-4' : 'pt-2'}`}>
         <div className="space-y-1">
           {requests.map((request) => (
             <div
@@ -48,17 +54,19 @@ export default function PendingFollowRequests({ requests }: PendingFollowRequest
                   )}
                 </Avatar>
                 <div>
-                  <h3 className="font-semibold text-black text-sm">
+                  <h3 className="font-semibold text-black text-sm truncate">
                     {request.sharer.profile.firstName} {request.sharer.profile.lastName}
                   </h3>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{request.sharer.profile.email}</span>
-                    <span>•</span>
-                    <span>Requested {formatDistanceToNow(new Date(request.createdAt))} ago</span>
+                    <span className="truncate">{request.sharer.profile.email}</span>
+                    <span className="hidden sm:inline">
+                      <span className="mx-1 sm:mx-2">•</span>
+                      Requested {formatDistanceToNow(new Date(request.createdAt))} ago
+                    </span>
                   </div>
                 </div>
               </div>
-              <div className="text-xs">
+              <div className="text-xs shrink-0">
                 <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full">
                   Pending
                 </span>

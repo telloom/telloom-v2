@@ -4,6 +4,7 @@ import PendingFollowRequests from '@/components/listener/PendingFollowRequests';
 import { redirect } from 'next/navigation';
 import ListenerSharingCard from '@/components/listener/ListenerSharingCard';
 import { getSignedAvatarUrl } from '@/utils/avatar';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 // Define the expected structure for a pending request item
 // Adjust types (e.g., string/number for id) if they differ in your schema
@@ -96,8 +97,7 @@ export default async function RoleListenerPage() {
           {/* Section: Pending Requests (if any) */}
           {pendingRequests.length > 0 && (
             <div>
-              <h2 className="text-xl font-semibold mb-3 text-black">Pending Requests</h2>
-              <PendingFollowRequests requests={pendingRequests} />
+              <PendingFollowRequests requests={pendingRequests} title="Pending Requests" />
             </div>
           )}
 
@@ -124,22 +124,24 @@ export default async function RoleListenerPage() {
           {/* Section: Request to Follow (Always visible, styled based on context) */}
           <div className={
             (listenerRelationships.length > 0 || pendingRequests.length > 0) 
-            ? "pt-8 border-t"
-            : "max-w-lg mx-auto"
+            ? "pt-8"
+            : ""
           }>
-             <h1 className={
-                `text-2xl font-bold text-black mb-3 
-                ${(listenerRelationships.length > 0 || pendingRequests.length > 0) ? '' : 'text-center'}`
-             }>
-               Connect with a New Sharer
-             </h1>
-             <p className={
-                `text-muted-foreground mb-4 
-                ${(listenerRelationships.length > 0 || pendingRequests.length > 0) ? '' : 'text-center'}`
-             }>
-               Enter the email address of the person whose stories you'd like to follow to send a request.
-             </p>
-            <RequestFollowFormWrapper />
+            <Card className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
+              <CardHeader className={
+                (listenerRelationships.length === 0 && pendingRequests.length === 0) ? "text-center" : ""
+              }>
+                <CardTitle className="text-2xl font-bold text-black">
+                  Connect with a New Sharer
+                </CardTitle>
+                <p className="text-muted-foreground pt-1">
+                  Enter the email address of the person whose stories you'd like to follow to send a request.
+                </p>
+              </CardHeader>
+              <CardContent className="pt-0 pb-6 px-6">
+                <RequestFollowFormWrapper />
+              </CardContent>
+            </Card>
           </div>
 
         </div>

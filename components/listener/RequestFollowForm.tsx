@@ -45,24 +45,29 @@ export default function RequestFollowForm() {
   })
 
   const searchSharer = async (email: string): Promise<SharerProfile | null> => {
+    console.log('[searchSharer] Initiated with email:', email);
     const isValid = await form.trigger('email');
     if (!isValid) {
         setFoundSharer(null);
         toast.info("Please enter a valid email address.");
+        console.log('[searchSharer] Email validation failed.');
         return null;
     }
 
-    setIsSearching(true)
-    setFoundSharer(null)
-    const normalizedEmail = email.toLowerCase().trim()
+    setIsSearching(true);
+    setFoundSharer(null); // Clear previous before new search
+    console.log('[searchSharer] State reset: isSearching=true, foundSharer=null');
+    const normalizedEmail = email.toLowerCase().trim();
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        toast.error('Please sign in to continue')
-        return null
+        toast.error('Please sign in to continue');
+        console.log('[searchSharer] User not signed in.');
+        return null;
       }
 
+      console.log('[searchSharer] Calling RPC search_sharer_by_email for:', normalizedEmail);
       const { data: sharerData, error: rpcError } = await supabase
         .rpc('search_sharer_by_email', { 
           p_email: normalizedEmail,
@@ -70,12 +75,13 @@ export default function RequestFollowForm() {
         });
 
       if (rpcError) {
-        console.error('RPC search_sharer_by_email error:', rpcError);
+        console.error('[searchSharer] RPC error:', rpcError);
         toast.error('An error occurred while searching');
         return null;
       }
 
       if (!sharerData) {
+        console.log('[searchSharer] RPC returned no sharerData. Checking Profile table.');
         const { data: existingProfile } = await supabase
           .from('Profile')
           .select('id')
@@ -84,27 +90,32 @@ export default function RequestFollowForm() {
 
         if (!existingProfile) {
           toast.error('No user found with that email address.');
+          console.log('[searchSharer] No profile found with that email.');
         } else {
           toast.info('This user cannot be requested at this time. They may not be a sharer, or you might already be connected or have a pending request.');
+          console.log('[searchSharer] Profile found, but not requestable via RPC.');
         }
-        return null;
+        return null; // Explicitly return null if sharerData is null
       }
 
-      setFoundSharer(sharerData as SharerProfile);
-      return sharerData as SharerProfile;
+      console.log('[searchSharer] Sharer found via RPC:', sharerData);
+      setFoundSharer(sharerData as SharerProfile); // Set state for UI
+      return sharerData as SharerProfile; // Return the found profile
     } catch (error) {
-      console.error('Unexpected error during searchSharer:', error);
+      console.error('[searchSharer] Unexpected error:', error);
       toast.error('An error occurred while searching');
       return null;
     } finally {
-      setIsSearching(false)
+      setIsSearching(false);
+      console.log('[searchSharer] State update: isSearching=false');
     }
   }
 
   // Renamed from onSubmit: Handles the actual submission logic
   const performSubmit = async () => {
+    console.log('[performSubmit] Initiated. Current foundSharer state:', foundSharer);
     if (!foundSharer) {
-      console.error("performSubmit called without foundSharer!");
+      console.error("[performSubmit] Aborted: foundSharer is null!");
       toast.error("Cannot send request, sharer not selected.");
       return;
     }
@@ -205,25 +216,33 @@ export default function RequestFollowForm() {
 
   // This function decides whether to search or submit based on current state
   const handleFormAction = async (data: RequestFollowFormData) => {
-    if (foundSharer) {
-      // If a sharer is already found, proceed to submit
+    console.log('[handleFormAction] Clicked. Current foundSharer state:', foundSharer, 'Form data email:', data.email);
+    if (foundSharer) { // If sharer is already displayed (state is set from blur or previous search click)
+      console.log('[handleFormAction] Sharer already found in state. Proceeding to submit.');
       await performSubmit();
-    } else {
-      // If no sharer is found, treat this submit action as a search trigger
-      await searchSharer(data.email);
-      // Do not proceed further; state change will update the button
+    } else { // If no sharer is displayed (button was "Search Sharer")
+      console.log('[handleFormAction] No sharer in state. Calling searchSharer from button click.');
+      await searchSharer(data.email); // Search and update state. UI will change.
+                                      // User clicks again on the (now) "Send" button.
+      console.log('[handleFormAction] searchSharer from button click finished. UI should reflect result.');
     }
-  }
+  };
 
   const handleEmailBlur = async () => {
-    const email = form.getValues('email')
-    const isValid = await form.trigger('email')
-    if (email && isValid) {
-      await searchSharer(email)
+    const email = form.getValues('email');
+    const isValid = await form.trigger('email');
+    console.log('[handleEmailBlur] Fired. Email:', email, 'isValid:', isValid, 'Current foundSharer:', foundSharer, 'isSearching:', isSearching);
+
+    if (email && isValid && !foundSharer && !isSearching) { // Only search on blur if not already found and not already searching
+      console.log('[handleEmailBlur] Conditions met, calling searchSharer.');
+      await searchSharer(email);
     } else {
-      setFoundSharer(null)
+      console.log('[handleEmailBlur] Conditions NOT met for search. Clearing foundSharer if email is invalid/empty.');
+      if (!email || !isValid) {
+        setFoundSharer(null); // Clear if email becomes invalid/empty
+      }
     }
-  }
+  };
 
   return (
     <div>

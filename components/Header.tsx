@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useParams } from 'next/navigation';
 import { Avatar as AvatarComponent, AvatarImage, AvatarFallback } from './ui/avatar';
@@ -19,7 +19,7 @@ import {
   DropdownMenuSeparator,
 } from './ui/dropdown-menu';
 import { Button } from './ui/button';
-import { UserPlus, Users, UserCircle, Settings, LogOut, SwitchCamera, Bell, BellRing, CircleDot, X, Check, Loader2 } from 'lucide-react';
+import { UserPlus, Users, UserCircle, Settings, LogOut, SwitchCamera, Bell, BellRing, CircleDot, X, Check, Loader2, Gift, Link as LinkIcon } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserStore } from '@/stores/userStore';
 import InviteModal from './invite/InviteModal';
@@ -39,11 +39,12 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import Logo from '@/components/Logo';
 import { createClient } from '@/utils/supabase/client';
 import ExecutorInviteModal from '@/components/executor/connections/ExecutorInviteModal';
+import { useCurrentRole } from '@/hooks/useCurrentRole';
 
 // Define interfaces for type safety
 interface Notification {
   id: string;
-  type: 'INVITATION' | string;
+  type: 'INVITATION' | 'FOLLOW_REQUEST_RECEIVED' | string;
   message: string;
   isRead: boolean;
   createdAt: string;
@@ -51,6 +52,9 @@ interface Notification {
   invitationStatus?: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED' | null;
   data?: {
     invitationId?: string;
+    followRequestId?: string;
+    requestorFirstName?: string;
+    requestorLastName?: string;
     [key: string]: any;
   };
   [key: string]: any;
@@ -80,28 +84,8 @@ const fetcher = (url: string): Promise<any> => fetch(url).then(res => {
   return res.json();
 });
 
-// Keep useCurrentRole based on pathname for general layout/UI consistency
-function useCurrentRole() {
-  const pathname = usePathname();
-  // Use state for role derived from path
-  const [currentRoleFromPath, setCurrentRoleFromPath] = useState<'SHARER' | 'LISTENER' | 'EXECUTOR' | null>(null);
-
-  useEffect(() => {
-    if (pathname?.includes('/role-sharer')) {
-      setCurrentRoleFromPath('SHARER');
-    } else if (pathname?.includes('/role-listener')) {
-      setCurrentRoleFromPath('LISTENER');
-    } else if (pathname?.includes('/role-executor')) {
-      setCurrentRoleFromPath('EXECUTOR');
-    } else {
-      setCurrentRoleFromPath(null);
-    }
-  }, [pathname]);
-
-  return currentRoleFromPath; // Return role derived from path
-}
-
 export default function Header() {
+  const supabase = createClient();
   const { user, loading: authLoading, signOut } = useAuth();
   const { profile } = useUserStore();
   const router = useRouter();
@@ -120,59 +104,46 @@ export default function Header() {
   console.log("[HEADER RENDER] Profile from useUserStore:", profile); // Keep log temporarily
 
   // SWR hooks for notifications and count
-  const notificationsKey = user ? '/api/notifications' : null;
-  const countKey = user ? '/api/notifications?count=true' : null;
+  const notificationsKey = `/api/notifications?countOnly=false${currentRoleFromPath === 'SHARER' ? `&sharerId=${currentRoleFromPath}` : ''}`;
+  const unreadNotificationsCountKey = `/api/notifications?countOnly=true${currentRoleFromPath === 'SHARER' ? `&sharerId=${currentRoleFromPath}` : ''}`;
 
-  const { data: notificationsData } = useSWR<NotificationsData>(notificationsKey, fetcher);
-  const { data: countData } = useSWR<NotificationsCountData>(countKey, fetcher, { refreshInterval: 15000 });
+  const { data: notificationsData, error: notificationsError, mutate: mutateNotifications } = useSWR<NotificationsData>(notificationsKey, fetcher);
+  const { data: unreadCountData, error: unreadCountError, mutate: mutateUnreadCount } = useSWR<NotificationsCountData>(unreadNotificationsCountKey, fetcher, { refreshInterval: 30000 });
 
   // --- NEW: Function to mark all notifications as read ---
   const markAllNotificationsRead = useCallback(async () => {
-    if (!user || !notificationsData || countData?.count === 0) return; // Don't run if no user, no notifications, or count is 0
+    if (!user || !notificationsData || !unreadCountData || unreadCountData.count === 0) return;
 
     console.log('[HEADER] Attempting to mark all notifications as read...');
 
-    // Optimistic UI update for count
-    mutate(countKey, { count: 0 }, false); // Update count locally immediately, don't revalidate yet
+    mutateUnreadCount({ count: 0 }, false); 
 
-    // Optimistic UI update for notifications list
     const updatedNotifications = notificationsData.notifications.map(n => ({ ...n, isRead: true }));
-    mutate(notificationsKey, { notifications: updatedNotifications }, false); // Update list locally, don't revalidate yet
+    mutateNotifications({ notifications: updatedNotifications }, false); 
 
     try {
-      const response = await fetch('/api/notifications/mark-all-read', {
-        method: 'POST',
-      });
+      const { error } = await supabase.rpc('mark_all_notifications_read_safe');
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to mark notifications as read');
+      if (error) {
+        throw new Error(error.message || 'Failed to mark notifications as read');
       }
 
       console.log('[HEADER] Successfully marked notifications as read via API.');
-      // Trigger revalidation for both endpoints to confirm server state
-      mutate(notificationsKey); 
-      mutate(countKey);
+      mutateNotifications(); 
+      mutateUnreadCount();
 
     } catch (error) {
       console.error('[HEADER] Error marking notifications as read:', error);
       toast.error('Failed to mark notifications as read.');
-      // Rollback optimistic updates on error
-      mutate(notificationsKey); // Re-fetch original data
-      mutate(countKey); // Re-fetch original count
+      mutateNotifications(); 
+      mutateUnreadCount(); 
     }
-  }, [user, notificationsData, countData, mutate, notificationsKey, countKey]);
+  }, [user, notificationsData, unreadCountData, mutateNotifications, mutateUnreadCount, supabase]);
 
-  // Handler for opening the notifications dropdown/sheet
   const handleNotificationsToggle = (open: boolean) => {
     setNotificationsOpen(open);
-    if (open) {
-      // Call the function to mark all as read when the dropdown opens
-      markAllNotificationsRead();
-    } else {
-      // Reset processed state when dropdown closes (if still needed for accept/decline)
-      setProcessedNotifications({});
-      setProcessingNotificationId(null);
+    if (!open && unreadCountData && unreadCountData.count > 0) {
+       markAllNotificationsRead();
     }
   };
 
@@ -263,12 +234,9 @@ export default function Header() {
   const [processingNotificationId, setProcessingNotificationId] = useState<string | null>(null);
   const [processedNotifications, setProcessedNotifications] = useState<Record<string, 'accepted' | 'declined'>>({});
 
-  const supabase = createClient(); // Create supabase client instance
-
-  // Handler for accepting from dropdown
   const handleDropdownAccept = async (event: React.MouseEvent, notification: Notification) => {
-    event.stopPropagation(); // Prevent closing dropdown / navigation
     event.preventDefault();
+    event.stopPropagation(); // Prevent closing dropdown / navigation
 
     const invitationId = notification.related_entity_id || notification.data?.invitationId;
     if (!invitationId || processingNotificationId || processedNotifications[notification.id]) return;
@@ -284,8 +252,8 @@ export default function Header() {
 
       toast.success('Invitation accepted!');
       setProcessedNotifications(prev => ({ ...prev, [notification.id]: 'accepted' }));
-      await mutate(notificationsKey); // Refresh notifications list
-      await mutate(countKey); // Refresh count might be needed if accept removes notification
+      await mutateNotifications(); // Refresh notifications list
+      await mutateUnreadCount(); // Refresh count might be needed if accept removes notification
 
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not accept invitation.');
@@ -296,8 +264,8 @@ export default function Header() {
 
   // Handler for declining from dropdown
   const handleDropdownDecline = async (event: React.MouseEvent, notification: Notification) => {
-    event.stopPropagation(); // Prevent closing dropdown / navigation
     event.preventDefault();
+    event.stopPropagation(); // Prevent closing dropdown / navigation
 
     const invitationId = notification.related_entity_id || notification.data?.invitationId;
      if (!invitationId || processingNotificationId || processedNotifications[notification.id]) return;
@@ -313,11 +281,79 @@ export default function Header() {
 
       toast.success('Invitation declined.');
       setProcessedNotifications(prev => ({ ...prev, [notification.id]: 'declined' }));
-       await mutate(notificationsKey); // Refresh notifications list
-       await mutate(countKey); // Refresh count might be needed if decline removes notification
+       await mutateNotifications(); // Refresh notifications list
+       await mutateUnreadCount(); // Refresh count might be needed if decline removes notification
 
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not decline invitation.');
+    } finally {
+      setProcessingNotificationId(null);
+    }
+  };
+
+  const handleFollowRequestAccept = async (event: React.MouseEvent, notification: Notification) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!notification.data?.followRequestId) {
+      toast.error("Error: Follow Request ID is missing.");
+      return;
+    }
+    setProcessingNotificationId(notification.id);
+    try {
+      const { error: rpcError } = await supabase.rpc('handle_follow_request_response', {
+        request_id: notification.data.followRequestId,
+        should_approve: true,
+      });
+
+      if (rpcError) {
+        throw rpcError;
+      }
+
+      await supabase.rpc('mark_notifications_read_safe', {
+        p_notification_ids: [notification.id],
+      });
+
+      toast.success('Follow request approved!');
+      mutateNotifications();
+      mutateUnreadCount();
+      setProcessedNotifications(prev => ({ ...prev, [notification.id]: 'accepted' }));
+    } catch (error: any) {
+      console.error('Error approving follow request:', error);
+      toast.error(`Failed to approve follow request: ${error.message}`);
+    } finally {
+      setProcessingNotificationId(null);
+    }
+  };
+
+  const handleFollowRequestDecline = async (event: React.MouseEvent, notification: Notification) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!notification.data?.followRequestId) {
+      toast.error("Error: Follow Request ID is missing.");
+      return;
+    }
+    setProcessingNotificationId(notification.id);
+    try {
+      const { error: rpcError } = await supabase.rpc('handle_follow_request_response', {
+        request_id: notification.data.followRequestId,
+        should_approve: false,
+      });
+
+      if (rpcError) {
+        throw rpcError;
+      }
+
+      await supabase.rpc('mark_notifications_read_safe', {
+        p_notification_ids: [notification.id],
+      });
+
+      toast.success('Follow request declined.');
+      mutateNotifications();
+      mutateUnreadCount();
+      setProcessedNotifications(prev => ({ ...prev, [notification.id]: 'declined' }));
+    } catch (error: any) {
+      console.error('Error declining follow request:', error);
+      toast.error(`Failed to decline follow request: ${error.message}`);
     } finally {
       setProcessingNotificationId(null);
     }
@@ -444,19 +480,24 @@ export default function Header() {
                         <>
                           {recentNotifications.map((notification: Notification) => {
                             const isInvitation = notification.type === 'INVITATION';
+                            const isFollowRequest = notification.type === 'FOLLOW_REQUEST_RECEIVED';
                             const isProcessing = processingNotificationId === notification.id;
                             const sessionStatus = processedNotifications[notification.id];
                             const dbStatus = notification.invitationStatus;
                             
                             const finalStatus = sessionStatus || (dbStatus === 'ACCEPTED' ? 'accepted' : dbStatus === 'DECLINED' ? 'declined' : null);
-                            const canTakeAction = isInvitation && !isProcessing && (!finalStatus || dbStatus === 'PENDING');
+                            const canTakeInvitationAction = isInvitation && !isProcessing && (!finalStatus || dbStatus === 'PENDING');
+
+                            // Condition for Sharer to act on Follow Request
+                            const isCurrentUserSharer = currentRoleFromPath === 'SHARER';
+                            const canTakeFollowRequestActionSharer = isFollowRequest && isCurrentUserSharer && !isProcessing && !sessionStatus;
 
                             return (
                               <div 
                                 key={notification.id} 
                                 className="group flex items-start justify-between gap-2 py-3 px-4 cursor-pointer"
                                 onClick={(e) => {
-                                  if (!canTakeAction || !(e.target as HTMLElement).closest('[data-action-button="true"]')) {
+                                  if ((!canTakeInvitationAction && !canTakeFollowRequestActionSharer) || !(e.target as HTMLElement).closest('[data-action-button="true"]')) {
                                     setNotificationsOpen(false);
                                     router.push('/notifications');
                                   }
@@ -478,7 +519,7 @@ export default function Header() {
                                   {isProcessing && (
                                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                                   )}
-                                  {canTakeAction && (
+                                  {canTakeInvitationAction && (
                                     <>
                                       <button
                                         data-action-button="true"
@@ -488,21 +529,39 @@ export default function Header() {
                                       >
                                         <X className="h-4 w-4" />
                                       </button>
+                                    </>
+                                  )}
+                                  {canTakeFollowRequestActionSharer && (
+                                    <>
                                       <button
                                         data-action-button="true"
-                                        onClick={(e) => handleDropdownAccept(e, notification)}
+                                        onClick={(e) => handleFollowRequestDecline(e, notification)}
+                                        className="p-1 rounded hover:rounded-full hover:bg-red-100 text-muted-foreground hover:text-red-700"
+                                        aria-label="Decline Follow Request"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        data-action-button="true"
+                                        onClick={(e) => handleFollowRequestAccept(e, notification)}
                                         className="p-1 rounded hover:rounded-full hover:bg-green-100 text-muted-foreground hover:text-green-700"
-                                        aria-label="Accept Invitation"
+                                        aria-label="Accept Follow Request"
                                       >
                                         <Check className="h-4 w-4" />
                                       </button>
                                     </>
                                   )}
-                                   {finalStatus === 'accepted' && (
+                                   {finalStatus === 'accepted' && isInvitation && (
                                       <span className="text-xs text-green-600 font-medium">Accepted</span>
                                     )}
-                                     {finalStatus === 'declined' && (
+                                     {finalStatus === 'declined' && isInvitation && (
                                        <span className="text-xs text-red-600 font-medium">Declined</span>
+                                     )}
+                                     {sessionStatus === 'accepted' && canTakeFollowRequestActionSharer && (
+                                        <span className="text-xs text-green-600 font-medium">Accepted</span>
+                                     )}
+                                     {sessionStatus === 'declined' && canTakeFollowRequestActionSharer && (
+                                         <span className="text-xs text-red-600 font-medium">Declined</span>
                                      )}
                                 </div>
                               </div>
@@ -548,25 +607,29 @@ export default function Header() {
                       <>
                         {recentNotifications.map((notification: Notification) => {
                           const isInvitation = notification.type === 'INVITATION';
+                          const isFollowRequest = notification.type === 'FOLLOW_REQUEST_RECEIVED';
                           const isProcessing = processingNotificationId === notification.id;
                           const sessionStatus = processedNotifications[notification.id];
                           const dbStatus = notification.invitationStatus;
 
                           const finalStatus = sessionStatus || (dbStatus === 'ACCEPTED' ? 'accepted' : dbStatus === 'DECLINED' ? 'declined' : null);
+                          const canTakeInvitationAction = isInvitation && !isProcessing && (!finalStatus || dbStatus === 'PENDING');
 
-                          const canTakeAction = isInvitation && !isProcessing && (!finalStatus || dbStatus === 'PENDING');
+                          // Condition for Sharer to act on Follow Request
+                          const isCurrentUserSharer = currentRoleFromPath === 'SHARER';
+                          const canTakeFollowRequestActionSharer = isFollowRequest && isCurrentUserSharer && !isProcessing && !sessionStatus;
 
                           return (
                             <DropdownMenuItem
                               key={notification.id}
                               className="group py-3 px-4 cursor-pointer focus:bg-transparent focus:text-accent-foreground data-[highlighted]:bg-transparent data-[highlighted]:text-accent-foreground"
                               onClick={(e) => {
-                                 if (!canTakeAction || !(e.target as HTMLElement).closest('[data-action-button="true"]')) {
+                                 if ((!canTakeInvitationAction && !canTakeFollowRequestActionSharer) || !(e.target as HTMLElement).closest('[data-action-button="true"]')) {
                                    router.push('/notifications');
                                  }
                               }}
                               onSelect={(e) => {
-                                  if (canTakeAction) {
+                                  if (canTakeInvitationAction || canTakeFollowRequestActionSharer) {
                                      const target = e.target as HTMLElement;
                                      if (target.closest('[data-action-button="true"]')) {
                                         e.preventDefault(); 
@@ -591,7 +654,7 @@ export default function Header() {
                                   {isProcessing && (
                                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                                   )}
-                                  {canTakeAction && (
+                                  {canTakeInvitationAction && (
                                     <>
                                       <button
                                         data-action-button="true"
@@ -601,21 +664,39 @@ export default function Header() {
                                       >
                                         <X className="h-4 w-4" />
                                       </button>
+                                    </>
+                                  )}
+                                  {canTakeFollowRequestActionSharer && (
+                                    <>
                                       <button
                                         data-action-button="true"
-                                        onClick={(e) => handleDropdownAccept(e, notification)}
+                                        onClick={(e) => handleFollowRequestDecline(e, notification)}
+                                        className="p-1 rounded hover:rounded-full hover:bg-red-100 text-muted-foreground hover:text-red-700"
+                                        aria-label="Decline Follow Request"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        data-action-button="true"
+                                        onClick={(e) => handleFollowRequestAccept(e, notification)}
                                         className="p-1 rounded hover:rounded-full hover:bg-green-100 text-muted-foreground hover:text-green-700"
-                                        aria-label="Accept Invitation"
+                                        aria-label="Accept Follow Request"
                                       >
                                         <Check className="h-4 w-4" />
                                       </button>
                                     </>
                                   )}
-                                   {finalStatus === 'accepted' && (
+                                   {finalStatus === 'accepted' && isInvitation && (
                                       <span className="text-xs text-green-600 font-medium">Accepted</span>
                                     )}
-                                    {finalStatus === 'declined' && (
+                                    {finalStatus === 'declined' && isInvitation && (
                                       <span className="text-xs text-red-600 font-medium">Declined</span>
+                                    )}
+                                    {sessionStatus === 'accepted' && canTakeFollowRequestActionSharer && (
+                                       <span className="text-xs text-green-600 font-medium">Accepted</span>
+                                    )}
+                                    {sessionStatus === 'declined' && canTakeFollowRequestActionSharer && (
+                                        <span className="text-xs text-red-600 font-medium">Declined</span>
                                     )}
                                 </div>
                               </div>
