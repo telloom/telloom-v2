@@ -87,6 +87,8 @@ export default function NotificationsPage() {
   };
 
   const handleNotificationClick = async (notification: Notification) => {
+    // If action buttons were clicked, they would have handled the event and stopped propagation.
+    // This click handler is for when the main body of the notification item is clicked.
     try {
       // Mark the notification as read
       const res = await fetch('/api/notifications', {
@@ -98,39 +100,101 @@ export default function NotificationsPage() {
       if (!res.ok) {
         throw new Error('Failed to mark notification as read');
       }
+      mutate(); // Revalidate notifications after marking as read
 
-      mutate();
+      // Determine navigation path
+      let path = '/'; // Default path
+      const activeTabQuery = "?tab=active";
+      const pendingTabQuery = "?tab=pending";
 
-      // Navigate based on notification type and role
-      const notificationRole = notification.data?.role || currentRole;
-      const baseRoute = notificationRole ? `/role-${notificationRole.toLowerCase()}` : '/';
-      const sharerId = notification.data?.sharerId;
-      
-      switch (notification.type) {
-        case 'FOLLOW_REQUEST':
-          if (notification.data?.action === 'APPROVED') {
-            router.push(`${baseRoute}/connections?tab=active`);
+      // Destructure for easier access
+      const { type, invitationData, followRequestData, actingForSharerInfo } = notification;
+
+      if (type === 'INVITATION') {
+        if (invitationData?.invitationToken && invitationData.status === 'PENDING') {
+          // If there's a pending invitation token, go to accept page first
+          path = `/invitation/accept/${invitationData.invitationToken}`;
+        } else if (invitationData?.role === 'EXECUTOR' && invitationData?.sharerId) {
+          // Executor invitation related to a specific sharer.
+          // actingForSharerInfo might also be present if the notification is viewed by an executor for another sharer.
+          // Prioritize explicit sharerId from invitationData if available for executor roles.
+          path = `/role-executor/${invitationData.sharerId}/connections${invitationData.status === 'PENDING' ? pendingTabQuery : activeTabQuery}`;
+        } else if (actingForSharerInfo?.sharerId && invitationData?.role === 'EXECUTOR') {
+          // If the invitation is for an executor role AND it's being acted upon via actingForSharerInfo context
+          path = `/role-executor/${actingForSharerInfo.sharerId}/connections${invitationData.status === 'PENDING' ? pendingTabQuery : activeTabQuery}`;
+        } else if (invitationData?.role === 'LISTENER' || invitationData?.role === 'SHARER') {
+           // Standard sharer or listener invitation
+           path = `/role-${invitationData.role.toLowerCase()}/connections${invitationData.status === 'PENDING' ? pendingTabQuery : activeTabQuery}`;
+        } else {
+          // Fallback for other invitation types or general notifications page if role unclear
+          path = currentRole ? `/role-${currentRole.toLowerCase()}/connections` : '/notifications';
+        }
+      } else if (type === 'FOLLOW_REQUEST_RECEIVED') {
+        const targetStatusQuery = followRequestData?.status === 'PENDING' ? pendingTabQuery : activeTabQuery;
+        // If actingForSharerInfo is present, this notification is for an Executor.
+        if (actingForSharerInfo?.sharerId) {
+          path = `/role-executor/${actingForSharerInfo.sharerId}/connections${targetStatusQuery}`;
+        } else if (currentRole === 'SHARER') { // If not an executor context, check if current user is Sharer.
+          path = `/role-sharer/connections${targetStatusQuery}`;
+        } else {
+          // Fallback if role context is unclear for a follow request
+          path = currentRole ? `/role-${currentRole.toLowerCase()}/connections` : '/notifications';
+        }
+      } else if (type === 'CONNECTION_CHANGE') {
+        // For connection changes (e.g., accepted, revoked)
+        // If actingForSharerInfo is present, it's an executor context for THIS notification.
+        if (actingForSharerInfo?.sharerId){
+            path = `/role-executor/${actingForSharerInfo.sharerId}/connections${activeTabQuery}`;
+        } else if (notification.data?.role) { // Use role from notification.data (original context of the event)
+            path = `/role-${notification.data.role.toLowerCase()}/connections${activeTabQuery}`;
+        } else if (currentRole) { // Fallback to the current role of the user on this page
+            path = `/role-${currentRole.toLowerCase()}/connections${activeTabQuery}`;
+        } else {
+            path = '/notifications'; // Further fallback
+        }
+      } else {
+        // Fallback for other notification types (e.g., INVITATION_ACCEPTED, FOLLOW_REQUEST_APPROVED, TOPIC_RESPONSE etc.)
+        const connectionFinalizedTypes = ['INVITATION_ACCEPTED', 'INVITATION_DECLINED', 'FOLLOW_REQUEST_APPROVED', 'FOLLOW_REQUEST_DECLINED'];
+        
+        if (actingForSharerInfo?.sharerId) {
+          // Executor context for the notification
+          if (connectionFinalizedTypes.includes(type)) {
+            path = `/role-executor/${actingForSharerInfo.sharerId}/connections${activeTabQuery}`;
           } else {
-            router.push(`${baseRoute}/connections?tab=pending`);
+            // Default for other types in executor context (e.g., new topic, comment for sharer)
+            path = `/role-executor/${actingForSharerInfo.sharerId}`;
           }
-          break;
-        case 'CONNECTION_CHANGE':
-          if (notificationRole === 'EXECUTOR' && sharerId) {
-            router.push(`/role-executor/${sharerId}/connections?tab=active`);
+        } else if (currentRole) {
+          // Direct notification, and user is on a page with a specific role context (e.g., /role-sharer/notifications)
+          if (connectionFinalizedTypes.includes(type)) {
+            path = `/role-${currentRole.toLowerCase()}/connections${activeTabQuery}`;
           } else {
-            router.push(`${baseRoute}/connections?tab=active`);
+            // Default for other types in this role context
+            path = `/role-${currentRole.toLowerCase()}`;
           }
-          break;
-        default:
-          if (notificationRole === 'EXECUTOR' && sharerId) {
-            router.push(`/role-executor/${sharerId}`);
+        } else {
+          // No actingForSharerInfo, and currentRole is null (e.g., on /notifications page for a direct notification)
+          if (connectionFinalizedTypes.includes(type)) {
+            if (notification.data?.role) {
+              // Try to use notification.data.role as a hint for the relevant connections page
+              path = `/role-${notification.data.role.toLowerCase()}/connections${activeTabQuery}`;
+            } else {
+              // If no hint and it's a connection type, default to general notifications page
+              path = '/notifications';
+            }
           } else {
-            router.push(baseRoute);
+            // For other types without any context, default to notifications page
+            path = '/notifications';
           }
+        }
       }
+      
+      console.log(`[NotificationClick] Navigating to: ${path} for type: ${type}, NotifID: ${notification.id}, CurrentRole: ${currentRole}, ActingFor: ${JSON.stringify(actingForSharerInfo)}`);
+      router.push(path);
+
     } catch (error) {
-      toast.error('Failed to mark notification as read');
-      console.error('Error marking notification as read:', error);
+      toast.error('Failed to process notification click');
+      console.error('Error in handleNotificationClick:', error);
     }
   };
 
@@ -211,6 +275,7 @@ export default function NotificationsPage() {
               notifications={processedNotifications}
               onItemClick={handleNotificationClick}
               onMarkAllAsRead={handleMarkAllAsRead}
+              currentRole={currentRole}
             />
           )}
         </div>

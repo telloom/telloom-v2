@@ -126,6 +126,7 @@ export default function NotificationsClientPage({ sharerId }: Props) {
             notifications={data.notifications}
             onItemClick={handleNotificationClick}
             onMarkAllAsRead={handleMarkAllAsRead}
+            currentRole="EXECUTOR"
           />
         )}
       </div>

@@ -109,15 +109,15 @@ export default function Following() {
       </div>
 
       {/* Mobile view */}
-      <div className="md:hidden space-y-4">
+      <div className="md:hidden space-y-3">
         {sharers.map((sharer) => (
           <div
             key={sharer.id}
-            className="border rounded-lg p-4 space-y-2"
+            className="border rounded-lg p-3 space-y-2 bg-background"
           >
             <div className="flex justify-between items-start">
-              <div className="flex gap-3">
-                <Avatar className="h-8 w-8">
+              <div className="flex gap-2 items-start">
+                <Avatar className="h-8 w-8 mt-0.5">
                   {sharer.profile.avatarUrl ? (
                     <AvatarImage
                       src={sharer.profile.avatarUrl}
@@ -129,15 +129,15 @@ export default function Following() {
                     </AvatarFallback>
                   )}
                 </Avatar>
-                <div>
-                  <h4 className="font-medium">
+                <div className="flex-grow">
+                  <h4 className="font-semibold text-sm">
                     {sharer.profile.firstName} {sharer.profile.lastName}
                   </h4>
-                  <p className="text-sm text-muted-foreground break-all">
+                  <p className="text-xs text-muted-foreground break-all">
                     {sharer.profile.email}
                   </p>
-                  <div className="flex flex-col gap-1 mt-2">
-                    <span className={`text-xs inline-block w-fit px-2 py-0.5 rounded-full ${
+                  <div className="flex flex-col gap-0.5 mt-1.5">
+                    <span className={`text-xs inline-block w-fit px-1.5 py-0.5 rounded-full ${
                       sharer.hasAccess 
                         ? 'bg-green-100 text-green-800'
                         : 'bg-red-100 text-red-800'
@@ -152,9 +152,9 @@ export default function Following() {
               </div>
               <Button
                 variant="ghost"
-                size="icon"
+                size="sm"
                 onClick={() => unfollowSharer(sharer.id)}
-                className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                className="p-1 h-auto w-auto text-muted-foreground hover:text-red-600 hover:bg-red-50 shrink-0 ml-1"
               >
                 <X className="h-4 w-4" />
               </Button>

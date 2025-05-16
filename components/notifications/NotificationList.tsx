@@ -11,12 +11,14 @@ interface NotificationListProps {
   notifications: Notification[];
   onItemClick: (notification: Notification) => void;
   onMarkAllAsRead: () => void;
+  currentRole?: 'SHARER' | 'EXECUTOR' | 'LISTENER' | null;
 }
 
 export default function NotificationList({
   notifications,
   onItemClick,
   onMarkAllAsRead,
+  currentRole,
 }: NotificationListProps) {
   if (!notifications.length) {
     return (
@@ -73,6 +75,7 @@ export default function NotificationList({
                     key={notification.id}
                     notification={notification}
                     onClick={() => onItemClick(notification)}
+                    currentRole={currentRole}
                   />
                 ))}
               </div>

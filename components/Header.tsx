@@ -251,6 +251,8 @@ export default function Header() {
       return '/role-sharer/connections';
     } else if (currentRoleFromPath === 'EXECUTOR' && params?.id) {
       return `/role-executor/${params.id}/connections`;
+    } else if (currentRoleFromPath === 'LISTENER') {
+      return '/role-listener/connections';
     }
     return null;
   };

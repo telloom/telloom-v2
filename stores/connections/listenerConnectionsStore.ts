@@ -35,15 +35,29 @@ export interface FollowRequest {
   };
 }
 
+export interface PendingInvitation {
+  invitationId: string;
+  invitationToken: string;
+  inviterProfileId: string;
+  inviterProfileSharerId: string;
+  inviterFirstName: string | null;
+  inviterLastName: string | null;
+  inviterAvatarUrl: string | null;
+  invitationStatus: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
+  createdAt: string;
+}
+
 interface ListenerConnectionsStore {
   sharers: Sharer[];
   followRequests: FollowRequest[];
+  pendingInvitations: PendingInvitation[];
   isLoading: boolean;
   error: string | null;
   
   // Fetch operations
   fetchSharings: () => Promise<void>;
   fetchFollowRequests: () => Promise<void>;
+  fetchPendingInvitations: (listenerEmail: string) => Promise<void>;
   
   // Follow request operations
   sendFollowRequest: (email: string) => Promise<void>;
@@ -53,9 +67,10 @@ interface ListenerConnectionsStore {
   unfollowSharer: (sharerId: string) => Promise<void>;
 }
 
-export const useListenerConnectionsStore = create<ListenerConnectionsStore>((set) => ({
+export const useListenerConnectionsStore = create<ListenerConnectionsStore>((set, get) => ({
   sharers: [],
   followRequests: [],
+  pendingInvitations: [],
   isLoading: false,
   error: null,
 
@@ -67,32 +82,22 @@ export const useListenerConnectionsStore = create<ListenerConnectionsStore>((set
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
 
-      const { data: sharings, error } = await supabase
-        .from('ProfileListener')
-        .select(`
-          id,
-          sharedSince,
-          hasAccess,
-          ProfileSharer!inner (
-            id,
-            Profile (
-              id,
-              email,
-              firstName,
-              lastName,
-              avatarUrl
-            )
-          )
-        `)
-        .eq('listenerId', user.id);
+      const { data: rpcData, error } = await supabase
+        .rpc('get_listener_following_sharers', { p_listener_id: user.id });
 
       if (error) throw error;
 
-      const formattedSharings: Sharer[] = sharings.map(sharing => ({
-        id: sharing.ProfileSharer.id,
-        profile: sharing.ProfileSharer.Profile,
+      const formattedSharings: Sharer[] = rpcData.map(sharing => ({
+        id: sharing.sharerId,
+        profile: {
+          id: sharing.sharerProfileId,
+          email: sharing.sharerEmail,
+          firstName: sharing.sharerFirstName,
+          lastName: sharing.sharerLastName,
+          avatarUrl: sharing.sharerAvatarUrl,
+        },
         sharedSince: sharing.sharedSince,
-        hasAccess: sharing.hasAccess,
+        hasAccess: true,
       }));
 
       set({ sharers: formattedSharings, isLoading: false });
@@ -111,29 +116,26 @@ export const useListenerConnectionsStore = create<ListenerConnectionsStore>((set
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No authenticated user');
 
-      const { data: requests, error } = await supabase
-        .from('FollowRequest')
-        .select(`
-          *,
-          ProfileSharer (
-            Profile (
-              id,
-              email,
-              firstName,
-              lastName,
-              avatarUrl
-            )
-          )
-        `)
-        .eq('requestorId', user.id)
-        .order('createdAt', { ascending: false });
-
+      const { data: rpcData, error } = await supabase
+        .rpc('get_listener_pending_follow_requests', { p_listener_id: user.id });
+      
       if (error) throw error;
 
-      const formattedRequests: FollowRequest[] = requests.map(request => ({
-        ...request,
+      const formattedRequests: FollowRequest[] = rpcData.map(request => ({
+        id: request.requestId,
+        sharerId: request.sharerId,
+        requestorId: user.id,
+        status: request.requestStatus,
+        createdAt: request.requestCreatedAt,
+        updatedAt: request.requestCreatedAt,
         sharer: {
-          profile: request.ProfileSharer.Profile
+          profile: {
+            id: request.sharerProfileId,
+            email: request.sharerEmail,
+            firstName: request.sharerFirstName,
+            lastName: request.sharerLastName,
+            avatarUrl: request.sharerAvatarUrl,
+          }
         }
       }));
 
@@ -142,6 +144,32 @@ export const useListenerConnectionsStore = create<ListenerConnectionsStore>((set
       console.error('Error fetching follow requests:', error);
       set({ error: 'Failed to fetch follow requests', isLoading: false });
       toast.error('Failed to fetch follow requests');
+    }
+  },
+
+  fetchPendingInvitations: async (listenerEmail: string) => {
+    if (!listenerEmail) {
+      set({ error: 'Listener email is required to fetch invitations', isLoading: false });
+      toast.error('Listener email is required to fetch invitations.');
+      return;
+    }
+    const supabase = createClient();
+    set({ isLoading: true, error: null });
+
+    try {
+      const { data: rpcData, error } = await supabase.rpc('get_listener_pending_invitations', { 
+        p_listener_email: listenerEmail 
+      });
+
+      if (error) throw error;
+
+      // Assuming rpcData is already an array of PendingInvitation matching the interface
+      // No specific mapping needed if RPC returns data in the correct camelCase format
+      set({ pendingInvitations: rpcData || [], isLoading: false });
+    } catch (error) {
+      console.error('Error fetching pending invitations:', error);
+      set({ error: 'Failed to fetch pending invitations', isLoading: false });
+      toast.error('Failed to fetch pending invitations');
     }
   },
 
