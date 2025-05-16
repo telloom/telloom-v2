@@ -92,15 +92,8 @@ export default async function RoleListenerPage() {
 
     return (
       <div className="flex h-full">
-        <div className="container max-w-4xl mx-auto px-4 pt-6 pb-12 space-y-8">
+        <div className="container max-w-4xl mx-auto px-4 pt-6 pb-12 space-y-16">
           
-          {/* Section: Pending Requests (if any) */}
-          {pendingRequests.length > 0 && (
-            <div>
-              <PendingFollowRequests requests={pendingRequests} title="Pending Requests" />
-            </div>
-          )}
-
           {/* Section: Connected Sharers (if any) */}
           {listenerRelationships.length > 0 && (
             <div>
@@ -121,12 +114,15 @@ export default async function RoleListenerPage() {
             </div>
           )}
 
+          {/* Section: Pending Requests (if any) */}
+          {pendingRequests.length > 0 && (
+            <div>
+              <PendingFollowRequests requests={pendingRequests} title="Pending Requests" />
+            </div>
+          )}
+
           {/* Section: Request to Follow (Always visible, styled based on context) */}
-          <div className={
-            (listenerRelationships.length > 0 || pendingRequests.length > 0) 
-            ? "pt-8"
-            : ""
-          }>
+          <div>
             <Card className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55]">
               <CardHeader className={
                 (listenerRelationships.length === 0 && pendingRequests.length === 0) ? "text-center" : ""
