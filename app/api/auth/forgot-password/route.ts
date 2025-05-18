@@ -45,22 +45,24 @@ export async function POST(req: NextRequest) {
       supabaseAnonKey,
       {
         cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
+          get: async (name: string) => {
+            const store = await cookieStore; // Await the captured cookieStore
+            return store.get(name)?.value;
           },
-          set(name: string, value: string, options: CookieOptions) {
+          set: async (name: string, value: string, options: CookieOptions) => {
+            const store = await cookieStore; // Await the captured cookieStore
             try {
-              cookieStore.set({ name, value, ...options });
+              store.set({ name, value, ...options });
             } catch (error) {
               // The `set` method was called from a Server Component.
               // This can be ignored if you have middleware refreshing
               // user sessions.
             }
           },
-          remove(name: string, options: CookieOptions) {
+          remove: async (name: string, options: CookieOptions) => {
+            const store = await cookieStore; // Await the captured cookieStore
             try {
-              // Use `set` with an empty value for remove, as per standard Supabase util
-              cookieStore.set({ name, value: '', ...options });
+              store.set({ name, value: '', ...options });
             } catch (error) {
               // The `remove` (via set) method was called from a Server Component.
               // This can be ignored if you have middleware refreshing
@@ -102,6 +104,9 @@ export async function POST(req: NextRequest) {
     if (data) {
       console.log(`[API] User found, generating password reset token`);
       
+      // Log NEXT_PUBLIC_SITE_URL before using it
+      console.log(`[API Check Env] NEXT_PUBLIC_SITE_URL for resetUrl: ${process.env.NEXT_PUBLIC_SITE_URL}`);
+
       // For PKCE flow, we need to ensure the redirectTo URL is properly formatted
       // The URL should point to our reset-password page
       const resetUrl = new URL('/reset-password', process.env.NEXT_PUBLIC_SITE_URL);
