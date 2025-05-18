@@ -111,13 +111,13 @@ export default function ListenerTopicCard({
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start gap-2">
             <div className="flex-1">
-              <CardTitle className="text-lg sm:text-xl line-clamp-2 min-h-[2.5rem] sm:min-h-[3rem] flex-grow pr-2">
+              <CardTitle className="text-lg sm:text-xl line-clamp-2 flex-grow pr-2">
                 {promptCategory.category}
               </CardTitle>
               {promptCategory.theme && (
-                <p className="text-xs text-muted-foreground pt-1">
-                  Theme: {formatThemeName(promptCategory.theme)}
-                </p>
+                <div className="mt-1 inline-block bg-gray-100 text-gray-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                  {formatThemeName(promptCategory.theme)}
+                </div>
               )}
             </div>
           </div>

@@ -130,21 +130,38 @@ export default function Header() {
   // SWR hooks for notifications and count
   // Remove sharerId specific query param, backend will handle visibility for executors
   const notificationsKey = `/api/notifications?countOnly=false`;
-  const unreadNotificationsCountKey = `/api/notifications?countOnly=true`;
+  const unreadNotificationsCountKey = `/api/notifications?count=true`;
 
   const { data: notificationsData, mutate: mutateNotifications } = useSWR<NotificationsData>(notificationsKey, fetcher);
   const { data: unreadCountData, mutate: mutateUnreadCount } = useSWR<NotificationsCountData>(unreadNotificationsCountKey, fetcher, { refreshInterval: 30000 });
 
   // --- NEW: Function to mark all notifications as read ---
   const markAllNotificationsRead = useCallback(async () => {
-    if (!user || !notificationsData || !unreadCountData || unreadCountData.count === 0) return;
+    if (!user || !notificationsData || !unreadCountData || unreadCountData.count === 0) {
+      console.log('[HEADER markAllNotificationsRead] Skipped: conditions not met.', { user, notificationsData, unreadCountData });
+      return;
+    }
 
-    console.log('[HEADER] Attempting to mark all notifications as read...');
+    console.log('[HEADER markAllNotificationsRead] Attempting to mark all notifications as read...');
+    console.log('[HEADER markAllNotificationsRead] notificationsData BEFORE optimistic update:', JSON.parse(JSON.stringify(notificationsData)));
 
+    // Optimistically update the count
     mutateUnreadCount({ count: 0 }, false); 
 
-    const updatedNotifications = notificationsData.notifications.map(n => ({ ...n, isRead: true }));
-    mutateNotifications({ notifications: updatedNotifications }, false); 
+    // Optimistically update the list using functional update
+    mutateNotifications(
+      (currentData) => {
+        if (!currentData || !currentData.notifications) {
+          console.log('[HEADER markAllNotificationsRead] Optimistic mutate: currentData or notifications missing.');
+          return currentData; 
+        }
+        const newNotifications = currentData.notifications.map(n => ({ ...n, isRead: true }));
+        console.log('[HEADER markAllNotificationsRead] Optimistic mutate: newNotifications mapped:', JSON.parse(JSON.stringify(newNotifications.slice(0,2)))); // Log first 2 for brevity
+        return { ...currentData, notifications: newNotifications };
+      }, 
+      false // revalidate: false
+    );
+    console.log('[HEADER markAllNotificationsRead] notificationsData AFTER optimistic mutate call (SWR cache might not be synchronous).');
 
     try {
       const { error } = await supabase.rpc('mark_all_notifications_read_safe');
@@ -154,8 +171,11 @@ export default function Header() {
       }
 
       console.log('[HEADER] Successfully marked notifications as read via API.');
-      mutateNotifications(); 
-      mutateUnreadCount();
+      // Now that RPC is successful, trigger revalidation for both count and list
+      mutateUnreadCount(); // Revalidate count from server
+      console.log('[HEADER markAllNotificationsRead] Called mutateUnreadCount() for revalidation.');
+      mutateNotifications(); // Revalidate notifications list from server
+      console.log('[HEADER markAllNotificationsRead] Called mutateNotifications() for revalidation. SWR will fetch fresh data.');
 
     } catch (error) {
       console.error('[HEADER] Error marking notifications as read:', error);
@@ -165,9 +185,16 @@ export default function Header() {
     }
   }, [user, notificationsData, unreadCountData, mutateNotifications, mutateUnreadCount, supabase]);
 
+  useEffect(() => {
+    // Add a log to see SWR data changes for notificationsData
+    if (notificationsData) {
+      console.log('[HEADER useEffect notificationsData] SWR notificationsData updated:', JSON.parse(JSON.stringify(notificationsData.notifications.slice(0,2))));
+    }
+  }, [notificationsData]);
+
   const handleNotificationsToggle = (open: boolean) => {
     setNotificationsOpen(open);
-    if (!open && unreadCountData && unreadCountData.count > 0) {
+    if (open && unreadCountData && unreadCountData.count > 0) {
        markAllNotificationsRead();
     }
   };
@@ -435,6 +462,10 @@ export default function Header() {
   };
 
   const recentNotifications = notificationsData?.notifications?.slice(0, 5) || [];
+  console.log('[HEADER] Derived recentNotifications. Count:', recentNotifications.length);
+  if (notificationsData && notificationsData.notifications.length > 0) {
+    console.log('[HEADER] notificationsData for recentNotifications:', JSON.parse(JSON.stringify(notificationsData.notifications.slice(0,5))));
+  }
   
   const renderAuthLoading = authLoading;
   const renderAuthenticated = !authLoading && user && profile;
@@ -531,14 +562,21 @@ export default function Header() {
                                null);
                             
                             // Condition for current user (Sharer OR Executor acting for a Sharer) to act on Follow Request
-                            const isCurrentUserSharer = currentRoleFromPath === 'SHARER';
-                            const isExecutorActingForSharer = notification.actingForSharerInfo && currentRoleFromPath === 'EXECUTOR';
+                            // Revised logic for Header context:
+                            // Case 1: User is acting as an Executor for the Sharer mentioned in actingForSharerInfo.
+                            // The SQL function get_notifications_safe ensures that if actingForSharerInfo is present,
+                            // the logged-in user is indeed an executor for that sharer.
+                            const isExecutorContextForThisNotification = !!notification.actingForSharerInfo;
+
+                            // Case 2: Notification is for the logged-in user directly (no actingForSharerInfo),
+                            // and their current path-derived role is 'SHARER'.
+                            const isSharerContextForThisNotification = !notification.actingForSharerInfo && currentRoleFromPath === 'SHARER';
                             
                             const canTakeFollowRequestAction = 
                               isFollowRequest && 
-                              (isCurrentUserSharer || isExecutorActingForSharer) && 
                               !isProcessing && 
-                              (!finalFollowRequestStatus || dbFollowRequestStatus === 'PENDING');
+                              (!finalFollowRequestStatus || dbFollowRequestStatus === 'PENDING') &&
+                              (isExecutorContextForThisNotification || isSharerContextForThisNotification);
 
                             // Console logs for debugging statuses (can be removed later)
                             if (isFollowRequest) {
@@ -547,6 +585,9 @@ export default function Header() {
                             if (isInvitation) {
                               console.log(`[HEADER DEBUG] Invite ID: ${notification.invitationData?.invitationId}, DB Status: ${dbInvitationStatus}, Final Status: ${finalInvitationStatus}, Can Action: ${canTakeInvitationAction}`);
                             }
+
+                            // Log individual notification being rendered in Sheet
+                            console.log(`[HEADER Sheet Render] Notif ID: ${notification.id}, isRead: ${notification.isRead}, Message: "${notification.message.substring(0,20)}"`);
 
                             return (
                               <div 
@@ -695,14 +736,15 @@ export default function Header() {
                              null);
 
                           // Condition for current user (Sharer OR Executor acting for a Sharer) to act on Follow Request
-                          const isCurrentUserSharer = currentRoleFromPath === 'SHARER';
-                          const isExecutorActingForSharer = notification.actingForSharerInfo && currentRoleFromPath === 'EXECUTOR';
+                          // Revised logic for Header context:
+                          const isExecutorContextForThisNotificationDesktop = !!notification.actingForSharerInfo;
+                          const isSharerContextForThisNotificationDesktop = !notification.actingForSharerInfo && currentRoleFromPath === 'SHARER';
 
                           const canTakeFollowRequestAction = 
                             isFollowRequest && 
-                            (isCurrentUserSharer || isExecutorActingForSharer) && 
                             !isProcessing && 
-                            (!finalFollowRequestStatus || dbFollowRequestStatus === 'PENDING');
+                            (!finalFollowRequestStatus || dbFollowRequestStatus === 'PENDING') &&
+                            (isExecutorContextForThisNotificationDesktop || isSharerContextForThisNotificationDesktop);
                             
                           // Debug logs
                           if (isFollowRequest) {
@@ -711,6 +753,9 @@ export default function Header() {
                           if (isInvitation) {
                             console.log(`[HDDR DSK] Invite ID: ${notification.invitationData?.invitationId}, DB Status: ${dbInvitationStatus}, Final Status: ${finalInvitationStatus}, Can Action: ${canTakeInvitationAction}`);
                           }
+
+                          // Log individual notification being rendered in DropdownMenu
+                          console.log(`[HEADER Dropdown Render] Notif ID: ${notification.id}, isRead: ${notification.isRead}, Message: "${notification.message.substring(0,20)}"`);
 
                           return (
                             <DropdownMenuItem

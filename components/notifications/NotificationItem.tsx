@@ -198,8 +198,11 @@ export default function NotificationItem({
   const canTakeFollowRequestAction = 
     isFollowRequest && 
     processingFollowRequestId !== notification.id && 
-    (currentRole === 'SHARER' || (currentRole === 'EXECUTOR' && notification.actingForSharerInfo)) &&
-    (!finalFollowRequestStatus || frDbStatus === 'PENDING');
+    (!finalFollowRequestStatus || frDbStatus === 'PENDING') &&
+    (
+      (!!notification.actingForSharerInfo) ||
+      (!notification.actingForSharerInfo && currentRole === 'SHARER')
+    );
 
   const roleBadgeText = notification.actingForSharerInfo 
     ? `${notification.actingForSharerInfo.sharerFirstName} ${notification.actingForSharerInfo.sharerLastName}`

@@ -357,7 +357,8 @@ function ListenerTopicsTableComponent({
                     <ArrowUpDown className="ml-2 h-4 w-4" />
                   </Button>
                 </th>
-                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0">
+                {/* Theme header: hidden on mobile, visible on sm+ */}
+                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 hidden sm:table-cell">
                    <Button variant="ghost" onClick={() => handleSort('theme')} className="px-0 hover:bg-transparent">
                     Theme
                     <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -372,10 +373,17 @@ function ListenerTopicsTableComponent({
               {filteredAndSortedCategories.length > 0 ? (
                 filteredAndSortedCategories.map((category) => (
                   <tr key={category.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                    <td className="p-4 align-middle font-medium [&:has([role=checkbox])]:pr-0">
-                      {category.category}
+                    <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0">
+                      <div className="font-medium">{category.category}</div>
+                      {/* Theme pill for mobile: visible on xs, hidden on sm+ */}
+                      {category.theme && (
+                        <div className="mt-1 inline-block bg-gray-100 text-gray-700 text-[10px] font-semibold px-2 py-0.5 rounded-full sm:hidden">
+                          {formatThemeName(category.theme)}
+                        </div>
+                      )}
                     </td>
-                    <td className="p-4 align-middle text-muted-foreground [&:has([role=checkbox])]:pr-0">
+                    {/* Theme data cell: hidden on mobile, visible on sm+ */}
+                    <td className="p-4 align-middle text-muted-foreground [&:has([role=checkbox])]:pr-0 hidden sm:table-cell">
                       {formatThemeName(category.theme)}
                     </td>
                     <td className="p-4 align-middle text-right [&:has([role=checkbox])]:pr-0 pr-1 sm:pr-2">
@@ -472,6 +480,7 @@ function ListenerTopicsTableComponent({
                 ))
               ) : (
                 <tr>
+                  {/* Adjusted colSpan for "No topics found" to account for potentially hidden theme column */}
                   <td colSpan={3} className="p-8 text-center text-muted-foreground">
                     No topics found matching your criteria.
                   </td>

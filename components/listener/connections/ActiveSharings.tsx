@@ -5,13 +5,69 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, X } from 'lucide-react';
 import { useListenerConnectionsStore } from '@/stores/connections/listenerConnectionsStore';
 import { getInitials } from '@/lib/utils';
+import { normalizeAvatarUrl, getSignedAvatarUrl } from '@/utils/avatar';
+import { cn } from '@/lib/utils';
+
+// New sub-component for displaying Sharer Avatar with signed URL logic
+interface SharerAvatarDisplayProps {
+  avatarUrl?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  className?: string; 
+}
+
+const SharerAvatarDisplay: React.FC<SharerAvatarDisplayProps> = ({ avatarUrl, firstName, lastName, className }) => {
+  const [currentSignedAvatarUrl, setCurrentSignedAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchSignedUrl = async () => {
+      if (avatarUrl) {
+        const normalized = normalizeAvatarUrl(avatarUrl);
+        try {
+          const signed = await getSignedAvatarUrl(normalized);
+          if (isMounted) {
+            setCurrentSignedAvatarUrl(signed);
+          }
+        } catch (error) {
+          console.error('Error fetching signed avatar URL for active sharer:', error);
+          if (isMounted) {
+            setCurrentSignedAvatarUrl(normalized); // Fallback to normalized URL on error
+          }
+        }
+      } else {
+        if (isMounted) {
+          setCurrentSignedAvatarUrl(null); 
+        }
+      }
+    };
+
+    fetchSignedUrl();
+    return () => { isMounted = false; };
+  }, [avatarUrl]);
+
+  return (
+    <Avatar className={cn("h-8 w-8", className)}>
+      {currentSignedAvatarUrl ? (
+        <AvatarImage
+          src={currentSignedAvatarUrl}
+          alt={`${firstName || ''}'s avatar`}
+        />
+      ) : (
+        <AvatarFallback>
+          {getInitials(firstName || '', lastName || '')}
+        </AvatarFallback>
+      )}
+    </Avatar>
+  );
+};
 
 export default function Following() {
   const { sharers, isLoading, error, fetchSharings, unfollowSharer } = useListenerConnectionsStore();
@@ -63,18 +119,11 @@ export default function Following() {
             {sharers.map((sharer) => (
               <tr key={sharer.id} className="border-b">
                 <td className="py-3 px-4">
-                  <Avatar className="h-8 w-8">
-                    {sharer.profile.avatarUrl ? (
-                      <AvatarImage
-                        src={sharer.profile.avatarUrl}
-                        alt={`${sharer.profile.firstName || ''}'s avatar`}
-                      />
-                    ) : (
-                      <AvatarFallback>
-                        {getInitials(sharer.profile.firstName || '', sharer.profile.lastName || '')}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
+                  <SharerAvatarDisplay 
+                    avatarUrl={sharer.profile.avatarUrl}
+                    firstName={sharer.profile.firstName}
+                    lastName={sharer.profile.lastName}
+                  />
                 </td>
                 <td className="py-3 px-4">
                   {sharer.profile.firstName} {sharer.profile.lastName}
@@ -117,18 +166,12 @@ export default function Following() {
           >
             <div className="flex justify-between items-start">
               <div className="flex gap-2 items-start">
-                <Avatar className="h-8 w-8 mt-0.5">
-                  {sharer.profile.avatarUrl ? (
-                    <AvatarImage
-                      src={sharer.profile.avatarUrl}
-                      alt={`${sharer.profile.firstName || ''}'s avatar`}
-                    />
-                  ) : (
-                    <AvatarFallback>
-                      {getInitials(sharer.profile.firstName || '', sharer.profile.lastName || '')}
-                    </AvatarFallback>
-                  )}
-                </Avatar>
+                <SharerAvatarDisplay 
+                  avatarUrl={sharer.profile.avatarUrl}
+                  firstName={sharer.profile.firstName}
+                  lastName={sharer.profile.lastName}
+                  className="mt-0.5"
+                />
                 <div className="flex-grow">
                   <h4 className="font-semibold text-sm">
                     {sharer.profile.firstName} {sharer.profile.lastName}
