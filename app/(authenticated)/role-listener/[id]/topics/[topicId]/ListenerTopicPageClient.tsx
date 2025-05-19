@@ -497,15 +497,15 @@ export default function ListenerTopicPageClient({
                 {sortedPrompts.length === 0 && (
                     <p className="text-center text-gray-500 md:col-span-2 lg:col-span-3">No prompts found for this topic.</p>
                 )}
-                {sortedPrompts.map((prompt) => (
+                {sortedPrompts.map((prompt, index) => (
                     <ListenerPromptDisplayCard 
                         key={prompt.id} 
                         prompt={prompt} 
+                        promptIndex={index}
                         sharerId={profileSharerId}
                         onPlayVideo={handlePlayVideo}
                         onViewAttachment={openAttachmentDialogForPrompt}
                         gallerySignedUrls={gallerySignedUrls}
-                        listenerId={user?.id || ''}
                     />
                 ))}
             </div>
