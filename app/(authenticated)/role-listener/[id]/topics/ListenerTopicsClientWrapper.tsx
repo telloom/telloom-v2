@@ -12,6 +12,7 @@ interface ListenerTopicCategory extends PromptCategory {
   totalPromptCount?: number;
   isFavorite?: boolean;
   isInQueue?: boolean;
+  displayName?: string;
 }
 
 interface ListenerTopicsClientWrapperProps {

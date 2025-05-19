@@ -13,6 +13,7 @@ import { UIAttachment, toUIAttachment } from '@/types/component-interfaces';
 import { ArrowLeft, AlertTriangle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { formatTopicNameForListener } from '@/utils/formatting';
 
 const isValidUUID = (uuid: string): boolean => {
   if (!uuid) return false;
@@ -232,7 +233,7 @@ export default function ListenerPromptResponsePage() {
 
       <ListenerPromptResponseDisplay
         promptText={promptDetails.promptText}
-        topicName={promptDetails.topicName}
+        topicName={formatTopicNameForListener(promptDetails.topicName)}
         sharerId={sharerProfileSharerId}
         video={promptDetails.responseVideoMuxPlaybackId && promptDetails.responseVideoMuxAssetId ? {
           muxPlaybackId: promptDetails.responseVideoMuxPlaybackId,

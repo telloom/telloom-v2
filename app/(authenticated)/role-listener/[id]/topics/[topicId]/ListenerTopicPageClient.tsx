@@ -471,15 +471,14 @@ export default function ListenerTopicPageClient({
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback} onReset={handleResetError}>
         <div className="space-y-8 mt-2">
-            {/* Display Topic title and description from fetched topicData if available */}
-            {topicData && (
+            {/* Display Topic title using the formatted categoryName prop */}
             <div className="pb-4 border-b">
-                    <h1 className="text-2xl font-semibold text-gray-800">{topicData.category || categoryName}</h1>
-                {topicData.description && (
+                <h1 className="text-2xl font-semibold text-gray-800">{categoryName}</h1>
+                {/* Description can still come from topicData if it exists */}
+                {topicData?.description && (
                     <p className="mt-2 text-gray-600">{topicData.description}</p>
                 )}
             </div>
-            )}
 
             {/* Render ListenerTopicVideoCard AFTER title/description if categoryName is available */}
             {categoryName && topicId && (
@@ -498,15 +497,15 @@ export default function ListenerTopicPageClient({
                 {sortedPrompts.length === 0 && (
                     <p className="text-center text-gray-500 md:col-span-2 lg:col-span-3">No prompts found for this topic.</p>
                 )}
-                {sortedPrompts.map((prompt, index) => (
+                {sortedPrompts.map((prompt) => (
                     <ListenerPromptDisplayCard 
                         key={prompt.id} 
                         prompt={prompt} 
-                        promptIndex={index} 
-                        sharerId={profileSharerId} // <<< --- ENSURE THIS IS CORRECTLY PASSED --- >>>
-                        onPlayVideo={handlePlayVideo} 
+                        sharerId={profileSharerId}
+                        onPlayVideo={handlePlayVideo}
                         onViewAttachment={openAttachmentDialogForPrompt}
                         gallerySignedUrls={gallerySignedUrls}
+                        listenerId={user?.id || ''}
                     />
                 ))}
             </div>

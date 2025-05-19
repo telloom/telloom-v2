@@ -24,69 +24,54 @@ import type { PromptCategory as ModelPromptCategory } from '@/types/models';
 interface ExtendedPromptCategory extends ModelPromptCategory {
   completedPromptCount?: number;
   totalPromptCount?: number;
+  displayName?: string;
+  isFavorite?: boolean;
+  isInQueue?: boolean;
 }
 
 interface ListenerTopicCardProps {
-  promptCategory: ExtendedPromptCategory;
-  onClick?: () => void; // Will be used for card navigation now
-  onFavoriteClick?: (e?: React.MouseEvent) => void;
-  onQueueClick?: (e?: React.MouseEvent) => void;
-  sharerId?: string; // SharerId is needed for navigation
+  category: ExtendedPromptCategory;
+  onClick?: () => void;
+  onToggleFavorite?: (e?: React.MouseEvent) => void;
+  onToggleQueue?: (e?: React.MouseEvent) => void;
+  sharerId?: string;
+  isLoadingFavorite?: boolean;
+  isLoadingQueue?: boolean;
 }
 
 export default function ListenerTopicCard({ 
-  promptCategory,
-  // onClick prop is effectively replaced by the card's own navigation logic,
-  // but kept for potential prop compatibility if underlying card component expects it.
-  // The direct assignment to Card's onClick will handle the navigation.
-  onFavoriteClick,
-  onQueueClick,
-  sharerId
+  category,
+  onToggleFavorite,
+  onToggleQueue,
+  sharerId,
+  isLoadingFavorite,
+  isLoadingQueue
 }: ListenerTopicCardProps) {
   const router = useRouter();
-  const [loadingFavorite, setLoadingFavorite] = React.useState(false);
-  const [loadingQueue, setLoadingQueue] = React.useState(false);
-
+  
   useEffect(() => {
-    // console.log(`[ListenerTopicCard] Rendering card for: ${promptCategory.category}`);
-  }, [promptCategory, sharerId]);
+    // console.log(`[ListenerTopicCard] Rendering card for: ${category.displayName || category.category}`);
+  }, [category, sharerId]);
   
   const handleNavigateToTopicSummary = () => {
-    if (sharerId && promptCategory.id) {
-      // Navigate to the topic summary page
-      router.push(`/role-listener/${sharerId}/topics/${promptCategory.id}`);
+    if (sharerId && category.id) {
+      router.push(`/role-listener/${sharerId}/topics/${category.id}`);
     } else {
       console.warn('[ListenerTopicCard] Missing sharerId or topicId for summary navigation');
     }
   };
 
   const handleFavorite = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card click
-    setLoadingFavorite(true);
-    if (onFavoriteClick) {
-      await onFavoriteClick(e);
+    e.stopPropagation();
+    if (onToggleFavorite) {
+      await onToggleFavorite(e);
     }
-    setLoadingFavorite(false);
   };
 
   const handleQueue = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card click
-    setLoadingQueue(true);
-    if (onQueueClick) {
-      await onQueueClick(e);
-    }
-    setLoadingQueue(false);
-  };
-
-  const handleNavigateToTopicList = (e: React.MouseEvent) => { // Renamed from handleNavigateToTopic
-    e.stopPropagation(); // Prevent card click
-    if (sharerId && promptCategory.id) {
-      // This button's original function was to navigate to /role-listener/[id]/topics/[topicId]
-      // which is where the cards are listed. If the intent is now to go to the summary from this button too,
-      // then it can call handleNavigateToTopicSummary. For now, keeping its distinct navigation.
-      router.push(`/role-listener/${sharerId}/topics/${promptCategory.id}`);
-    } else {
-      console.warn('[ListenerTopicCard] Missing sharerId or topicId for topic list navigation');
+    e.stopPropagation();
+    if (onToggleQueue) {
+      await onToggleQueue(e);
     }
   };
 
@@ -104,19 +89,19 @@ export default function ListenerTopicCard({
       <Card 
         className={cn(
           "w-full min-h-[150px] border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] transition-all duration-300 relative flex flex-col rounded-2xl",
-          "cursor-pointer hover:shadow-[8px_8px_0_0_#8fbc55]" // Changed to pointer and added hover shadow effect
+          "cursor-pointer hover:shadow-[8px_8px_0_0_#8fbc55]"
         )}
-        onClick={handleNavigateToTopicSummary} // Card click navigates to summary
+        onClick={handleNavigateToTopicSummary}
       >
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start gap-2">
             <div className="flex-1">
               <CardTitle className="text-lg sm:text-xl line-clamp-2 flex-grow pr-2">
-                {promptCategory.category}
+                {category.displayName || category.category}
               </CardTitle>
-              {promptCategory.theme && (
+              {category.theme && (
                 <div className="mt-1 inline-block bg-gray-100 text-gray-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">
-                  {formatThemeName(promptCategory.theme)}
+                  {formatThemeName(category.theme)}
                 </div>
               )}
             </div>
@@ -131,10 +116,11 @@ export default function ListenerTopicCard({
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={handleFavorite} // Uses e.stopPropagation()
+                      onClick={handleFavorite}
                       className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
+                      disabled={isLoadingFavorite}
                     >
-                      {loadingFavorite ? (
+                      {isLoadingFavorite ? (
                         <svg
                           className={cn("h-4 w-4 animate-spin text-[#1B4332]")}
                           viewBox="0 0 24 24" 
@@ -150,7 +136,7 @@ export default function ListenerTopicCard({
                         <Star
                           className={cn(
                             "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
-                            promptCategory.isFavorite 
+                            category.isFavorite 
                               ? "fill-[#1B4332] text-[#1B4332]" 
                               : "text-gray-400 hover:text-[#8fbc55] hover:fill-[#8fbc55]"
                           )}
@@ -160,7 +146,7 @@ export default function ListenerTopicCard({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>{promptCategory.isFavorite ? "Remove from my favorites" : "Add to my favorites"}</p>
+                    <p>{category.isFavorite ? "Remove from my favorites" : "Add to my favorites"}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -171,10 +157,11 @@ export default function ListenerTopicCard({
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={handleQueue} // Uses e.stopPropagation()
+                      onClick={handleQueue}
                       className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
+                      disabled={isLoadingQueue}
                     >
-                      {loadingQueue ? (
+                      {isLoadingQueue ? (
                         <svg 
                           className={cn("h-4 w-4 animate-spin text-[#1B4332]")}
                           viewBox="0 0 24 24" 
@@ -191,7 +178,7 @@ export default function ListenerTopicCard({
                         <svg 
                           className={cn(
                             "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
-                            promptCategory.isInQueue 
+                            category.isInQueue 
                               ? "text-[#1B4332]" 
                               : "text-gray-400 hover:text-[#8fbc55]"
                           )}
@@ -202,38 +189,30 @@ export default function ListenerTopicCard({
                           strokeLinecap="round" 
                           strokeLinejoin="round"
                         >
-                          <line x1="12" y1="5" x2="12" y2="19" />
-                          <line x1="5" y1="12" x2="19" y2="12" />
+                          <line x1="12" y1="5" x2="12" y2="19"></line>
+                          <line x1="5" y1="12" x2="19" y2="12"></line>
                         </svg>
                       )}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>{promptCategory.isInQueue ? "Remove from my queue" : "Add to my queue"}</p>
+                    <p>{category.isInQueue ? "Remove from my queue" : "Add to my queue"}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
-
-            <div className="flex items-center gap-2">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleNavigateToTopicList} // Renamed and uses e.stopPropagation()
-                      className="h-8 w-8 md:h-9 md:w-9 p-0 rounded-full hover:bg-[#8fbc55] transition-colors duration-200"
-                    >
-                      <ArrowRight className="h-5 w-5 md:h-6 md:w-6 text-gray-400 hover:text-[#1B4332] transition-colors duration-200" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>View Topic Details</p> 
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
+            
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={(e) => {
+                e.stopPropagation();
+                handleNavigateToTopicSummary();
+              }}
+              className="h-8 w-8 md:h-9 md:w-9 p-0 rounded-full hover:bg-[#8fbc55] transition-colors duration-200 group"
+            >
+              <ArrowRight className="h-5 w-5 md:h-6 md:w-6 text-gray-400 group-hover:text-[#1B4332] transition-colors duration-200" />
+            </Button>
           </div>
         </CardContent>
       </Card>

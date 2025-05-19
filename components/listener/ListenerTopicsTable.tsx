@@ -45,6 +45,7 @@ interface ExtendedPromptCategory extends PromptCategory {
   totalPromptCount?: number;   // Keep data, just don't display
   isFavorite?: boolean;        // Needed for buttons
   isInQueue?: boolean;         // Needed for buttons
+  displayName?: string;      // Add displayName for the formatted topic name
 }
 
 interface ListenerTopicsTableProps {
@@ -60,15 +61,13 @@ function ListenerTopicsTableComponent({
   const { user } = useAuth();
   const [promptCategories, setPromptCategories] = useState<ExtendedPromptCategory[]>(initialPromptCategories);
   const [searchQuery, setSearchQuery] = useState('');
-  // Removed statusFilter state
   const [themeFilter, setThemeFilter] = useState('all');
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // Keep view filters (Favorites, Queue) - Has Responses filter removed
   const [activeFilters, setActiveFilters] = useState<ViewFilter[]>(() => {
     const filterParam = searchParams.get('filter');
-    if (filterParam && ['favorites', 'queue'].includes(filterParam)) { // Only allow fav/queue
+    if (filterParam && ['favorites', 'queue'].includes(filterParam)) {
       return [filterParam as ViewFilter];
     }
     return [];
@@ -79,13 +78,7 @@ function ListenerTopicsTableComponent({
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [selectedCategory, setSelectedCategory] = useState<ExtendedPromptCategory | null>(null);
   const [isPromptListOpen, setIsPromptListOpen] = useState(false);
-
-  // View preferences store hook - use LISTENER view preference (if we decide to add one later, else defaults to grid)
-  // For now, let's just hardcode listener view or use a generic one if ViewPreferencesStore supports it.
-  // Let's default to grid for now.
-  // const { listenerTopicsView, setListenerTopicsView } = useViewPreferences(); // Hypothetical store access
   
-  // Local state for view mode
   const [currentViewMode, setCurrentViewMode] = useState<'grid' | 'table'>('grid');
   const [isMounted, setIsMounted] = useState(false);
 
@@ -94,20 +87,15 @@ function ListenerTopicsTableComponent({
   }, []);
 
   useEffect(() => {
-    // Placeholder for potentially loading view preference from store/localStorage later
     if (isMounted) {
-      // const preferredView = listenerTopicsView; // Hypothetical
-      // setCurrentViewMode(preferredView);
+      // Placeholder for view preference logic
     }
-  }, [isMounted]); // Add listenerTopicsView if implementing preference store
+  }, [isMounted]);
 
   const handleViewModeChange = useCallback((mode: 'grid' | 'table') => {
-    // Placeholder for updating store/localStorage later
-    // setListenerTopicsView(mode); // Hypothetical
-    setCurrentViewMode(mode); // Update local state directly for now
-  }, []); // Add setListenerTopicsView if implementing preference store
+    setCurrentViewMode(mode);
+  }, []);
 
-  // --- Role specific constant ---
   const currentRole = 'LISTENER';
 
   const toggleFavorite = useCallback(async (categoryId: string) => {
@@ -123,8 +111,8 @@ function ListenerTopicsTableComponent({
       const { data, error } = await supabase.rpc('toggle_topic_favorite', {
         p_category_id: categoryId,
         p_profile_id: user.id,
-        p_role: currentRole, // Always LISTENER
-        p_sharer_id: null // Listener favorites are not tied to a sharer
+        p_role: currentRole,
+        p_sharer_id: null
       });
       if (error) throw error;
       toast.success(data.is_favorite ? 'Topic added to favorites' : 'Topic removed from favorites');
@@ -150,8 +138,8 @@ function ListenerTopicsTableComponent({
        const { data, error } = await supabase.rpc('toggle_topic_queue', {
         p_category_id: categoryId,
         p_profile_id: user.id,
-        p_role: currentRole, // Always LISTENER
-        p_sharer_id: null // Listener queue items are not tied to a sharer
+        p_role: currentRole,
+        p_sharer_id: null 
       });
       if (error) throw error;
       toast.success(data.is_in_queue ? 'Topic added to queue' : 'Topic removed from queue');
@@ -173,10 +161,7 @@ function ListenerTopicsTableComponent({
     }
   };
 
-  // Removed getCompletionStatus and getStatusBadgeVariant functions
-
   const handleViewFilterChange = (filter: ViewFilter) => {
-    // If clicking 'has-responses', ignore it for listeners
     if (filter === 'has-responses') return;
     
     setActiveFilters(prev => {
@@ -192,100 +177,69 @@ function ListenerTopicsTableComponent({
   const handleResetFilters = () => {
     setActiveFilters([]);
     setSearchQuery('');
-    // Removed statusFilter reset
     setThemeFilter('all');
   };
 
-  // --- ADDED: Helper function to format theme names ---
   const formatThemeName = (theme: string | null | undefined): string => {
-    if (!theme) return '-'; // Handle null/undefined case
-    // Replace underscores/hyphens with spaces and capitalize words
-    return theme
-      .replace(/[_-]/g, ' ')
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ');
+    if (!theme) return 'N/A';
+    return theme.replace(/_/g, ' ').replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
   };
 
-  // --- Filtering and Sorting Logic ---
   const filteredAndSortedCategories = useMemo(() => {
-    let filtered = [...promptCategories];
+    let categories = [...promptCategories];
 
-    // Apply search query
     if (searchQuery) {
-      filtered = filtered.filter(category =>
-        category.category.toLowerCase().includes(searchQuery.toLowerCase())
+      categories = categories.filter(category =>
+        (category.displayName || category.category)?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        category.description?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
-    // Apply theme filter
     if (themeFilter !== 'all') {
-      filtered = filtered.filter(category => category.theme === themeFilter);
+      categories = categories.filter(category => category.theme === themeFilter);
     }
 
-    // Apply active view filters (Favorites, Queue)
-    if (activeFilters.includes('favorites')) {
-      filtered = filtered.filter(category => category.isFavorite);
+    if (activeFilters.length > 0) {
+      categories = categories.filter(category => {
+        return activeFilters.every(filter => {
+          if (filter === 'favorites') return category.isFavorite;
+          if (filter === 'queue') return category.isInQueue;
+          return true;
+        });
+      });
     }
-    if (activeFilters.includes('queue')) {
-      filtered = filtered.filter(category => category.isInQueue);
-    }
-    // 'has-responses' filter is ignored for listeners
 
-    // Apply sorting
-    filtered.sort((a, b) => {
-      let comparison = 0;
+    categories.sort((a, b) => {
+      let valA: string | number, valB: string | number;
       if (sortField === 'topic') {
-        comparison = a.category.localeCompare(b.category);
+        valA = (a.displayName || a.category || '').toLowerCase();
+        valB = (b.displayName || b.category || '').toLowerCase();
       } else { // theme
-        comparison = (a.theme ?? '').localeCompare(b.theme ?? '');
+        valA = (a.theme || '').toLowerCase();
+        valB = (b.theme || '').toLowerCase();
       }
-      return sortAsc ? comparison : -comparison;
+
+      if (valA < valB) return sortAsc ? -1 : 1;
+      if (valA > valB) return sortAsc ? 1 : -1;
+      return 0;
     });
 
-    return filtered;
-  }, [
-    promptCategories, 
-    searchQuery, 
-    themeFilter, // Removed statusFilter dependency
-    activeFilters, 
-    sortField, 
-    sortAsc
-    // Removed getCompletionStatus dependency
-  ]);
+    return categories;
+  }, [promptCategories, searchQuery, themeFilter, activeFilters, sortField, sortAsc]);
 
-  const allThemes = useMemo(() => 
-    [...new Set(initialPromptCategories.map(cat => cat.theme).filter(Boolean))].sort()
-  , [initialPromptCategories]);
+  const uniqueThemes = useMemo(() => {
+    const themes = new Set<string>();
+    initialPromptCategories.forEach(cat => cat.theme && themes.add(cat.theme));
+    return Array.from(themes);
+  }, [initialPromptCategories]);
 
-  const handleTopicCardClick = useCallback((category: ExtendedPromptCategory) => {
-    // Listeners cannot click the card to navigate, only buttons inside
-    // console.log("[ListenerTopicsTable] Card click disabled for listener role.");
-  }, []);
-
-  const handlePromptListOpen = useCallback((category: ExtendedPromptCategory) => {
+  const handleOpenPromptList = (category: ExtendedPromptCategory) => {
     setSelectedCategory(category);
     setIsPromptListOpen(true);
-  }, []);
+  };
 
-  const handlePromptListClose = useCallback(() => {
-    setIsPromptListOpen(false);
-    setSelectedCategory(null);
-  }, []);
-
-  // Updated to navigate directly
-  const handleNavigateToTopic = useCallback((topicId: string) => {
-    if (sharerId && topicId) {
-      router.push(`/role-listener/${sharerId}/topics/${topicId}`);
-    } else {
-      console.warn('[ListenerTopicsTable] Missing sharerId or topicId for navigation');
-      toast.error('Could not navigate to topic. Missing required information.');
-    }
-  }, [router, sharerId]);
-
-  // Render logic
   if (!isMounted) {
-    return <div className="flex justify-center items-center p-8"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>;
+    return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-gray-500" /></div>;
   }
   
   return (
@@ -307,7 +261,7 @@ function ListenerTopicsTableComponent({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Themes</SelectItem>
-            {allThemes.map((theme) => (
+            {uniqueThemes.map((theme) => (
               <SelectItem key={theme} value={theme}>
                 {formatThemeName(theme)}
               </SelectItem>
@@ -346,168 +300,103 @@ function ListenerTopicsTableComponent({
 
       {/* Content Area: Table or Grid */}
       {currentViewMode === 'table' ? (
-        // Table View - Apply Telloom Card Styling to wrapper
-        <div className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] rounded-2xl overflow-hidden">
-          <table className="w-full caption-bottom text-sm">
-            <thead className="[&_tr]:border-b">
-              <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0">
-                  <Button variant="ghost" onClick={() => handleSort('topic')} className="px-0 hover:bg-transparent">
-                    Topic
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                  </Button>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('topic')}>
+                  Topic
+                  {sortField === 'topic' && (sortAsc ? ' ▲' : ' ▼')}
                 </th>
-                {/* Theme header: hidden on mobile, visible on sm+ */}
-                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 hidden sm:table-cell">
-                   <Button variant="ghost" onClick={() => handleSort('theme')} className="px-0 hover:bg-transparent">
-                    Theme
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                  </Button>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Description
                 </th>
-                <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 pr-6 sm:pr-8">
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('theme')}>
+                  Theme
+                  {sortField === 'theme' && (sortAsc ? ' ▲' : ' ▼')}
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="[&_tr:last-child]:border-0">
-              {filteredAndSortedCategories.length > 0 ? (
-                filteredAndSortedCategories.map((category) => (
-                  <tr key={category.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                    <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0">
-                      <div className="font-medium">{category.category}</div>
-                      {/* Theme pill for mobile: visible on xs, hidden on sm+ */}
-                      {category.theme && (
-                        <div className="mt-1 inline-block bg-gray-100 text-gray-700 text-[10px] font-semibold px-2 py-0.5 rounded-full sm:hidden">
-                          {formatThemeName(category.theme)}
-                        </div>
-                      )}
-                    </td>
-                    {/* Theme data cell: hidden on mobile, visible on sm+ */}
-                    <td className="p-4 align-middle text-muted-foreground [&:has([role=checkbox])]:pr-0 hidden sm:table-cell">
-                      {formatThemeName(category.theme)}
-                    </td>
-                    <td className="p-4 align-middle text-right [&:has([role=checkbox])]:pr-0 pr-1 sm:pr-2">
-                      <div className="flex justify-end items-center gap-0">
-                        {/* Favorite Button */}
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => toggleFavorite(category.id)}
-                                className="h-8 w-8 p-0 hover:bg-transparent"
-                              >
-                                {loading[`fav-${category.id}`] ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Star
-                                    className={cn(
-                                      "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
-                                      category.isFavorite 
-                                        ? "fill-[#1B4332] text-[#1B4332]" 
-                                        : "text-gray-400 hover:text-[#8fbc55] hover:fill-[#8fbc55]"
-                                    )}
-                                    strokeWidth={2}
-                                  />
-                                )}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>{category.isFavorite ? "Remove from my favorites" : "Add to my favorites"}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        {/* Queue Button */}
-                        <TooltipProvider>
-                           <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => toggleQueue(category.id)}
-                                className="h-8 w-8 p-0 hover:bg-transparent"
-                              >
-                                {loading[`queue-${category.id}`] ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <svg 
-                                    className={cn(
-                                      "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
-                                      category.isInQueue 
-                                        ? "text-[#1B4332]" 
-                                        : "text-gray-400 hover:text-[#8fbc55]"
-                                    )}
-                                    viewBox="0 0 24 24" 
-                                    fill="none" 
-                                    stroke="currentColor" 
-                                    strokeWidth="3" 
-                                    strokeLinecap="round" 
-                                    strokeLinejoin="round"
-                                  >
-                                    <line x1="12" y1="5" x2="12" y2="19" />
-                                    <line x1="5" y1="12" x2="19" y2="12" />
-                                  </svg>
-                                )}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>{category.isInQueue ? "Remove from my queue" : "Add to my queue"}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        {/* Go To Topic Button (ArrowRight) */}
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleNavigateToTopic(category.id)}
-                                className="h-8 w-8 p-0 rounded-full hover:bg-[#8fbc55] transition-colors duration-200"
-                              >
-                                <ArrowRight className="h-5 w-5 md:h-6 md:w-6 text-gray-400 hover:text-[#1B4332] transition-colors duration-200" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>View Topic Details</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  {/* Adjusted colSpan for "No topics found" to account for potentially hidden theme column */}
-                  <td colSpan={3} className="p-8 text-center text-muted-foreground">
-                    No topics found matching your criteria.
+            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+              {filteredAndSortedCategories.map((category) => (
+                <tr key={category.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                    {category.displayName || category.category}
+                  </td>
+                  <td className="px-6 py-4 whitespace-normal text-sm text-gray-500 dark:text-gray-400 break-words">
+                    {category.description}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    {formatThemeName(category.theme)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => toggleFavorite(category.id)} 
+                            className={cn(
+                              "hover:bg-yellow-100 dark:hover:bg-yellow-700",
+                              category.isFavorite ? 'text-yellow-500 dark:text-yellow-400' : 'text-gray-400 dark:text-gray-500'
+                            )}
+                            disabled={loading[`fav-${category.id}`]}
+                          >
+                            {loading[`fav-${category.id}`] ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className="h-4 w-4" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{category.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => toggleQueue(category.id)} 
+                            className={cn(
+                              "hover:bg-sky-100 dark:hover:bg-sky-700",
+                              category.isInQueue ? 'text-sky-500 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500'
+                            )}
+                            disabled={loading[`queue-${category.id}`]}
+                          >
+                            {loading[`queue-${category.id}`] ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListPlus className="h-4 w-4" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{category.isInQueue ? 'Remove from Queue' : 'Add to Queue'}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <Button variant="outline" size="sm" onClick={() => router.push(`/role-listener/${sharerId}/topics/${category.id}`)}>
+                      View Prompts <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
                   </td>
                 </tr>
-              )}
+              ))}
             </tbody>
           </table>
         </div>
       ) : (
-        // Grid View
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          {filteredAndSortedCategories.length > 0 ? (
-            filteredAndSortedCategories.map((category) => (
-              <ListenerTopicCard // USE LISTENER CARD
-                key={category.id}
-                promptCategory={category}
-                onFavoriteClick={() => toggleFavorite(category.id)}
-                onQueueClick={() => toggleQueue(category.id)}
-                sharerId={sharerId} // Pass sharerId needed for PromptListPopup
-                // onClick handler removed as listener card doesn't navigate
-              />
-            ))
-          ) : (
-            <p className="col-span-full text-center text-muted-foreground py-8">
-              No topics found matching your criteria.
-            </p>
-          )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredAndSortedCategories.map((category) => (
+            <ListenerTopicCard 
+              key={category.id} 
+              category={category} 
+              sharerId={sharerId}
+              onToggleFavorite={() => toggleFavorite(category.id)}
+              onToggleQueue={() => toggleQueue(category.id)}
+              isLoadingFavorite={loading[`fav-${category.id}`]}
+              isLoadingQueue={loading[`queue-${category.id}`]}
+            />
+          ))}
         </div>
       )}
 
@@ -516,9 +405,12 @@ function ListenerTopicsTableComponent({
         <PromptListPopup 
           categoryId={selectedCategory.id}
           categoryName={selectedCategory.category}
-          sharerId={sharerId} // Pass sharerId
-          currentRole={currentRole} // Pass LISTENER role
-          onClose={handlePromptListClose}
+          sharerId={sharerId}
+          currentRole={currentRole}
+          onClose={() => {
+            setIsPromptListOpen(false);
+            setSelectedCategory(null);
+          }}
         />
       )}
     </div>

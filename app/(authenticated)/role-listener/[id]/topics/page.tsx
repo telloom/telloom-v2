@@ -7,6 +7,7 @@ import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import { PromptCategory } from '@/types/models'; // Keep original model type
 import ListenerTopicsClientWrapper from './ListenerTopicsClientWrapper'; // Import the client wrapper
+import { formatTopicNameForListener } from '@/utils/formatting'; // Import the new utility function
 
 // Define a type for the data returned by the get_listener_topic_list RPC function
 // (Includes the new boolean fields)
@@ -26,6 +27,8 @@ interface ListenerTopicListData {
 interface ListenerTopicCategory extends PromptCategory {
   completedPromptCount?: number;
   totalPromptCount?: number;
+  // Add a field for the display-ready category name
+  displayName?: string;
 }
 
 export default async function ListenerTopicsPage({ 
@@ -77,7 +80,8 @@ export default async function ListenerTopicsPage({
   // 4. Transform RPC Data into the Extended Type for the Client Component
   const transformedCategories: ListenerTopicCategory[] = (rpcData || []).map((item: ListenerTopicListData) => ({
     id: item.id,
-    category: item.category,
+    category: item.category, // Keep the original category name
+    displayName: formatTopicNameForListener(item.category), // Use the formatted name for display
     description: item.description,
     theme: item.theme,
     Prompt: [], // Initialize Prompt array

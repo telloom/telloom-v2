@@ -10,6 +10,7 @@ import ListenerTopicPageClient from './ListenerTopicPageClient'; // Ensured expl
 // import { ListenerSharerHeader } from '@/components/listener/ListenerSharerHeader'; // Removed
 // import { BackButton } from '@/components/ui/BackButton'; // Removed
 import { getSignedAvatarUrl } from '@/utils/avatar';
+import { formatTopicNameForListener } from '@/utils/formatting'; // Import the formatting function
 // import { SupabaseClient } from '@supabase/supabase-js'; // Remove or keep based on other usage
 
 interface ListenerTopicPageProps {
@@ -100,7 +101,8 @@ export default async function ListenerTopicPage({ params }: ListenerTopicPagePro
   // 2. Fetch Sharer Profile ID and Header Data using RPCs (SECURITY DEFINER)
   let sharerProfileId: string | null = null;
   let sharerHeaderData: SharerHeaderRenderData | null = null;
-  let categoryName: string | null = null;
+  let originalCategoryName: string | null = null;
+  let displayCategoryName: string | null = null;
   try {
     // Fetch the Profile.id using the ProfileSharer.id from the route
     const { data: profileIdData, error: profileIdError } = await supabase
@@ -151,7 +153,8 @@ export default async function ListenerTopicPage({ params }: ListenerTopicPagePro
         console.warn(`[ListenerTopicPage] No prompt category found for topicId ${topicId}.`);
         return notFound(); 
     }
-    categoryName = promptCategory.category;
+    originalCategoryName = promptCategory.category;
+    displayCategoryName = formatTopicNameForListener(originalCategoryName); // Format the category name
 
     // Process avatar URL
     const signedAvatarUrl = headerRpcData.avatarUrl
@@ -175,8 +178,8 @@ export default async function ListenerTopicPage({ params }: ListenerTopicPagePro
 
   // Ensure we have valid IDs before rendering the client component
   // Redundant check as errors/notFound() should have caught this, but safe practice.
-  if (!sharerProfileId || !categoryName) {
-      console.error(`[ListenerTopicPage] Sanity Check Failed: Missing sharerProfileId or categoryName.`);
+  if (!sharerProfileId || !displayCategoryName) {
+      console.error(`[ListenerTopicPage] Sanity Check Failed: Missing sharerProfileId or displayCategoryName.`);
       return notFound();
   }
 
@@ -199,7 +202,7 @@ export default async function ListenerTopicPage({ params }: ListenerTopicPagePro
           profileSharerId={profileSharerId} // Pass ProfileSharer.id (from route)
           sharerProfileId={sharerProfileId}   // Pass Profile.id (fetched via RPC)
           topicId={topicId}                 // Pass PromptCategory.id (from route)
-          categoryName={categoryName} // Ensure categoryName is passed here
+          categoryName={displayCategoryName} // Pass the formatted category name
         />
       </Suspense>
     </div>
