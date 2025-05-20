@@ -296,25 +296,58 @@ export default function ListenerTopicPageClient({
             return;
           }
 
-          const path = att.fileUrl; // Assuming root path for now
-          console.log(`[ListenerClient fetchAllSignedUrls] Attempting to sign URL for Attachment ID: ${att.id}, Path: "${path}"`);
+          let filePathToSign: string | null = null;
+          const originalFileUrl = att.fileUrl;
+          console.log(`[ListenerClient fetchAllSignedUrls] Original fileUrl for att ID ${att.id}:`, originalFileUrl);
+
+          if (originalFileUrl.startsWith('http://') || originalFileUrl.startsWith('https://')) {
+            try {
+              const urlObject = new URL(originalFileUrl);
+              // Example public URL: https://edplarkcaozwrivolfgw.supabase.co/storage/v1/object/public/attachments/image.png
+              // Pathname would be: /storage/v1/object/public/attachments/image.png
+              // We need to extract the part after '/attachments/'
+              const supabaseBucketPathSegment = `/storage/v1/object/public/attachments/`;
+              if (urlObject.pathname.includes(supabaseBucketPathSegment)) {
+                filePathToSign = urlObject.pathname.split(supabaseBucketPathSegment)[1];
+                console.log(`[ListenerClient fetchAllSignedUrls] Extracted relative path for att ID ${att.id}:`, filePathToSign);
+              } else {
+                console.warn(`[ListenerClient fetchAllSignedUrls] Full URL for att ID ${att.id} does not match expected Supabase public URL structure:`, originalFileUrl);
+                filePathToSign = null;
+              }
+            } catch (urlParseError) {
+              console.error(`[ListenerClient fetchAllSignedUrls] Error parsing URL for att ID ${att.id}:`, originalFileUrl, urlParseError);
+              filePathToSign = null;
+            }
+          } else {
+            // Assume it's already a relative path if not starting with http/https
+            filePathToSign = originalFileUrl;
+            console.log(`[ListenerClient fetchAllSignedUrls] Assuming relative path for att ID ${att.id}:`, filePathToSign);
+          }
+
+          if (!filePathToSign) {
+            console.error(`[ListenerClient fetchAllSignedUrls] Could not determine a valid file path to sign for att ID ${att.id} from URL:`, originalFileUrl);
+            newUrlsMap[att.id] = null;
+            return;
+          }
+
+          console.log(`[ListenerClient fetchAllSignedUrls] Attempting to sign URL for Attachment ID: ${att.id}, Path to sign: "${filePathToSign}"`);
           try {
             const { data, error: signError } = await supabase.storage
               .from('attachments')
-              .createSignedUrl(path, 60 * 60); // 1 hour
+              .createSignedUrl(filePathToSign, 60 * 60); // 1 hour
 
             if (signError) {
-              console.error(`[ListenerClient fetchAllSignedUrls] Error creating signed URL for Attachment ID: ${att.id}, Path: "${path}":`, signError.message);
+              console.error(`[ListenerClient fetchAllSignedUrls] Error creating signed URL for Attachment ID: ${att.id}, Path: "${filePathToSign}":`, signError.message);
               newUrlsMap[att.id] = null; // Mark as processed (failed)
             } else if (data?.signedUrl) {
-              console.log(`[ListenerClient fetchAllSignedUrls] Successfully created signed URL for Attachment ID: ${att.id}, Path: "${path}"`);
+              console.log(`[ListenerClient fetchAllSignedUrls] Successfully created signed URL for Attachment ID: ${att.id}, Path: "${filePathToSign}"`);
               newUrlsMap[att.id] = data.signedUrl;
             } else {
-              console.warn(`[ListenerClient fetchAllSignedUrls] No signed URL and no error for Attachment ID: ${att.id}, Path: "${path}"`);
+              console.warn(`[ListenerClient fetchAllSignedUrls] No signed URL and no error for Attachment ID: ${att.id}, Path: "${filePathToSign}"`);
               newUrlsMap[att.id] = null; // Mark as processed (failed)
             }
           } catch (e: any) {
-            console.error(`[ListenerClient fetchAllSignedUrls] Exception creating signed URL for Attachment ID: ${att.id}, Path: "${path}":`, e.message);
+            console.error(`[ListenerClient fetchAllSignedUrls] Exception creating signed URL for Attachment ID: ${att.id}, Path: "${filePathToSign}":`, e.message);
             newUrlsMap[att.id] = null; // Mark as processed (failed)
           }
         })

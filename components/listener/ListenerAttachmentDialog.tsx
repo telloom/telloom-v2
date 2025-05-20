@@ -1,7 +1,10 @@
 // components/listener/ListenerAttachmentDialog.tsx
 // LISTENER-SPECIFIC: A dialog component ONLY for viewing attachment metadata and content.
+'use client'; // Ensure 'use client' is at the top
 
 import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion'; // Import motion
+import useMediaQuery from '@/hooks/use-media-query'; // Import useMediaQuery
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 // Removed Input, Label, Textarea, Select, Command, Popover as editing is disabled
@@ -53,6 +56,7 @@ export function ListenerAttachmentDialog({
 }: ListenerAttachmentDialogProps) {
   console.log('[LAD Enter] Props:', { attachmentId: attachment?.id, isOpen, hasNext, hasPrevious });
   const supabase = createClient();
+  const isMobile = useMediaQuery('(max-width: 768px)'); // Use the hook
 
   // State for viewing only
   const [viewingAttachment, setViewingAttachment] = useState<Attachment | null>(null);
@@ -90,27 +94,66 @@ export function ListenerAttachmentDialog({
 
       let filePath: string | null = null;
       const originalFileUrl = viewingAttachment.fileUrl;
+      console.log('[LAD fetchUrl] Original fileUrl:', originalFileUrl);
 
-      if (originalFileUrl && originalFileUrl.startsWith('http')) {
-          try {
-              const urlObject = new URL(originalFileUrl);
-              const pathSegments = urlObject.pathname.split('/attachments/');
-              if (pathSegments.length > 1) {
-                  filePath = pathSegments[1];
-              } else { /* Handle old format if needed */ }
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          } catch (_e) { /* Handle parse error */ }
+      if (originalFileUrl && (originalFileUrl.startsWith('http://') || originalFileUrl.startsWith('https://'))) {
+        console.log('[LAD fetchUrl] Detected HTTP/S URL.');
+        try {
+            const urlObject = new URL(originalFileUrl);
+            console.log('[LAD fetchUrl] Parsed URL pathname:', urlObject.pathname);
+            // Standard Supabase public URL: https://<ref>.supabase.co/storage/v1/object/public/<bucket>/<path_in_bucket>
+            // We need <path_in_bucket>
+            const supabaseBucketPathSegment = `/storage/v1/object/public/attachments/`; // 'attachments' is bucket name
+            const indexOfPathStart = urlObject.pathname.indexOf(supabaseBucketPathSegment);
+
+            if (indexOfPathStart !== -1) {
+                filePath = urlObject.pathname.substring(indexOfPathStart + supabaseBucketPathSegment.length);
+                console.log('[LAD fetchUrl] Extracted filePath (from full Supabase URL pattern):', filePath);
+            } else {
+                // Fallback for URLs that might not strictly follow the full Supabase public URL structure
+                // but still contain '/attachments/' as a marker. This is closer to the original logic.
+                const pathSegments = urlObject.pathname.split('/attachments/');
+                if (pathSegments.length > 1) {
+                    filePath = pathSegments[1];
+                    console.log('[LAD fetchUrl] Extracted filePath (fallback split by /attachments/):', filePath);
+                } else {
+                    console.warn('[LAD fetchUrl] Could not extract filePath using /attachments/ split from pathname:', urlObject.pathname, 'Original URL:', originalFileUrl);
+                    // filePath remains null
+                }
+            }
+        } catch (e) {
+            console.error('[LAD fetchUrl] Error parsing URL:', originalFileUrl, e);
+            // filePath remains null
+        }
       } else if (originalFileUrl) {
-          filePath = originalFileUrl;
+        console.log('[LAD fetchUrl] Assuming originalFileUrl is already a relative path:', originalFileUrl);
+        filePath = originalFileUrl;
+        // Ensure no leading slash for Supabase paths
+        if (filePath.startsWith('/')) {
+            filePath = filePath.substring(1);
+            console.log('[LAD fetchUrl] Removed leading slash, filePath is now:', filePath);
+        }
       }
+
 
       if (!filePath || typeof filePath !== 'string' || filePath.trim() === '') {
         setCurrentSignedUrl(null);
         setIsUrlLoading(false);
-        setError('Invalid file path');
+        setError('Invalid file path for signed URL generation.'); // More specific error
+        console.error('[LAD fetchUrl] Final filePath is invalid or empty. filePath:', filePath, 'originalFileUrl:', originalFileUrl);
+        return;
+      }
+      
+      // Ensure filePath is not an empty string after trim if it was just spaces
+      if (filePath.trim() === '') {
+        setCurrentSignedUrl(null);
+        setIsUrlLoading(false);
+        setError('File path became empty after processing.');
+        console.error('[LAD fetchUrl] FilePath is empty after trim. originalFileUrl:', originalFileUrl);
         return;
       }
 
+      console.log('[LAD fetchUrl] Attempting to create signed URL with resolved filePath:', filePath);
       try {
         const { data, error: urlError } = await supabase.storage
           .from('attachments')
@@ -157,6 +200,23 @@ export function ListenerAttachmentDialog({
 
   const showLoadingState = isUrlLoading;
 
+  const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: { offset: { x: number; y: number; }; velocity: { x: number; y: number; }; }) => {
+    const swipeThreshold = 50; // Minimum distance for a swipe
+    const velocityThreshold = 0.3; // Minimum velocity for a swipe
+
+    const { offset, velocity } = info;
+
+    if (isMobile) {
+      if (offset.x < -swipeThreshold && Math.abs(velocity.x) > velocityThreshold && hasNext && onNext) {
+        console.log('[LAD Swipe] Swiped Left (Next)');
+        onNext();
+      } else if (offset.x > swipeThreshold && Math.abs(velocity.x) > velocityThreshold && hasPrevious && onPrevious) {
+        console.log('[LAD Swipe] Swiped Right (Previous)');
+        onPrevious();
+      }
+    }
+  };
+
   // Helper to format date
   const formatDate = (dateInput: Date | string | null): string | null => {
     if (!dateInput) return null;
@@ -195,7 +255,12 @@ export function ListenerAttachmentDialog({
             {/* Left Side - Image/PDF */}
             <div className="w-full lg:h-full flex flex-col">
               {/* Content Container */}
-              <div className="relative bg-gray-100 w-full h-[75vh] lg:h-[78vh] overflow-hidden">
+              <motion.div
+                className="relative bg-gray-100 w-full h-[75vh] lg:h-[78vh] overflow-hidden"
+                drag={isMobile ? "x" : false}
+                dragConstraints={{ left: 0, right: 0 }}
+                onDragEnd={handleDragEnd}
+              >
                 {showLoadingState ? (
                   <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
                     <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
@@ -211,7 +276,7 @@ export function ListenerAttachmentDialog({
                       src={currentSignedUrl}
                       alt={viewingAttachment.title || viewingAttachment.fileName || "Attachment Image"}
                       fill
-                      className={`object-contain transition-opacity duration-300`}
+                      className="object-contain transition-opacity duration-300"
                       sizes="(max-width: 768px) 90vw, 45vw"
                     />
                   </div>
@@ -237,7 +302,7 @@ export function ListenerAttachmentDialog({
                      <p className="text-sm text-gray-500">No attachment data</p>
                   </div>
                 )}
-              </div>
+              </motion.div>
 
               {/* Navigation Buttons */}
               <div className="flex justify-between items-center gap-2 p-4 bg-white border-b lg:border-t lg:border-b-0">
