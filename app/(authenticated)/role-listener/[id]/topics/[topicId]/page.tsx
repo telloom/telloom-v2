@@ -50,6 +50,8 @@ type ProfileIdRpcData = string; // Assuming direct return
 
 interface PromptCategoryData {
   category: string;
+  description: string | null;
+  descriptionListener: string | null;
 }
 
 export default async function ListenerTopicPage({ params }: ListenerTopicPageProps) {
@@ -103,6 +105,7 @@ export default async function ListenerTopicPage({ params }: ListenerTopicPagePro
   let sharerHeaderData: SharerHeaderRenderData | null = null;
   let originalCategoryName: string | null = null;
   let displayCategoryName: string | null = null;
+  let displayCategoryDescription: string | null = null;
   try {
     // Fetch the Profile.id using the ProfileSharer.id from the route
     const { data: profileIdData, error: profileIdError } = await supabase
@@ -141,8 +144,8 @@ export default async function ListenerTopicPage({ params }: ListenerTopicPagePro
     // Correctly fetch PromptCategory name using topicId
     const { data: promptCategory, error: categoryError } = await supabase
       .from('PromptCategory')
-      .select('category')
-      .eq('id', topicId) // Use topicId to find the category
+      .select('category, description, descriptionListener')
+      .eq('id', topicId)
       .single<PromptCategoryData>();
 
     if (categoryError) {
@@ -155,6 +158,7 @@ export default async function ListenerTopicPage({ params }: ListenerTopicPagePro
     }
     originalCategoryName = promptCategory.category;
     displayCategoryName = formatTopicNameForListener(originalCategoryName); // Format the category name
+    displayCategoryDescription = promptCategory.descriptionListener || promptCategory.description;
 
     // Process avatar URL
     const signedAvatarUrl = headerRpcData.avatarUrl
@@ -199,10 +203,11 @@ export default async function ListenerTopicPage({ params }: ListenerTopicPagePro
       <Suspense fallback={<div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>}>
         {/* Ensure correct props are passed */}
         <ListenerTopicPageClient
-          profileSharerId={profileSharerId} // Pass ProfileSharer.id (from route)
-          sharerProfileId={sharerProfileId}   // Pass Profile.id (fetched via RPC)
-          topicId={topicId}                 // Pass PromptCategory.id (from route)
-          categoryName={displayCategoryName} // Pass the formatted category name
+          profileSharerId={profileSharerId}
+          sharerProfileId={sharerProfileId}
+          topicId={topicId}
+          categoryName={displayCategoryName}
+          categoryDescription={displayCategoryDescription}
         />
       </Suspense>
     </div>

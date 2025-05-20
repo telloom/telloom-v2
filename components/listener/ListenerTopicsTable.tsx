@@ -33,7 +33,7 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { PromptCategory } from '@/types/models';
 
-type ViewFilter = 'favorites' | 'queue';
+type ViewFilter = 'favorites' | 'queue' | 'has-responses';
 type SortField = 'topic' | 'theme';
 
 interface ExtendedPromptCategory extends PromptCategory {
@@ -63,7 +63,7 @@ function ListenerTopicsTableComponent({
   
   const [activeFilters, setActiveFilters] = useState<ViewFilter[]>(() => {
     const filterParam = searchParams.get('filter');
-    if (filterParam && ['favorites', 'queue'].includes(filterParam)) {
+    if (filterParam && ['favorites', 'queue', 'has-responses'].includes(filterParam)) {
       return [filterParam as ViewFilter];
     }
     return [];
@@ -188,8 +188,7 @@ function ListenerTopicsTableComponent({
 
     if (searchQuery) {
       categories = categories.filter(category =>
-        (category.displayName || category.category)?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        category.description?.toLowerCase().includes(searchQuery.toLowerCase())
+        (category.displayName || category.category)?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -266,9 +265,16 @@ function ListenerTopicsTableComponent({
       {/* View Filters and Toggle */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <TopicsTableFilters 
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          statusFilter={'all'}
+          setStatusFilter={() => {}}
+          themeFilter={themeFilter}
+          setThemeFilter={setThemeFilter}
+          themes={uniqueThemes}
           activeFilters={activeFilters}
           onFilterChange={handleViewFilterChange}
-          onReset={handleResetFilters}
+          onResetFilters={handleResetFilters}
           showHasResponses={false}
         />
         <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-center">
@@ -293,120 +299,136 @@ function ListenerTopicsTableComponent({
 
       {/* Content Area: Table or Grid */}
       {currentViewMode === 'table' ? (
-         <div className="w-full rounded-lg border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] overflow-hidden">
+        <div className="w-full rounded-lg border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-800">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('topic')}>
-                    <div className="flex items-center gap-1">
-                      Topic
-                      {sortField === 'topic' && (sortAsc ? <ArrowUpDown className="h-3 w-3" /> : <ArrowUpDown className="h-3 w-3 transform rotate-180" />)}
-                    </div>
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('topic')}
+                  >
+                    Topic
+                    {sortField === 'topic' && (
+                      <ArrowUpDown className={`inline-block ml-1 h-3 w-3 ${sortAsc ? '' : 'transform rotate-180'}`} />
+                    )}
                   </th>
-                  <th scope="col" className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hidden md:table-cell" onClick={() => handleSort('theme')}>
-                     <div className="flex items-center gap-1">
-                        Theme
-                        {sortField === 'theme' && (sortAsc ? <ArrowUpDown className="h-3 w-3" /> : <ArrowUpDown className="h-3 w-3 transform rotate-180" />)}
-                    </div>
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hidden md:table-cell"
+                    onClick={() => handleSort('theme')}
+                  >
+                    Theme
+                    {sortField === 'theme' && (
+                      <ArrowUpDown className={`inline-block ml-1 h-3 w-3 ${sortAsc ? '' : 'transform rotate-180'}`} />
+                    )}
                   </th>
-                  <th scope="col" className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredAndSortedCategories.map((category) => (
-                  <tr key={category.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <td className="px-4 sm:px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
-                      <div className="whitespace-normal break-words">{category.displayName || category.category}</div>
-                      <div className="md:hidden mt-1">{renderThemePill(category.theme)}</div>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredAndSortedCategories.map(category => (
+                  <tr key={category.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col">
+                        <div className="text-sm font-medium text-gray-900 whitespace-normal break-words">
+                          {category.displayName || category.category}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1 md:hidden">
+                          {renderThemePill(category.theme)}
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell md:text-center">
                       {renderThemePill(category.theme)}
                     </td>
-                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium space-x-1">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={(e) => { e.stopPropagation(); toggleFavorite(category.id); }}
-                              className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
-                              disabled={loading[`fav-${category.id}`]}
-                            >
-                              {loading[`fav-${category.id}`] ? <Loader2 className="h-4 w-4 animate-spin" /> : 
-                                <Star
-                                  className={cn(
-                                    "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
-                                    category.isFavorite 
-                                      ? "fill-[#1B4332] text-[#1B4332]" 
-                                      : "text-gray-400 hover:text-[#8fbc55] hover:fill-[#8fbc55]"
-                                  )}
-                                  strokeWidth={2}
-                                />
-                              }
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{category.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={(e) => { e.stopPropagation(); toggleQueue(category.id); }}
-                              className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
-                              disabled={loading[`queue-${category.id}`]}
-                            >
-                              {loading[`queue-${category.id}`] ? <Loader2 className="h-4 w-4 animate-spin" /> : 
-                                <svg 
-                                  className={cn(
-                                    "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
-                                    category.isInQueue 
-                                      ? "text-[#1B4332]"
-                                      : "text-gray-400 hover:text-[#8fbc55]"
-                                  )}
-                                  viewBox="0 0 24 24" 
-                                  fill="none" 
-                                  stroke="currentColor" 
-                                  strokeWidth="3" 
-                                  strokeLinecap="round" 
-                                  strokeLinejoin="round"
-                                >
-                                  <line x1="12" y1="5" x2="12" y2="19"></line>
-                                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                                </svg>
-                              }
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{category.isInQueue ? 'Remove from Queue' : 'Add to Queue'}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <TooltipProvider>
-                         <Tooltip>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium hidden md:table-cell">
+                      <div className="flex items-center justify-center space-x-2">
+                        <TooltipProvider>
+                          <Tooltip>
                             <TooltipTrigger asChild>
                               <Button 
                                 variant="ghost" 
                                 size="icon" 
-                                onClick={(e) => { e.stopPropagation(); router.push(`/role-listener/${sharerId}/topics/${category.id}`);}}
-                                className="h-8 w-8 md:h-9 md:w-9 p-0 rounded-full hover:bg-[#8fbc55]/20 transition-colors duration-200 group"
+                                onClick={(e) => { e.stopPropagation(); toggleFavorite(category.id); }}
+                                className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
+                                disabled={loading[`fav-${category.id}`]}
                               >
-                                <ArrowRight className="h-5 w-5 text-gray-500 group-hover:text-[#1B4332] transition-colors duration-200" />
+                                {loading[`fav-${category.id}`] ? <Loader2 className="h-4 w-4 animate-spin" /> : 
+                                  <Star
+                                    className={cn(
+                                      "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
+                                      category.isFavorite 
+                                        ? "fill-[#1B4332] text-[#1B4332]" 
+                                        : "text-gray-400 hover:text-[#8fbc55] hover:fill-[#8fbc55]"
+                                    )}
+                                    strokeWidth={2}
+                                  />
+                                }
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>View Prompts</p>
+                              <p>{category.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}</p>
                             </TooltipContent>
                           </Tooltip>
-                      </TooltipProvider>
+                        </TooltipProvider>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={(e) => { e.stopPropagation(); toggleQueue(category.id); }}
+                                className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
+                                disabled={loading[`queue-${category.id}`]}
+                              >
+                                {loading[`queue-${category.id}`] ? <Loader2 className="h-4 w-4 animate-spin" /> : 
+                                  <svg 
+                                    className={cn(
+                                      "w-[18px] h-[18px] md:w-[20px] md:h-[20px] transition-colors",
+                                      category.isInQueue 
+                                        ? "text-[#1B4332]"
+                                        : "text-gray-400 hover:text-[#8fbc55]"
+                                    )}
+                                    viewBox="0 0 24 24" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    strokeWidth="3" 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round"
+                                  >
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                  </svg>
+                                }
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{category.isInQueue ? 'Remove from Queue' : 'Add to Queue'}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        <TooltipProvider>
+                           <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  onClick={(e) => { e.stopPropagation(); router.push(`/role-listener/${sharerId}/topics/${category.id}`);}}
+                                  className="h-8 w-8 md:h-9 md:w-9 p-0 rounded-full hover:bg-[#8fbc55]/20 transition-colors duration-200 group"
+                                >
+                                  <ArrowRight className="h-5 w-5 text-gray-500 group-hover:text-[#1B4332] transition-colors duration-200" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>View Prompts</p>
+                              </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -433,10 +455,10 @@ function ListenerTopicsTableComponent({
       {/* Prompt List Popup */}
       {isPromptListOpen && selectedCategory && (
         <PromptListPopup 
-          categoryId={selectedCategory.id}
-          categoryName={selectedCategory.displayName || selectedCategory.category}
+          promptCategory={selectedCategory}
           sharerId={sharerId}
           currentRole={currentRole}
+          isOpen={isPromptListOpen}
           onClose={() => {
             setIsPromptListOpen(false);
             setSelectedCategory(null);

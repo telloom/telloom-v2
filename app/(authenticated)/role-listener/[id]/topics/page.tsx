@@ -15,6 +15,7 @@ interface ListenerTopicListData {
   id: string;
   category: string;
   description: string | null;
+  descriptionListener: string | null;
   theme: string | null;
   completed_prompt_count: number;
   total_prompt_count: number;
@@ -29,6 +30,7 @@ interface ListenerTopicCategory extends PromptCategory {
   totalPromptCount?: number;
   // Add a field for the display-ready category name
   displayName?: string;
+  descriptionListener?: string | null;
 }
 
 export default async function ListenerTopicsPage({ 
@@ -83,6 +85,7 @@ export default async function ListenerTopicsPage({
     category: item.category, // Keep the original category name
     displayName: formatTopicNameForListener(item.category), // Use the formatted name for display
     description: item.description,
+    descriptionListener: item.descriptionListener,
     theme: item.theme,
     Prompt: [], // Initialize Prompt array
     // Use the is_favorite and is_in_queue fields from the RPC result

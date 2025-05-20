@@ -85,6 +85,7 @@ interface ListenerTopicPageClientProps {
   sharerProfileId: string; // This is Profile.id of the sharer
   topicId: string; // This is PromptCategory.id
   categoryName: string; // Added to accept categoryName from server component
+  categoryDescription: string | null; // Add this line
 }
 
 // Main Component
@@ -92,7 +93,8 @@ export default function ListenerTopicPageClient({
     profileSharerId, 
     sharerProfileId, 
     topicId, 
-    categoryName
+    categoryName,
+    categoryDescription // Add this line
 }: ListenerTopicPageClientProps) {
   const supabase = createClient();
   const { user } = useAuth(); // Get current user (Listener)
@@ -474,9 +476,9 @@ export default function ListenerTopicPageClient({
             {/* Display Topic title using the formatted categoryName prop */}
             <div className="pb-4 border-b">
                 <h1 className="text-2xl font-semibold text-gray-800">{categoryName}</h1>
-                {/* Description can still come from topicData if it exists */}
-                {topicData?.description && (
-                    <p className="mt-2 text-gray-600">{topicData.description}</p>
+                {/* Display the category description below the title */}
+                {categoryDescription && (
+                    <p className="mt-2 text-gray-600">{categoryDescription}</p>
                 )}
             </div>
 
