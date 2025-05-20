@@ -324,7 +324,7 @@ function ListenerTopicsTableComponent({
                       <ArrowUpDown className={`inline-block ml-1 h-3 w-3 ${sortAsc ? '' : 'transform rotate-180'}`} />
                     )}
                   </th>
-                  <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                  <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -345,7 +345,7 @@ function ListenerTopicsTableComponent({
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell md:text-center">
                       {renderThemePill(category.theme)}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium hidden md:table-cell">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center justify-center space-x-2">
                         <TooltipProvider>
                           <Tooltip>
