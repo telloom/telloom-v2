@@ -207,8 +207,8 @@ export default function ListenerPromptResponsePage() {
   const canGoNext = typeof currentPromptIndex === 'number' && navigablePromptIds && currentPromptIndex < navigablePromptIds.length - 1;
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-6xl">
-      <div className="flex justify-end items-center mb-6">
+    <div className="container mx-auto px-0 sm:px-2 md:px-4 lg:px-6 pt-0 pb-8 max-w-6xl">
+      <div className="flex justify-end items-center mb-2">
         <div className="flex space-x-2">
           <Button 
             onClick={() => handleNavigate(navigablePromptIds?.[currentPromptIndex! - 1])} 

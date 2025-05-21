@@ -9,7 +9,7 @@ import { Loader2 } from 'lucide-react';
 import ListenerTopicPageClient from './ListenerTopicPageClient'; // Ensured explicit relative path
 // import { ListenerSharerHeader } from '@/components/listener/ListenerSharerHeader'; // Removed
 // import { BackButton } from '@/components/ui/BackButton'; // Removed
-import { getSignedAvatarUrl } from '@/utils/avatar';
+// import { getSignedAvatarUrl } from '@/utils/avatar';
 import { formatTopicNameForListener } from '@/utils/formatting'; // Import the formatting function
 // import { SupabaseClient } from '@supabase/supabase-js'; // Remove or keep based on other usage
 
@@ -29,18 +29,13 @@ interface SharerHeaderRpcData {
 }
 
 // Interface for data passed to the ListenerSharerHeader component
-interface SharerHeaderRenderData {
-  id: string; // ProfileSharer.id
-  profileId: string; // Profile.id
-  firstName: string | null;
-  lastName: string | null;
-  avatarUrl: string | null;
-}
-
-// Interface for data returned by check_listener_access_rpc RPC
-interface ListenerAccessRpcData {
-  has_access: boolean; // Expecting the RPC to return a boolean directly or within a structure
-}
+// interface SharerHeaderRenderData {
+//   id: string; // ProfileSharer.id
+//   profileId: string; // Profile.id
+//   firstName: string | null;
+//   lastName: string | null;
+//   avatarUrl: string | null;
+// }
 
 // Interface for data returned by get_profile_id_for_sharer RPC
 // Assuming the RPC returns the profile ID directly or within a structure
@@ -102,7 +97,7 @@ export default async function ListenerTopicPage({ params }: ListenerTopicPagePro
 
   // 2. Fetch Sharer Profile ID and Header Data using RPCs (SECURITY DEFINER)
   let sharerProfileId: string | null = null;
-  let sharerHeaderData: SharerHeaderRenderData | null = null;
+  // const sharerHeaderData: SharerHeaderRenderData | null = null; // Removed as it's not used
   let originalCategoryName: string | null = null;
   let displayCategoryName: string | null = null;
   let displayCategoryDescription: string | null = null;
@@ -161,18 +156,18 @@ export default async function ListenerTopicPage({ params }: ListenerTopicPagePro
     displayCategoryDescription = promptCategory.descriptionListener || promptCategory.description;
 
     // Process avatar URL
-    const signedAvatarUrl = headerRpcData.avatarUrl
-      ? await getSignedAvatarUrl(headerRpcData.avatarUrl)
-      : null;
+    // const signedAvatarUrl = headerRpcData.avatarUrl
+    //   ? await getSignedAvatarUrl(headerRpcData.avatarUrl)
+    //   : null;
 
     // Construct data for the header component
-    sharerHeaderData = {
-      id: profileSharerId,       // ProfileSharer.id (from route params)
-      profileId: sharerProfileId, // Profile.id (fetched via RPC)
-      firstName: headerRpcData.firstName,
-      lastName: headerRpcData.lastName,
-      avatarUrl: signedAvatarUrl,
-    };
+    // sharerHeaderData = {
+    //   id: profileSharerId,       // ProfileSharer.id (from route params)
+    //   profileId: sharerProfileId, // Profile.id (fetched via RPC)
+    //   firstName: headerRpcData.firstName,
+    //   lastName: headerRpcData.lastName,
+    //   avatarUrl: signedAvatarUrl,
+    // };
 
   } catch (error) {
       console.error('[ListenerTopicPage] Overall error fetching sharer header data via RPC:', error);

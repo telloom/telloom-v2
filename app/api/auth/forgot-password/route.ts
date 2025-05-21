@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 // Remove the import of createClient from '@/utils/supabase/server'
 // import { createClient } from '@/utils/supabase/server'; 
-import { sendPasswordResetEmail } from '@/utils/loops';
+// import { sendPasswordResetEmail } from '@/utils/loops';
 import { createAdminClient } from '@/utils/supabase/admin';
 
 // Import createServerClient directly from @supabase/ssr
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
             const store = await cookieStore; // Await the captured cookieStore
             try {
               store.set({ name, value, ...options });
-            } catch (error) {
+            } catch {
               // The `set` method was called from a Server Component.
               // This can be ignored if you have middleware refreshing
               // user sessions.
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
             const store = await cookieStore; // Await the captured cookieStore
             try {
               store.set({ name, value: '', ...options });
-            } catch (error) {
+            } catch {
               // The `remove` (via set) method was called from a Server Component.
               // This can be ignored if you have middleware refreshing
               // user sessions.
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     const adminClient = createAdminClient();
     
     // Use the correct method to check if the user exists
-    const { data, error: userError } = await adminClient
+    const { data } = await adminClient
       .from('Profile')
       .select('id')
       .eq('email', email)
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'Internal server configuration error (auth module).' }, { status: 500 });
       }
 
-      const { data: resetData, error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: resetUrl.toString(),
       });
 

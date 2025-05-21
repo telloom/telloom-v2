@@ -214,7 +214,7 @@ export function ListenerPromptResponseDisplay({
       <div className="space-y-8">
         {/* Prompt Text and Topic Name Section */}
         <div>
-          <h1 className="text-2xl font-semibold text-black dark:text-white mb-2">{promptText}</h1>
+          <h1 className="text-base md:text-xl lg:text-2xl font-semibold text-black dark:text-white mb-2">{promptText}</h1>
           {topicName && (
             <div className="inline-block px-3 py-1 bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200 rounded-full text-xs font-medium">
               {topicName}

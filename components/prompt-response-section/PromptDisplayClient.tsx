@@ -367,7 +367,7 @@ export function PromptDisplayClient({
 
   return (
     <TooltipProvider>
-      <div className="container mx-auto px-4 lg:px-32 py-8 max-w-7xl">
+      <div className="container mx-auto px-3 my-3 max-w-5xl">
         {/* REMOVE Header from here */}
         {/* {roleContext === 'EXECUTOR' && sharerProfileHeaderData && (
           <div className="mb-6">
@@ -375,7 +375,7 @@ export function PromptDisplayClient({
           </div>
         )} */}
         
-        <div className="flex justify-between items-center mb-1">
+        <div className="flex justify-between items-center mb-3">
           <Button variant="ghost" onClick={handleBackToTopic} className="-ml-2 rounded-full">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
@@ -397,15 +397,15 @@ export function PromptDisplayClient({
           </div>
         )}
         
-        <div className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 rounded-2xl p-6 md:p-8 space-y-8 mb-12">
+        <div className="border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300 rounded-2xl p-3 space-y-8 mb-12">
           <div>
-            <h2 className="text-xl md:text-2xl font-semibold mb-0">{promptData.promptText}</h2>
+            <h2 className="text-base md:text-xl lg:text-2xl font-semibold mb-0">{promptData.promptText}</h2>
             {promptCategoryName && (
               <Badge variant="secondary" className="mt-2 inline-block">{promptCategoryName}</Badge>
             )}
           </div>
 
-          <div className="rounded-lg overflow-hidden">
+          <div className="rounded-lg overflow-hidden aspect-video bg-black">
              {playbackId ? (
                <DynamicMuxPlayer playbackId={playbackId} />
              ) : (
