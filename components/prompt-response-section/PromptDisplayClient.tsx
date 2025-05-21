@@ -405,7 +405,7 @@ export function PromptDisplayClient({
             )}
           </div>
 
-          <div className="rounded-lg overflow-hidden aspect-video bg-black">
+          <div className="rounded-lg overflow-hidden aspect-video bg-transparent">
              {playbackId ? (
                <DynamicMuxPlayer playbackId={playbackId} />
              ) : (
