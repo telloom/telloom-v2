@@ -282,7 +282,7 @@ export function ListenerAttachmentDialog({
                   </div>
                 ) : viewingAttachment && viewingAttachment.fileType === 'application/pdf' && currentSignedUrl ? (
                   <iframe
-                    src={currentSignedUrl}
+                    src={isMobile ? `${currentSignedUrl}#view=Fit` : currentSignedUrl}
                     title={viewingAttachment.fileName || "PDF Document"}
                     className="w-full h-full border-0"
                   />
