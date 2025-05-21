@@ -34,7 +34,7 @@ export const MuxPlayer = React.forwardRef<any, MuxPlayerProps>(
       playbackId,
       streamType: "on-demand",
       accentColor: "#8fbc55",
-      style: { aspectRatio: "16/9", width: "100%", ...style },
+      style: { aspectRatio: "16/9", width: "100%", overflow: 'hidden', backgroundColor: 'transparent', ...style },
       metadata: {
         video_title: "Video Response",
       },
