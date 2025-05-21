@@ -367,7 +367,14 @@ export function PromptDisplayClient({
 
   return (
     <TooltipProvider>
-      <div className="container mx-auto px-3 my-3 max-w-5xl">
+      <style jsx global>{`
+        mux-player::part(media) {
+          border: none !important;
+          outline: none !important;
+          background-color: transparent !important;
+        }
+      `}</style>
+      <div className="container mx-auto px-2 sm:px-3 md:px-4 lg:px-8 py-8 max-w-7xl">
         {/* REMOVE Header from here */}
         {/* {roleContext === 'EXECUTOR' && sharerProfileHeaderData && (
           <div className="mb-6">
