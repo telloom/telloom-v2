@@ -34,7 +34,7 @@ export const MuxPlayer = React.forwardRef<any, MuxPlayerProps>(
       playbackId,
       streamType: "on-demand",
       accentColor: "#8fbc55",
-      style: { aspectRatio: "16/9", width: "100%", overflow: 'hidden', backgroundColor: 'transparent', ...style },
+      style: { aspectRatio: "16/9", width: "100%", overflow: 'hidden', backgroundColor: 'transparent', border: 'none', outline: 'none', ...style },
       metadata: {
         video_title: "Video Response",
       },
@@ -52,7 +52,7 @@ export const MuxPlayer = React.forwardRef<any, MuxPlayerProps>(
     console.log('[MuxPlayer] Rendering MuxPlayerReact with props:', muxPlayerProps);
 
     return (
-      <div className="relative w-full h-full"> {/* Ensure parent div takes full space */}
+      <div className="relative w-full h-full" style={{ border: 'none', outline: 'none', backgroundColor: 'transparent' }}> {/* Ensure parent div takes full space */}
         <MuxPlayerReact {...muxPlayerProps} />
       </div>
     );
