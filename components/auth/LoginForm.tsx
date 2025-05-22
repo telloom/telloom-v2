@@ -59,7 +59,7 @@ export function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen flex flex-col items-center justify-start pt-12 pb-4 px-1 sm:justify-center sm:py-4 sm:px-4">
       <div className="w-full min-w-[300px] sm:min-w-[350px] md:min-w-[400px] max-w-3xl">
         <div className="text-center mb-6">
           <div className="mb-6">
@@ -89,7 +89,7 @@ export function LoginForm() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoComplete="email"
-                  className="h-10 border-input rounded-full w-full"
+                  className="h-10 border-input rounded-full w-full text-[16px]"
                   disabled={isLoading}
                   aria-label="Email address"
                 />
@@ -110,7 +110,7 @@ export function LoginForm() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="current-password"
-                  className="h-10 border-input rounded-full w-full"
+                  className="h-10 border-input rounded-full w-full text-[16px]"
                   disabled={isLoading}
                   aria-label="Password"
                 />
@@ -119,7 +119,7 @@ export function LoginForm() {
               <div className="pt-1">
                 <Button
                   type="submit"
-                  className="w-full h-9 bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-colors rounded-full"
+                  className="w-full h-9 bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-colors rounded-full text-[16px] md:text-sm"
                   disabled={isLoading}
                   aria-label={isLoading ? 'Signing in...' : 'Sign In'}
                 >
