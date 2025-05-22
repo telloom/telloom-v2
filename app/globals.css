@@ -59,4 +59,23 @@
   .swiper-button-prev {
     display: none !important;
   }
+}
+
+/* Add this to prevent iOS Safari from zooming in on input fields */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="search"],
+  input[type="url"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="date"],
+  input[type="month"],
+  input[type="week"],
+  input[type="time"],
+  input[type="datetime-local"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 } 

@@ -452,14 +452,12 @@ export default function TopicSummaryPage() {
   }
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 space-y-6 py-6">
-      <button 
-        onClick={() => router.push(`/role-sharer/topics/${topicId}`)}
-        className="flex items-center gap-1 px-4 py-1 rounded-full text-black hover:bg-[#8fbc55] transition-all duration-300"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Back to Topic</span>
-      </button>
+    <div className="container mx-auto max-w-5xl px-2 sm:px-4 space-y-6 py-6">
+      <div className="flex items-center justify-start mb-6">
+        <Button onClick={() => router.back()} variant="ghost" className="rounded-full">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Topic
+        </Button>
+      </div>
       <TopicVideoResponseSection
         topicId={topicId}
         topicName={topicName}
@@ -505,16 +503,16 @@ export default function TopicSummaryPage() {
               size="sm"
               onClick={() => setShowVideoDeleteConfirm(false)}
               className="rounded-full border-[#1B4332] text-[#1B4332] hover:bg-[#8fbc55] transition-colors duration-200"
-              disabled={isDeleting} // Need this state too
+              disabled={isDeleting}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
               size="sm"
-              onClick={handleDeleteVideo} // Need this handler too
+              onClick={handleDeleteVideo}
               className="rounded-full bg-red-600 hover:bg-red-700 transition-colors duration-200"
-              disabled={isDeleting} // Need this state too
+              disabled={isDeleting}
             >
               {isDeleting ? (
                 <>
@@ -528,7 +526,6 @@ export default function TopicSummaryPage() {
           </div>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }

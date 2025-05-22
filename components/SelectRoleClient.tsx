@@ -186,19 +186,19 @@ export default function SelectRoleClient() {
 
   return (
     <div className="w-full text-center">
-      <div className="space-y-2 mb-8">
-        <h1 className="text-2xl md:text-3xl font-semibold">Select Your Role</h1>
-        <p className="text-muted-foreground">Choose how you want to use Telloom</p>
+      <div className="space-y-1 mb-3">
+        <h1 className="text-xl md:text-3xl font-semibold">Select Your Role</h1>
+        <p className="text-xs md:text-sm text-muted-foreground">Choose how you want to use Telloom</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
         {ROLES.map(({ role, title, description, icon: Icon }) => {
           const isAvailable = availableRoles.includes(role);
           
           return (
             <Card
               key={role}
-              className={`p-4 md:p-6 space-y-4 text-center transition-all duration-300 border-2 border-[#1B4332] 
+              className={`p-3 space-y-1 text-center transition-all duration-300 border-2 border-[#1B4332] md:p-6 md:space-y-4 
                 ${isAvailable 
                   ? 'cursor-pointer shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55]' 
                   : 'opacity-50 cursor-not-allowed'
@@ -206,10 +206,10 @@ export default function SelectRoleClient() {
               onClick={() => isAvailable && !isTransitioning && handleSelectRole(role)}
             >
               <div className="flex justify-center">
-                <Icon className="h-10 w-10 md:h-12 md:w-12 text-[#1B4332]" />
+                <Icon className="h-8 w-8 md:h-12 md:w-12 text-[#1B4332]" />
               </div>
-              <h2 className="text-xl md:text-2xl font-semibold">{title}</h2>
-              <p className="text-sm md:text-base text-muted-foreground">{description}</p>
+              <h2 className="text-lg md:text-2xl font-semibold">{title}</h2>
+              <p className="text-xs md:text-base text-muted-foreground">{description}</p>
               {!isAvailable && (
                 <div className="text-xs text-muted-foreground mt-2">
                   Role not available

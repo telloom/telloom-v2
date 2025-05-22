@@ -611,18 +611,18 @@ export function TopicVideoResponseSection({
   }
 
   return (
-    <div className="space-y-8">
-      <Card className="p-8 border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300">
+    <div className="container mx-auto px-3 my-3 max-w-5xl space-y-8">
+      <Card className="p-4 md:p-8 border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] hover:shadow-[8px_8px_0_0_#8fbc55] transition-all duration-300">
         <div className="space-y-6">
           <div>
-            <h2 className="text-2xl font-semibold text-black">{topicName}</h2>
+            <h2 className="text-xl md:text-2xl font-semibold text-black">{topicName}</h2>
             <div className="inline-block px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
               Topic Summary
             </div>
           </div>
 
           {video?.muxPlaybackId && (
-            <div className="rounded-lg overflow-hidden">
+            <div className="rounded-lg overflow-hidden aspect-video bg-transparent">
               <MuxPlayer playbackId={video.muxPlaybackId} />
             </div>
           )}

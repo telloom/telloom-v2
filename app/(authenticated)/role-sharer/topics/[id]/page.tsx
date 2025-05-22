@@ -701,7 +701,7 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                     <TableRow className="hover:bg-transparent border-b border-[#1B4332]">
                       <TableHead className="font-bold">Prompt</TableHead>
                       <TableHead
-                        className="font-bold text-center cursor-pointer hover:text-[#8fbc55]"
+                        className="font-bold text-center cursor-pointer hover:text-[#8fbc55] hidden sm:table-cell" // Hide on mobile
                         onClick={() => setSortByStatus(!sortByStatus)}
                       >
                         Status {sortByStatus ? '↓' : '↑'}
@@ -791,7 +791,7 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                               <span className="flex-1">{prompt.promptText}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center hidden sm:table-cell"> {/* Hide on mobile */}
                             {hasResponse ? (
                               <CheckCircle2 className="h-6 w-6 text-[#8fbc55] inline-block" />
                             ) : (
@@ -802,7 +802,9 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                             <div className="flex items-center justify-end gap-2 h-9">
                               {hasResponse ? (
                                 <>
-                                  {renderGallery(promptResponse)}
+                                  <div className="hidden sm:flex items-center"> {/* Hide gallery on mobile */}
+                                    {renderGallery(promptResponse)}
+                                  </div>
                                   <Button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -832,7 +834,7 @@ export const TopicPageContent: React.FC<TopicPageContentProps> = ({
                                 </>
                               ) : (
                                 <>
-                                  <div className="flex-1">
+                                  <div className="flex-1 hidden sm:block"> {/* Hide Record button div on mobile */}
                                     <TooltipProvider delayDuration={100}>
                                       <Tooltip>
                                         <TooltipTrigger asChild>
@@ -1503,7 +1505,7 @@ export default function TopicPage() {
       setSelectedPrompt(promptToSelect); // Ensure the correct prompt context is set
       setIsVideoPopupOpen(true); // Open the video popup
     } else {
-       console.warn(`[handleUploadFinished] Could not find prompt associated with videoId ${videoId} in current state. Popup won\'t open automatically.`);
+       console.warn(`[handleUploadFinished] Could not find prompt associated with videoId ${videoId} in current state. Popup won't open automatically.`);
        // Might happen if state update after refreshData is slow, but refreshData should handle UI update.
     }
 
