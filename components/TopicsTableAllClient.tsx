@@ -19,8 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { PromptListPopup } from '@/components/PromptListPopup';
-import TopicCard from '@/components/TopicCard';
-import TopicsTableFilters from '@/components/TopicsTableFilters';
+import TopicsTableFilters, { ViewFilter } from './TopicsTableFilters';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -42,34 +41,39 @@ import {
 } from '@/components/ui/tooltip';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { PromptCategory } from '@/types/models';
+import { ScrollArea } from "@/components/ui/scroll-area";
+import TopicCard from "./TopicCard";
+
+// Define ExtendedPromptCategory locally
+interface ExtendedPromptCategory extends PromptCategory {
+  completedPromptCount?: number;
+  totalPromptCount?: number;
+  allPromptsCompleted?: boolean; // Added this for status filter logic
+}
 
 interface CompletionStatus {
   status: 'Not Started' | 'In Progress' | 'Completed';
   ratio: string;
 }
 
-type ViewFilter = 'favorites' | 'queue' | 'has-responses';
 type SortField = 'topic' | 'theme';
 
-interface ExtendedPromptCategory extends PromptCategory {
-  completedPromptCount?: number;
-  totalPromptCount?: number;
-}
-
-interface TopicsTableAllProps {
+interface TopicsTableAllClientProps {
   initialPromptCategories: ExtendedPromptCategory[];
-  currentRole?: 'SHARER' | 'EXECUTOR';
-  relationshipId?: string;
-  sharerId?: string;
+  userId: string;
+  sharerId?: string; // Make sharerId optional as it might not always be present for all roles
+  currentRole: 'SHARER' | 'EXECUTOR' | 'LISTENER';
 }
 
 // Define the component
 function TopicsTableAllClientComponent({ 
   initialPromptCategories,
-  currentRole = 'SHARER',
-  relationshipId,
-  sharerId,
-}: TopicsTableAllProps) {
+  userId,
+  sharerId, // This will be the ProfileSharer.id for SHARER/EXECUTOR, undefined for LISTENER viewing global topics
+  currentRole,
+}: TopicsTableAllClientProps) {
+  // console.log('[TopicsTableAllClient] Props received -- userId:', userId, 'sharerId:', sharerId, 'currentRole:', currentRole);
+
   const supabase = createClient();
   const { user } = useAuth();
   const [promptCategories, setPromptCategories] = useState<ExtendedPromptCategory[]>(initialPromptCategories);
@@ -79,7 +83,7 @@ function TopicsTableAllClientComponent({
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  const [activeFilters, setActiveFilters] = useState<ViewFilter[]>(() => {
+  const [activeViewFilters, setActiveViewFilters] = useState<ViewFilter[]>(() => {
     const filterParam = searchParams.get('filter');
     if (filterParam && ['favorites', 'queue', 'has-responses'].includes(filterParam)) {
       return [filterParam as ViewFilter];
@@ -233,18 +237,27 @@ function TopicsTableAllClientComponent({
   };
 
   const handleViewFilterChange = (filter: ViewFilter) => {
-    setActiveFilters(prev => {
-      const isActive = prev.includes(filter);
-      if (isActive) {
-        return prev.filter(f => f !== filter);
+    setActiveViewFilters(prevFilters => {
+      const newFilters = prevFilters.includes(filter)
+        ? prevFilters.filter(f => f !== filter)
+        : [...prevFilters, filter];
+      
+      // Update URL query params
+      const params = new URLSearchParams(searchParams.toString());
+      if (newFilters.length > 0) {
+        // For simplicity, store only the first active filter if multiple are ever allowed by UI
+        // Or join them: params.set('filter', newFilters.join(',')); 
+        params.set('filter', newFilters[0]); 
       } else {
-        return [...prev, filter];
+        params.delete('filter');
       }
+      router.replace(`?${params.toString()}`, { scroll: false });
+      return newFilters;
     });
   };
 
   const handleResetFilters = () => {
-    setActiveFilters([]);
+    setActiveViewFilters([]);
     setSearchQuery('');
     setStatusFilter('all');
     setThemeFilter('all');
@@ -256,21 +269,6 @@ function TopicsTableAllClientComponent({
       router.replace(newUrl.pathname + newUrl.search);
     }
   };
-
-  // Update URL when filters change
-  useEffect(() => {
-    // Only update URL if there's exactly one filter active
-    if (activeFilters.length === 1) {
-      const newUrl = new URL(window.location.href);
-      newUrl.searchParams.set('filter', activeFilters[0]);
-      router.replace(newUrl.pathname + newUrl.search);
-    } else if (activeFilters.length === 0 && searchParams.has('filter')) {
-      // Remove filter parameter if no filters are active
-      const newUrl = new URL(window.location.href);
-      newUrl.searchParams.delete('filter');
-      router.replace(newUrl.pathname + newUrl.search);
-    }
-  }, [activeFilters, router, searchParams]);
 
   const filteredCategories = useMemo(() => {
     let filtered = promptCategories.filter((category: ExtendedPromptCategory) => {
@@ -290,7 +288,7 @@ function TopicsTableAllClientComponent({
       const matchesStatus = statusFilter === 'all' || status === statusFilter.toLowerCase();
       
       // Check if all active filters are met
-      const matchesFilters = activeFilters.length === 0 || activeFilters.every(filter => {
+      const matchesFilters = activeViewFilters.length === 0 || activeViewFilters.every(filter => {
         switch (filter) {
           case 'favorites':
             return category.isFavorite;
@@ -320,7 +318,7 @@ function TopicsTableAllClientComponent({
     });
 
     return filtered;
-  }, [promptCategories, searchQuery, statusFilter, themeFilter, activeFilters, sortField, sortAsc]);
+  }, [promptCategories, searchQuery, statusFilter, themeFilter, activeViewFilters, sortField, sortAsc]);
 
   const themes = useMemo(() => {
     const uniqueThemes = new Set(
@@ -346,41 +344,23 @@ function TopicsTableAllClientComponent({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center">
-        <div className="w-full md:w-1/4 relative">
-          <Input
-            placeholder="Search topics..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="border-2 border-gray-200 rounded-lg focus-visible:ring-[#8fbc55] pr-10"
-          />
-          <Search className="h-4 w-4 text-gray-500 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
-        </div>
-
-        <div className="flex flex-wrap gap-2 items-center md:flex-1 md:justify-end">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger 
-              className={cn(
-                'w-[140px] border-0 rounded-lg h-8 px-3 text-sm',
-                statusFilter !== 'all'
-                  ? 'bg-[#8fbc55] text-[#1B4332] font-medium'
-                  : 'bg-gray-200/50 text-gray-600 hover:bg-[#8fbc55] hover:text-[#1B4332]'
-              )}
-            >
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="in-progress">In Progress</SelectItem>
-              <SelectItem value="not-started">Not Started</SelectItem>
-            </SelectContent>
-          </Select>
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:flex-wrap">
+        <div className="flex flex-col gap-2 mb-4 md:mb-0 md:w-1/3">
+          <div className="relative flex-grow">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 md:left-3" />
+            <Input
+              type="search"
+              placeholder="Search topics..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-8 px-2 pl-8 text-[16px] rounded-full md:h-9 md:px-3 md:pl-10 md:text-sm border-input"
+            />
+          </div>
 
           <Select value={themeFilter} onValueChange={setThemeFilter}>
             <SelectTrigger 
               className={cn(
-                'w-[180px] border-0 rounded-lg whitespace-normal text-left h-8 px-3 text-sm',
+                'w-full border-0 rounded-full whitespace-normal text-left h-8 px-3 text-[16px] md:h-9 md:text-sm',
                 themeFilter !== 'all'
                   ? 'bg-[#8fbc55] text-[#1B4332] font-medium'
                   : 'bg-gray-200/50 text-gray-600 hover:bg-[#8fbc55] hover:text-[#1B4332]'
@@ -399,6 +379,27 @@ function TopicsTableAllClientComponent({
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="flex flex-wrap gap-2 items-center md:flex-1 md:justify-end">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger 
+              className={cn(
+                'w-full md:w-auto border-0 rounded-full h-8 px-3 text-[16px] md:h-9 md:text-sm',
+                statusFilter !== 'all'
+                  ? 'bg-[#8fbc55] text-[#1B4332] font-medium'
+                  : 'bg-gray-200/50 text-gray-600 hover:bg-[#8fbc55] hover:text-[#1B4332]'
+              )}
+            >
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="in-progress">In Progress</SelectItem>
+              <SelectItem value="not-started">Not Started</SelectItem>
+            </SelectContent>
+          </Select>
 
           <div className="flex flex-wrap gap-2 items-center">
             <TopicsTableFilters
@@ -409,9 +410,11 @@ function TopicsTableAllClientComponent({
               themeFilter={themeFilter}
               setThemeFilter={setThemeFilter}
               themes={themes}
-              activeFilters={activeFilters}
+              activeFilters={activeViewFilters}
               onFilterChange={handleViewFilterChange}
               onResetFilters={handleResetFilters}
+              currentRole={currentRole}
+              showHasResponses={currentRole !== 'LISTENER'}
             />
 
             <div className="flex items-center gap-2 ml-auto">
@@ -420,7 +423,7 @@ function TopicsTableAllClientComponent({
                 size="icon"
                 onClick={() => handleViewModeChange('table')}
                 className={cn(
-                  'p-2 h-9 w-9 transition-colors',
+                  'p-1.5 h-8 w-8 md:p-2 md:h-9 md:w-9 transition-colors rounded-full',
                   currentViewMode === 'table' 
                     ? 'bg-[#8fbc55] text-[#1B4332] hover:bg-[#8fbc55]/90' 
                     : 'text-gray-500 hover:bg-gray-200/80'
@@ -433,7 +436,7 @@ function TopicsTableAllClientComponent({
                 size="icon"
                 onClick={() => handleViewModeChange('grid')}
                 className={cn(
-                  'p-2 h-9 w-9 transition-colors',
+                  'p-1.5 h-8 w-8 md:p-2 md:h-9 md:w-9 transition-colors rounded-full',
                   currentViewMode === 'grid' 
                     ? 'bg-[#8fbc55] text-[#1B4332] hover:bg-[#8fbc55]/90' 
                     : 'text-gray-500 hover:bg-gray-200/80'
@@ -460,7 +463,7 @@ function TopicsTableAllClientComponent({
             <h3 className="text-lg font-medium">No topics found</h3>
           </div>
           <p className="text-sm text-muted-foreground max-w-md">
-            {activeFilters.length > 0 || searchQuery 
+            {activeViewFilters.length > 0 || searchQuery 
               ? "Try changing your filters or search query." 
               : "No topics are available yet."}
           </p>
@@ -532,7 +535,7 @@ function TopicsTableAllClientComponent({
                                     size="icon"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      console.log(`[Table Icon Fav Click] Category ID: ${category.id}, Role: ${currentRole}, Sharer ID: ${sharerId}`);
+                                      // console.log(`[Table Icon Fav Click] Category ID: ${category.id}, Role: ${currentRole}, Sharer ID: ${sharerId}`);
                                       toggleFavorite(category.id);
                                     }}
                                     className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
@@ -574,7 +577,7 @@ function TopicsTableAllClientComponent({
                                     size="icon"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      console.log(`[Table Icon Queue Click] Category ID: ${category.id}, Role: ${currentRole}, Sharer ID: ${sharerId}`);
+                                      // console.log(`[Table Icon Queue Click] Category ID: ${category.id}, Role: ${currentRole}, Sharer ID: ${sharerId}`);
                                       toggleQueue(category.id);
                                     }}
                                     className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
@@ -673,7 +676,7 @@ function TopicsTableAllClientComponent({
                                         toast.error('Cannot navigate: Unknown user role.')
                                         return;
                                       }
-                                      console.log('[TopicsTable] Navigating to:', path);
+                                      // console.log('[TopicsTable] Navigating to:', path);
                                       router.push(path);
                                     }}
                                     className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-transparent"
@@ -714,7 +717,7 @@ function TopicsTableAllClientComponent({
               key={category.id}
               promptCategory={category}
               currentRole={currentRole}
-              relationshipId={relationshipId}
+              relationshipId={sharerId}
               sharerId={sharerId}
               onFavoriteClick={(e) => {
                 e.preventDefault();

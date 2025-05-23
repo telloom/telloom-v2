@@ -73,6 +73,11 @@ interface ExecutorInviteModalProps {
   sharerId: string;
 }
 
+interface SharerDetails {
+  profile_first_name?: string | null;
+  profile_last_name?: string | null;
+}
+
 export default function ExecutorInviteModal({ 
   open, 
   onOpenChange, 
@@ -128,7 +133,8 @@ export default function ExecutorInviteModal({
         }
 
         if (sharerDetailsData) {
-          const name = `${sharerDetailsData.profile_first_name || ''} ${sharerDetailsData.profile_last_name || ''}`.trim();
+          const typedSharerDetailsData = sharerDetailsData as SharerDetails;
+          const name = `${typedSharerDetailsData.profile_first_name || ''} ${typedSharerDetailsData.profile_last_name || ''}`.trim();
           setFetchedSharerName(name || 'the Sharer');
           console.log(`[ExecutorInviteModal] Fetched sharer name: ${name}`);
         } else {
@@ -255,29 +261,29 @@ export default function ExecutorInviteModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto p-0 border-2 border-[#1B4332]">
-        <div className="p-6">
+        <div className="px-4 py-3 md:p-6">
           <DialogHeader>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-1 pr-8">
               <UserPlus className="h-5 w-5" />
               <DialogTitle className="text-2xl font-semibold">
                 {getDialogTitle()}
               </DialogTitle>
             </div>
-            <DialogDescription className="text-muted-foreground">
+            <DialogDescription className="text-muted-foreground hidden md:block">
               Send an invitation to someone to become a listener or executor
             </DialogDescription>
           </DialogHeader>
 
-          <div className="mt-6">
+          <div className="mt-4 md:mt-6">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'listener' | 'executor')}>
-              <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsList className="grid w-full grid-cols-2 mb-4 md:mb-6">
                 <TabsTrigger value="listener">Invite Listener</TabsTrigger>
                 <TabsTrigger value="executor">Invite Executor</TabsTrigger>
               </TabsList>
 
               <TabsContent value="listener">
                 <Form {...listenerForm}>
-                  <form onSubmit={listenerForm.handleSubmit(onSubmit)} className="space-y-4">
+                  <form onSubmit={listenerForm.handleSubmit(onSubmit)} className="space-y-3 md:space-y-4">
                     <FormField
                       control={listenerForm.control}
                       name="email"
@@ -288,7 +294,7 @@ export default function ExecutorInviteModal({
                             <Input 
                               placeholder="Enter email address" 
                               type="email" 
-                              className="border-2 border-gray-200 rounded-lg focus-visible:ring-[#8fbc55]"
+                              className="text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-3 border-2 border-gray-200 focus-visible:ring-[#8fbc55]"
                               {...field} 
                             />
                           </FormControl>
@@ -299,7 +305,7 @@ export default function ExecutorInviteModal({
 
                     <Button 
                       type="submit" 
-                      className="w-full rounded-full bg-[#1B4332] hover:bg-[#8fbc55] transition-colors" 
+                      className="w-full text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-4 bg-[#1B4332] hover:bg-[#8fbc55] transition-colors" 
                       disabled={isSubmitting}
                     >
                       {isSubmitting ? (
@@ -317,8 +323,9 @@ export default function ExecutorInviteModal({
 
               <TabsContent value="executor">
                 <Form {...executorForm}>
-                  <form onSubmit={executorForm.handleSubmit(onSubmit)} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <form onSubmit={executorForm.handleSubmit(onSubmit)} className="space-y-3 md:space-y-4">
+                    {/* Group Email and Phone */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3 md:gap-4">
                       <FormField
                         control={executorForm.control}
                         name="email"
@@ -329,7 +336,7 @@ export default function ExecutorInviteModal({
                               <Input 
                                 placeholder="Enter email address" 
                                 type="email" 
-                                className="border-2 border-gray-200 rounded-lg focus-visible:ring-[#8fbc55]"
+                                className="text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-3 border-2 border-gray-200 focus-visible:ring-[#8fbc55]"
                                 {...field} 
                               />
                             </FormControl>
@@ -348,7 +355,7 @@ export default function ExecutorInviteModal({
                               <Input 
                                 placeholder="Enter phone number" 
                                 type="tel" 
-                                className="border-2 border-gray-200 rounded-lg focus-visible:ring-[#8fbc55]"
+                                className="text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-3 border-2 border-gray-200 focus-visible:ring-[#8fbc55]"
                                 {...field} 
                               />
                             </FormControl>
@@ -356,7 +363,10 @@ export default function ExecutorInviteModal({
                           </FormItem>
                         )}
                       />
+                    </div>
 
+                    {/* Group First Name and Last Name */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3 md:gap-4">
                       <FormField
                         control={executorForm.control}
                         name="firstName"
@@ -366,7 +376,7 @@ export default function ExecutorInviteModal({
                             <FormControl>
                               <Input 
                                 placeholder="Enter first name" 
-                                className="border-2 border-gray-200 rounded-lg focus-visible:ring-[#8fbc55]"
+                                className="text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-3 border-2 border-gray-200 focus-visible:ring-[#8fbc55]"
                                 {...field} 
                               />
                             </FormControl>
@@ -384,7 +394,7 @@ export default function ExecutorInviteModal({
                             <FormControl>
                               <Input 
                                 placeholder="Enter last name" 
-                                className="border-2 border-gray-200 rounded-lg focus-visible:ring-[#8fbc55]"
+                                className="text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-3 border-2 border-gray-200 focus-visible:ring-[#8fbc55]"
                                 {...field} 
                               />
                             </FormControl>
@@ -392,43 +402,43 @@ export default function ExecutorInviteModal({
                           </FormItem>
                         )}
                       />
-
-                      <FormField
-                        control={executorForm.control}
-                        name="relation"
-                        render={({ field }) => (
-                          <FormItem className="col-span-2">
-                            <FormLabel>Relation to {fetchedSharerName || 'Sharer'}</FormLabel>
-                            <Select 
-                              onValueChange={field.onChange} 
-                              value={field.value}
-                            >
-                              <FormControl>
-                                <SelectTrigger className="border-2 border-gray-200 rounded-lg focus:ring-[#8fbc55]">
-                                  <SelectValue placeholder="Select relation" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {personRelations.map((relation) => (
-                                  <SelectItem 
-                                    key={relation} 
-                                    value={relation}
-                                    className="capitalize"
-                                  >
-                                    {relation.replace(/([A-Z])/g, ' $1').trim()}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
                     </div>
+
+                    <FormField
+                      control={executorForm.control}
+                      name="relation"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Relation to {fetchedSharerName || 'Sharer'}</FormLabel>
+                          <Select 
+                            onValueChange={field.onChange} 
+                            value={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-3 border-2 border-gray-200 focus:ring-[#8fbc55]">
+                                <SelectValue placeholder="Select relation" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {personRelations.map((relation) => (
+                                <SelectItem 
+                                  key={relation} 
+                                  value={relation}
+                                  className="capitalize"
+                                >
+                                  {relation.replace(/([A-Z])/g, ' $1').trim()}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
                     <Button 
                       type="submit" 
-                      className="w-full rounded-full bg-[#1B4332] hover:bg-[#8fbc55] transition-colors" 
+                      className="w-full text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-4 bg-[#1B4332] hover:bg-[#8fbc55] transition-colors mt-2 md:mt-0"
                       disabled={isSubmitting}
                     >
                       {isSubmitting ? (

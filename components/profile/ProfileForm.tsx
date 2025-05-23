@@ -81,7 +81,7 @@ function StateDropdown({
             <Button
               variant="outline"
               role="combobox"
-              className="w-full justify-between rounded-full"
+              className="w-full justify-between h-8 px-3 text-[16px] rounded-full md:h-9 md:text-sm"
             >
               {selectedStateName}
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -95,7 +95,7 @@ function StateDropdown({
                   placeholder="Search states..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-9 w-full rounded-md pl-8"
+                  className="h-9 w-full rounded-md pl-8 text-sm"
                 />
               </div>
               
@@ -143,7 +143,7 @@ function StateDropdown({
           <SheetTrigger asChild>
             <Button
               variant="outline"
-              className="w-full justify-between rounded-full"
+              className="w-full justify-between h-8 px-3 text-[16px] rounded-full md:h-9 md:text-sm"
             >
               {selectedStateName}
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -164,7 +164,7 @@ function StateDropdown({
                     placeholder="Search states..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-10 w-full rounded-md pl-9"
+                    className="h-8 px-2 pl-8 text-[16px] rounded-full w-full md:h-10 md:px-3 md:pl-9 md:text-sm"
                   />
                 </div>
                 
@@ -619,14 +619,14 @@ export default function ProfileForm({ initialData, states }: ProfileFormProps) {
               type="button"
               variant="outline"
               onClick={() => setShowCropDialog(false)}
-              className="rounded-full"
+              className="h-8 px-3 text-[16px] rounded-full md:h-9 md:px-4 md:text-sm"
             >
               Cancel
             </Button>
             <Button
               type="button"
               onClick={handleCropComplete}
-              className="rounded-full bg-[#1B4332] hover:bg-[#8fbc55]"
+              className="h-8 px-3 text-[16px] rounded-full bg-[#1B4332] hover:bg-[#8fbc55] md:h-9 md:px-4 md:text-sm"
               disabled={isLoading}
             >
               {isLoading ? 'Processing...' : 'Apply'}
@@ -647,7 +647,7 @@ export default function ProfileForm({ initialData, states }: ProfileFormProps) {
             required
             autoComplete="off"
             data-form-type="other"
-            className="rounded-full"
+            className="h-8 px-3 text-[16px] rounded-full md:h-9 md:text-sm"
           />
         </div>
         <div className="space-y-2">
@@ -661,7 +661,7 @@ export default function ProfileForm({ initialData, states }: ProfileFormProps) {
             required
             autoComplete="off"
             data-form-type="other"
-            className="rounded-full"
+            className="h-8 px-3 text-[16px] rounded-full md:h-9 md:text-sm"
           />
         </div>
       </div>
@@ -674,7 +674,7 @@ export default function ProfileForm({ initialData, states }: ProfileFormProps) {
           type="email"
           value={formData.email || ''}
           disabled
-          className="bg-gray-50 rounded-full"
+          className="bg-gray-50 h-8 px-3 text-[16px] rounded-full md:h-9 md:text-sm"
           autoComplete="off"
           data-form-type="other"
         />
@@ -691,7 +691,7 @@ export default function ProfileForm({ initialData, states }: ProfileFormProps) {
           placeholder="(123) 456-7890"
           autoComplete="off"
           data-form-type="other"
-          className="rounded-full"
+          className="h-8 px-3 text-[16px] rounded-full md:h-9 md:text-sm"
         />
       </div>
 
@@ -707,7 +707,7 @@ export default function ProfileForm({ initialData, states }: ProfileFormProps) {
             placeholder="Enter your street address"
             autoComplete="off"
             data-form-type="other"
-            className="rounded-full"
+            className="h-8 px-3 text-[16px] rounded-full md:h-9 md:text-sm"
           />
         </div>
 
@@ -722,7 +722,7 @@ export default function ProfileForm({ initialData, states }: ProfileFormProps) {
               placeholder="Unit/Apt number"
               autoComplete="off"
               data-form-type="other"
-              className="rounded-full"
+              className="h-8 px-3 text-[16px] rounded-full md:h-9 md:text-sm"
             />
           </div>
           <div className="space-y-2">
@@ -735,7 +735,7 @@ export default function ProfileForm({ initialData, states }: ProfileFormProps) {
               placeholder="Enter your city"
               autoComplete="off"
               data-form-type="other"
-              className="rounded-full"
+              className="h-8 px-3 text-[16px] rounded-full md:h-9 md:text-sm"
             />
           </div>
         </div>
@@ -759,7 +759,7 @@ export default function ProfileForm({ initialData, states }: ProfileFormProps) {
               placeholder="Enter your ZIP code"
               autoComplete="off"
               data-form-type="other"
-              className="rounded-full"
+              className="h-8 px-3 text-[16px] rounded-full md:h-9 md:text-sm"
               maxLength={5}
               pattern="\d{5}"
               title="ZIP code must be 5 digits"
@@ -772,7 +772,7 @@ export default function ProfileForm({ initialData, states }: ProfileFormProps) {
         <Button
           type="submit"
           disabled={isLoading}
-          className="bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-colors rounded-full"
+          className="w-full bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-colors h-8 px-3 text-[16px] rounded-full md:w-auto md:h-9 md:px-4 md:text-sm"
         >
           {isLoading ? 'Saving...' : 'Save Changes'}
         </Button>

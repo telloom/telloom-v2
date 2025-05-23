@@ -216,7 +216,7 @@ export default function SignUp() {
                   onChange={handleInputChange}
                   onBlur={handleBlur}
                   required
-                  className="h-8 border-input rounded-full text-sm"
+                  className="h-8 px-2 text-[16px] rounded-full md:h-9 md:px-3 md:text-sm border-input"
                   disabled={loading}
                   aria-label="Email address"
                 />
@@ -238,7 +238,7 @@ export default function SignUp() {
                   onChange={handleInputChange}
                   onBlur={handleBlur}
                   required
-                  className="h-8 border-input rounded-full text-sm"
+                  className="h-8 px-2 text-[16px] rounded-full md:h-9 md:px-3 md:text-sm border-input"
                   disabled={loading}
                   aria-label="Password"
                 />
@@ -260,7 +260,7 @@ export default function SignUp() {
                   onChange={handleInputChange}
                   onBlur={handleBlur}
                   required
-                  className="h-8 border-input rounded-full text-sm"
+                  className="h-8 px-2 text-[16px] rounded-full md:h-9 md:px-3 md:text-sm border-input"
                   disabled={loading}
                   aria-label="Confirm password"
                 />
@@ -269,7 +269,7 @@ export default function SignUp() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 <div className="space-y-1">
                   <label htmlFor="firstName" className="text-sm font-medium leading-none">
                     First Name
@@ -283,7 +283,7 @@ export default function SignUp() {
                     onChange={handleInputChange}
                     onBlur={handleBlur}
                     required
-                    className="h-8 border-input rounded-full text-sm"
+                    className="h-8 px-2 text-[16px] rounded-full md:h-9 md:px-3 md:text-sm border-input"
                     disabled={loading}
                     aria-label="First name"
                   />
@@ -305,7 +305,7 @@ export default function SignUp() {
                     onChange={handleInputChange}
                     onBlur={handleBlur}
                     required
-                    className="h-8 border-input rounded-full text-sm"
+                    className="h-8 px-2 text-[16px] rounded-full md:h-9 md:px-3 md:text-sm border-input"
                     disabled={loading}
                     aria-label="Last name"
                   />
@@ -328,7 +328,7 @@ export default function SignUp() {
                   onChange={handleInputChange}
                   onBlur={handleBlur}
                   required
-                  className="h-8 border-input rounded-full text-sm"
+                  className="h-8 px-2 text-[16px] rounded-full md:h-9 md:px-3 md:text-sm border-input"
                   disabled={loading}
                   aria-label="Phone number"
                 />
@@ -340,7 +340,7 @@ export default function SignUp() {
               <div>
                 <Button
                   type="submit"
-                  className="w-full h-8 bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-colors rounded-full text-sm"
+                  className="w-full h-8 px-3 text-[16px] rounded-full md:h-9 md:px-4 md:text-sm bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-colors"
                   disabled={!isFormValid || loading}
                   aria-label={loading ? 'Signing up...' : 'Sign Up'}
                 >

@@ -239,16 +239,16 @@ function ListenerTopicsTableComponent({
       {/* Search and Filter Row */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-grow">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground md:left-3" />
           <Input
             placeholder="Search topics..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="h-8 px-2 pl-8 text-[16px] rounded-full md:h-9 md:px-3 md:pl-10 md:text-sm"
           />
         </div>
         <Select value={themeFilter} onValueChange={setThemeFilter}>
-          <SelectTrigger className="w-full sm:w-[240px]">
+          <SelectTrigger className="w-full sm:w-[240px] h-8 px-3 text-[16px] rounded-full md:h-9 md:text-sm">
             <SelectValue placeholder="All Themes" />
           </SelectTrigger>
           <SelectContent>

@@ -902,13 +902,13 @@ export function TopicVideoResponseSection({
                     setTranscript(e.target.value);
                     autoResize(transcriptTextareaRef.current);
                   }}
-                  className="min-h-[100px] w-full resize-none transition-height duration-150 whitespace-pre-wrap bg-white focus-visible:ring-0 border-0 focus-visible:ring-offset-0 text-base overflow-hidden"
+                  className="min-h-[100px] w-full resize-none transition-height duration-150 whitespace-pre-wrap bg-white focus-visible:ring-0 border-0 focus-visible:ring-offset-0 overflow-hidden"
                 />
               ) : (
                 <div className="space-y-2">
                   <div
                     ref={transcriptContentRef}
-                    className={`relative bg-white rounded-lg whitespace-pre-wrap transition-all duration-200 text-base ${
+                    className={`relative bg-white rounded-lg whitespace-pre-wrap transition-all duration-200 text-[16px] md:text-sm ${
                       isTranscriptExpanded ? "max-h-none overflow-visible" : "max-h-64 overflow-hidden"
                     } ${
                       !isTranscriptExpanded && transcriptOverflows ? "pb-20" : "" // Add padding for gradient
@@ -1021,14 +1021,14 @@ export function TopicVideoResponseSection({
                     setSummary(e.target.value);
                     autoResize(summaryTextareaRef.current);
                   }}
-                  className="min-h-[100px] w-full resize-none transition-height duration-150 whitespace-pre-wrap bg-white focus-visible:ring-0 border-0 focus-visible:ring-offset-0 text-base overflow-hidden"
+                  className="min-h-[100px] w-full resize-none transition-height duration-150 whitespace-pre-wrap bg-white focus-visible:ring-0 border-0 focus-visible:ring-offset-0 overflow-hidden"
                   placeholder="Enter a summary..."
                 />
               ) : (
                 <div className="space-y-2">
                   <div
                     ref={summaryContentRef}
-                    className={`relative bg-white rounded-lg whitespace-pre-wrap transition-all duration-200 text-base ${
+                    className={`relative bg-white rounded-lg whitespace-pre-wrap transition-all duration-200 text-[16px] md:text-sm ${
                       isSummaryExpanded ? "max-h-none overflow-visible" : "max-h-64 overflow-hidden"
                     } ${
                       !isSummaryExpanded && summaryOverflows ? "pb-20" : "" // Add padding for gradient

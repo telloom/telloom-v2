@@ -146,14 +146,14 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
 
           <div className="mt-6">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'LISTENER' | 'EXECUTOR')}>
-              <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsList className="grid w-full grid-cols-2 mb-4 md:mb-6">
                 <TabsTrigger value="LISTENER">Invite Listener</TabsTrigger>
                 <TabsTrigger value="EXECUTOR">Invite Executor</TabsTrigger>
               </TabsList>
 
               <TabsContent value="LISTENER">
                 <Form {...listenerForm}>
-                  <form onSubmit={listenerForm.handleSubmit(onSubmit)} className="space-y-4">
+                  <form onSubmit={listenerForm.handleSubmit(onSubmit)} className="space-y-3 md:space-y-4">
                     <FormField
                       control={listenerForm.control}
                       name="email"
@@ -164,7 +164,7 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                             <Input 
                               placeholder="email@example.com" 
                               {...field} 
-                              className="rounded-full h-10"
+                              className="text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-3"
                             />
                           </FormControl>
                           <FormMessage />
@@ -173,7 +173,7 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                     />
                     <Button 
                       type="submit" 
-                      className="w-full rounded-full bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-all duration-300"
+                      className="w-full text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-4 bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-all duration-300"
                       disabled={isLoading}
                     >
                       {isLoading ? (
@@ -191,7 +191,7 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
 
               <TabsContent value="EXECUTOR">
                 <Form {...executorForm}>
-                  <form onSubmit={executorForm.handleSubmit(onSubmit)} className="space-y-4">
+                  <form onSubmit={executorForm.handleSubmit(onSubmit)} className="space-y-2 md:space-y-4">
                     <FormField
                       control={executorForm.control}
                       name="email"
@@ -202,14 +202,14 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                             <Input 
                               placeholder="email@example.com" 
                               {...field} 
-                              className="rounded-full h-10"
+                              className="text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-3"
                             />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 md:gap-y-4">
                       <FormField
                         control={executorForm.control}
                         name="firstName"
@@ -217,7 +217,7 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                           <FormItem>
                             <FormLabel>First Name</FormLabel>
                             <FormControl>
-                              <Input {...field} className="rounded-full h-10" />
+                              <Input {...field} className="text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-3" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -230,7 +230,7 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                           <FormItem>
                             <FormLabel>Last Name</FormLabel>
                             <FormControl>
-                              <Input {...field} className="rounded-full h-10" />
+                              <Input {...field} className="text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-3" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -245,7 +245,7 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                           <FormLabel>Relation</FormLabel>
                           <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
-                              <SelectTrigger className="rounded-full h-10">
+                              <SelectTrigger className="text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-3">
                                 <SelectValue placeholder="Select a relation" />
                               </SelectTrigger>
                             </FormControl>
@@ -268,7 +268,7 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                         <FormItem>
                           <FormLabel>Phone</FormLabel>
                           <FormControl>
-                            <Input {...field} className="rounded-full h-10" />
+                            <Input {...field} className="text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-3" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -276,7 +276,7 @@ export default function InviteModal({ open, onOpenChange }: InviteModalProps) {
                     />
                     <Button 
                       type="submit" 
-                      className="w-full rounded-full bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-all duration-300"
+                      className="w-full text-[16px] h-8 px-3 rounded-full md:text-sm md:h-9 md:px-4 bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-all duration-300"
                       disabled={isLoading}
                     >
                       {isLoading ? (

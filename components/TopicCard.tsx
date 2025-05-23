@@ -48,17 +48,15 @@ export default function TopicCard({
   const router = useRouter();
   const [isPromptListOpen, setIsPromptListOpen] = useState(false);
   
-  // Log the sharerId prop received by TopicCard
-  // console.log(`[TopicCard Scope] Rendering card for ${promptCategory.category}. Received sharerId: ${sharerId}`);
+  // console.log(`[TopicCard Props] Rendering card for ${promptCategory.category}. Received sharerId: ${sharerId}, currentRole: ${currentRole}`);
 
   // Use counts directly from the extended promptCategory prop
-  // Provide default values (0) if the props are not passed (though they should be)
-  const completedCount = promptCategory.completedPromptCount ?? 0;
-  const totalCount = promptCategory.totalPromptCount ?? 0;
-  // console.log(`[TOPICCARD] Completion stats from props: {completedCount: ${completedCount}, totalCount: ${totalCount}}`);
+  const completedPrompts = promptCategory.completedPromptCount ?? 0;
+  const totalPrompts = promptCategory.totalPromptCount ?? 0;
+  // console.log(`[TOPICCARD] Completion stats from props: {completedCount: ${completedPrompts}, totalCount: ${totalPrompts}}`);
   // console.log(`[TOPICCARD] Raw Prompt array length: ${promptCategory.Prompt?.length}`);
 
-  const progressValue = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const progressValue = totalPrompts > 0 ? Math.round((completedPrompts / totalPrompts) * 100) : 0;
 
   // Determine if the card should be interactive based on role
   const isListener = currentRole === 'LISTENER';
@@ -69,12 +67,12 @@ export default function TopicCard({
     // console.log(`[TOPICCARD] Card has queue: ${promptCategory.isInQueue}`);
     // console.log(`[TOPICCARD] Current role: ${currentRole} sharerId: ${sharerId}`);
     // Log the counts received from props
-    // console.log(`[TOPICCARD] Completion stats from props: {completedCount: ${completedCount}, totalCount: ${totalCount}}`);
+    // console.log(`[TOPICCARD] Completion stats from props: {completedCount: ${completedPrompts}, totalCount: ${totalPrompts}}`);
     
     // Logging the raw prompt array length might still be useful for debugging
     const prompts = promptCategory.Prompt || []; 
     // console.log(`[TOPICCARD] Raw Prompt array length: ${prompts.length}`);
-  }, [promptCategory, currentRole, sharerId, completedCount, totalCount]); // Add counts to dependency array
+  }, [promptCategory, currentRole, sharerId, completedPrompts, totalPrompts]); // Add counts to dependency array
   
   const handleNavigate = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -140,7 +138,7 @@ export default function TopicCard({
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">
                     {/* Display counts from props */} 
-                    {completedCount}/{totalCount}
+                    {completedPrompts}/{totalPrompts}
                   </span>
                 </div>
               </TooltipProvider>

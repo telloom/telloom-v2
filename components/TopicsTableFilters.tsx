@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Star, ListPlus, MessageSquare, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-type ViewFilter = 'favorites' | 'queue' | 'has-responses';
+export type ViewFilter = 'favorites' | 'queue' | 'has-responses';
 
 interface TopicsTableFiltersProps {
   searchQuery: string;
@@ -18,6 +18,7 @@ interface TopicsTableFiltersProps {
   onFilterChange: (filter: ViewFilter) => void;
   onResetFilters: () => void;
   showHasResponses?: boolean;
+  currentRole?: 'SHARER' | 'EXECUTOR' | 'LISTENER';
 }
 
 const FilterButton = ({ 
@@ -61,6 +62,7 @@ export default function TopicsTableFilters({
   onFilterChange,
   onResetFilters,
   showHasResponses = true,
+  currentRole,
 }: TopicsTableFiltersProps) {
   return (
     <div className="flex flex-wrap gap-x-1.5 gap-y-2 items-center">

@@ -22,7 +22,7 @@ export default async function TopicsPage({
 }: {
   searchParams: { [key: string]: string | string[] | undefined }
 }) {
-  console.log('[TOPICS] Starting page render');
+  // console.log('[TOPICS] Starting page render');
   
   // Properly await the searchParams to fix the Next.js warning
   const resolvedSearchParams = await Promise.resolve(searchParams);
@@ -32,12 +32,12 @@ export default async function TopicsPage({
   let supabaseError: Error | null = null;
   
   try {
-    console.log('[TOPICS] Checking if user has SHARER role');
+    // console.log('[TOPICS] Checking if user has SHARER role');
     
     // Verify user has SHARER role using the safe helper function
     const hasSharerRole = await checkRole('SHARER');
     if (!hasSharerRole) {
-      console.log('[TOPICS] User does not have SHARER role, redirecting to select-role');
+      console.warn('[TOPICS] User does not have SHARER role, redirecting to select-role');
       return redirect('/select-role');
     }
     
@@ -53,7 +53,20 @@ export default async function TopicsPage({
       return redirect('/login');
     }
     
-    console.log('[TOPICS] Found authenticated user:', user.id.substring(0, 8));
+    // console.log('[TOPICS] Found authenticated user:', user.id.substring(0, 8));
+    
+    // Extract sharerId from app_metadata
+    const appSharerId = user.app_metadata?.sharer_id as string | undefined;
+
+    if (!appSharerId) {
+      console.error('[TOPICS] sharer_id not found in user.app_metadata. User ID:', user.id);
+      // Handle missing sharer_id, perhaps redirect or show an error
+      return (
+        <div className="container max-w-7xl mx-auto px-4 py-8">
+          <p className="text-red-600">Error: Sharer identity could not be confirmed. Please re-login.</p>
+        </div>
+      );
+    }
     
     // Use the CORRECT RPC function name (get_user_role_emergency instead of get_user_role_info)
     // We still need the sharer's PROFILE id (which is the user.id here)
@@ -82,7 +95,7 @@ export default async function TopicsPage({
     // }
     
     // Fetch categories using the new RPC function
-    console.log('[TOPICS] Fetching sharer topic list via RPC for user:', user.id);
+    // console.log('[TOPICS] Fetching sharer topic list via RPC for user:', user.id);
     const { data: topicsData, error: topicsError } = await supabase
       .rpc('get_sharer_topic_list', { p_sharer_profile_id: user.id });
 
@@ -109,7 +122,7 @@ export default async function TopicsPage({
     }));
 
     // Log success for debugging
-    console.log('[TOPICS] Successfully fetched and normalized', normalizedCategories.length, 'categories via RPC');
+    // console.log('[TOPICS] Successfully fetched and normalized', normalizedCategories.length, 'categories via RPC');
     
     return (
       <div className="container max-w-7xl mx-auto px-4 py-8">
@@ -125,7 +138,8 @@ export default async function TopicsPage({
             <TopicsTableAll 
               initialPromptCategories={normalizedCategories} // Pass the correctly fetched data
               currentRole="SHARER"
-              sharerId={user.id} // Pass sharer's profileId as sharerId for SHARER role
+              userId={user.id} // Pass authenticated user's ID
+              sharerId={appSharerId} // Pass ProfileSharer.id from app_metadata
             />
           ) : (
             <div className="text-center py-8">

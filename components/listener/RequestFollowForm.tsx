@@ -246,7 +246,7 @@ export default function RequestFollowForm() {
 
   return (
     <div>
-      <div className="p-6">
+      <div className="py-4 sm:py-6 md:p-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleFormAction)} className="space-y-6">
             <FormField
@@ -261,6 +261,7 @@ export default function RequestFollowForm() {
                       {...field} 
                       onBlur={handleEmailBlur}
                       disabled={isLoading}
+                      className="h-8 px-2 text-[16px] rounded-full md:h-9 md:px-3 md:text-sm"
                     />
                   </FormControl>
                   <FormMessage />
@@ -296,7 +297,7 @@ export default function RequestFollowForm() {
 
             <Button 
               type="submit"
-              className="w-full rounded-full bg-[#1B4332] hover:bg-[#8fbc55]"
+              className="w-full rounded-full bg-[#1B4332] hover:bg-[#8fbc55] h-8 px-3 text-[16px] md:h-9 md:px-4 md:text-sm"
               disabled={
                 isSearching || isLoading
                 // (!foundSharer && !form.formState.isValid && form.formState.isSubmitted)

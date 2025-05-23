@@ -147,7 +147,7 @@ export function ExpandableTextSection({
              <p
                ref={contentRef}
                className={cn(
-                 "text-base text-gray-900 whitespace-pre-wrap transition-all duration-300 ease-in-out overflow-hidden",
+                 "text-[16px] md:text-sm text-gray-900 whitespace-pre-wrap transition-all duration-300 ease-in-out overflow-hidden",
                  !isExpanded && maxHeightClass // Apply max height only if not expanded
                )}
              >

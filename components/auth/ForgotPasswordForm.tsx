@@ -93,7 +93,7 @@ export default function ForgotPasswordForm() {
                     type="email"
                     placeholder="Enter your email"
                     {...register('email')}
-                    className="h-10 border-input rounded-full w-full"
+                    className="h-8 px-2 text-[16px] rounded-full w-full md:h-9 md:px-3 md:text-sm border-input"
                     disabled={isSubmitting}
                     aria-label="Email address"
                   />
@@ -105,7 +105,7 @@ export default function ForgotPasswordForm() {
                 <div className="pt-1">
                   <Button
                     type="submit"
-                    className="w-full h-9 bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-colors rounded-full"
+                    className="w-full h-8 px-3 text-[16px] rounded-full bg-[#1B4332] hover:bg-[#8fbc55] text-white transition-colors md:h-9 md:px-4 md:text-sm"
                     disabled={isSubmitting}
                     aria-label={isSubmitting ? 'Sending...' : 'Send Reset Link'}
                   >

@@ -17,7 +17,8 @@ const TopicsTableAllClient = dynamic(() => import('./TopicsTableAllClient'), {
 
 interface TopicsTableAllProps {
   initialPromptCategories: any[];
-  currentRole?: 'SHARER' | 'EXECUTOR';
+  userId: string;
+  currentRole?: 'SHARER' | 'EXECUTOR' | 'LISTENER';
   relationshipId?: string;
   sharerId?: string;
 }

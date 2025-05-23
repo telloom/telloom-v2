@@ -374,7 +374,7 @@ export function PromptDisplayClient({
           background-color: transparent !important;
         }
       `}</style>
-      <div className="container mx-auto px-2 sm:px-3 md:px-4 lg:px-8 py-8 max-w-7xl">
+      <div className="container mx-auto px-2 sm:px-3 md:px-4 lg:px-8 py-8 max-w-5xl">
         {/* REMOVE Header from here */}
         {/* {roleContext === 'EXECUTOR' && sharerProfileHeaderData && (
           <div className="mb-6">
@@ -562,7 +562,7 @@ export function PromptDisplayClient({
                 {isEditingNotes ? (
                   <Textarea id="responseNotes" placeholder={`Add any notes about ${sharerName}'s response...`} rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} disabled={isLoading} />
                 ) : (
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap pt-1">{notes || 'No notes provided.'}</p>
+                  <p className="text-[16px] md:text-sm text-muted-foreground whitespace-pre-wrap pt-1">{notes || 'No notes provided.'}</p>
                 )}
               </div>
             </div>

@@ -219,6 +219,21 @@ const Button = ({ children }) => (
 );
 ```
 
+### Mobile Input Field Guidelines
+
+-   **Prevent Auto-Zoom on iOS Safari**: To avoid the automatic zoom-in behavior on iOS Safari when a user focuses on an input field, all text-based `<input>` elements, `<textarea>` elements, and `<select>` elements must have a `font-size` of at least `16px` when viewed on mobile devices.
+    -   This can typically be achieved by applying a Tailwind CSS class like `text-[16px]` directly to the input elements for mobile views or by setting this font size in `globals.css` within a mobile-specific media query (e.g., `@media (max-width: 768px)`).
+    -   Example: `className="text-[16px]"` or specific CSS `input { font-size: 16px !important; }` for mobile.
+
+-   **Ensure Sufficient Input Width on Mobile**: Text input fields on mobile views should generally utilize the full available width of their parent container, allowing for minimal necessary padding. This provides an optimal and seamless typing experience.
+    -   Use Tailwind CSS utility classes like `w-full` to make input fields span the width of their container.
+    -   Ensure that the parent container itself has appropriate padding so the input field doesn't touch the screen edges directly.
+
+-   **Compact Sizing on Mobile**: When optimizing text input forms for mobile, consider reducing the height and padding of input fields and associated buttons to create a more compact layout. For example, an input might go from `h-9 px-3` (desktop) to `h-8 px-2` (mobile), and a button from `h-9 px-4` (desktop) to `h-8 px-3` (mobile). Ensure these changes are responsive and revert to standard sizes on larger screens (e.g., using `md:` prefixes).
+
+-   **Align with Parent Container Padding on Mobile**: When a form component is nested within a container (e.g., `CardContent`) that already defines horizontal padding, the form component's immediate wrapper should avoid adding its own horizontal padding on mobile. This ensures the form's input fields and buttons align with the text content of the parent container, creating a cleaner look. Vertical padding can still be applied within the form component for spacing between its elements.
+    -   Example: If `CardContent` has `px-6`, the form wrapper inside it might use `py-4` on mobile (for vertical spacing) but omit `px-*`, relying on the parent's `px-6`. Responsive classes like `md:p-6` can be used to reintroduce padding on larger screens if needed for a different layout.
+
 ### Logo Standardization
 - Always use the standardized dimensions for the Telloom logo:
   - Width: 160px

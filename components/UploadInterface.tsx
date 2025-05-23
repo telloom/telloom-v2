@@ -445,7 +445,7 @@ export function UploadInterface({
                 </div>
               ) : (
                 <div
-                  className={`flex-1 border-2 border-dashed rounded-lg py-52 px-8 text-center hover:bg-muted/50 transition-colors cursor-pointer ${
+                  className={`flex-1 border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-center hover:bg-muted/50 transition-colors cursor-pointer ${
                     processingState !== 'idle' ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                   onDrop={handleDrop}
