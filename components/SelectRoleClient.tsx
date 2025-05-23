@@ -39,7 +39,12 @@ const ROLES: RoleInfo[] = [
   },
 ];
 
-export default function SelectRoleClient() {
+// Define props interface
+interface SelectRoleClientProps {
+  userId: string;
+}
+
+export default function SelectRoleClient({ userId }: SelectRoleClientProps) {
   const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
   const [isLoadingRoles, setIsLoadingRoles] = useState(true);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);

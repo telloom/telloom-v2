@@ -1,0 +1,19 @@
+/* components/MuxPlayer.css */
+
+.mux-player-wrapper-styles {
+  border: none;
+  outline: none;
+  background-color: transparent;
+}
+
+.mux-player-react-element-styles {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  overflow: hidden;
+  /* The following are often defaults or might conflict if MuxPlayerReact sets them, 
+     but including them to match the original inline styles explicitly.
+     Adjust if they cause issues with the Mux player's own styling. */
+  background-color: transparent;
+  border: none;
+  outline: none;
+} 
