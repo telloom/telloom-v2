@@ -8,6 +8,7 @@ import SupabaseListener from '@/components/SupabaseListener';
 import { Inter } from 'next/font/google';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/hooks/useAuth';
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 // Set export config
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <SupabaseListener />
           <Toaster position="top-center" richColors />
           {children}
+          <SpeedInsights />
         </AuthProvider>
       </body>
     </html>

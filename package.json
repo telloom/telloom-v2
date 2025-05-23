@@ -59,6 +59,7 @@
     "@types/pdfjs-dist": "^2.10.377",
     "@use-gesture/react": "10.3.1",
     "@vercel/postgres": "^0.10.0",
+    "@vercel/speed-insights": "^1.2.0",
     "ai": "^3.3.25",
     "airtable": "^0.12.2",
     "axios": "^1.7.7",
