@@ -329,8 +329,8 @@ function TopicsTableAllClientComponent({
     return Array.from(uniqueThemes);
   }, [promptCategories]);
 
-  const formatThemeName = (theme: string) => {
-    if (!theme) return '';
+  const formatThemeName = (theme: string | null | undefined): string => {
+    if (!theme) return 'General'; // Or any default you prefer for null/undefined themes
     return theme
       .split('_')
       .map((word: string) => word.charAt(0) + word.slice(1).toLowerCase())
@@ -344,64 +344,69 @@ function TopicsTableAllClientComponent({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:flex-wrap">
-        <div className="flex flex-col gap-2 mb-4 md:mb-0 md:w-1/3">
-          <div className="relative flex-grow">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 md:left-3" />
-            <Input
-              type="search"
-              placeholder="Search topics..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-8 px-2 pl-8 text-[16px] rounded-full md:h-9 md:px-3 md:pl-10 md:text-sm border-input"
-            />
-          </div>
-
-          <Select value={themeFilter} onValueChange={setThemeFilter}>
-            <SelectTrigger 
-              className={cn(
-                'w-full border-0 rounded-full whitespace-normal text-left h-8 px-3 text-[16px] md:h-9 md:text-sm',
-                themeFilter !== 'all'
-                  ? 'bg-[#8fbc55] text-[#1B4332] font-medium'
-                  : 'bg-gray-200/50 text-gray-600 hover:bg-[#8fbc55] hover:text-[#1B4332]'
-              )}
-            >
-              <SelectValue placeholder="Theme">
-                {themeFilter === 'all' ? 'All Themes' : formatThemeName(themeFilter)}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent className="max-w-[300px]">
-              <SelectItem value="all">All Themes</SelectItem>
-              {themes.map((theme) => (
-                <SelectItem key={theme} value={theme} className="whitespace-normal">
-                  {formatThemeName(theme)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Main filter container: always flex-col to stack Search and Other Filters separately */}
+      <div className="flex flex-col gap-4">
+        {/* Group 1: Search Bar */}
+        <div className="relative w-full md:w-1/2 lg:max-w-md"> {/* Control width on desktop */}
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 md:left-3" />
+          <Input
+            type="search"
+            placeholder="Search topics..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full h-8 px-2 pl-8 text-[16px] rounded-full md:h-9 md:px-3 md:pl-10 md:text-sm border-input"
+          />
         </div>
 
-        <div className="flex flex-wrap gap-2 items-center md:flex-1 md:justify-end">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger 
-              className={cn(
-                'w-full md:w-auto border-0 rounded-full h-8 px-3 text-[16px] md:h-9 md:text-sm',
-                statusFilter !== 'all'
-                  ? 'bg-[#8fbc55] text-[#1B4332] font-medium'
-                  : 'bg-gray-200/50 text-gray-600 hover:bg-[#8fbc55] hover:text-[#1B4332]'
-              )}
-            >
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="in-progress">In Progress</SelectItem>
-              <SelectItem value="not-started">Not Started</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Group 2: All Other Filters (Themes, Statuses, Buttons, View Toggles) */}
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:flex-wrap">
+          {/* Sub-Group 2a: Theme and Status Dropdowns */}
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-2">
+            <Select value={themeFilter} onValueChange={setThemeFilter}>
+              <SelectTrigger 
+                className={cn(
+                  'w-full border-0 rounded-full whitespace-normal text-left h-8 px-3 text-[16px] md:h-9 md:text-sm md:w-auto', // md:w-auto for desktop
+                  themeFilter !== 'all'
+                    ? 'bg-[#8fbc55] text-[#1B4332] font-medium'
+                    : 'bg-gray-200/50 text-gray-600 hover:bg-[#8fbc55] hover:text-[#1B4332]'
+                )}
+              >
+                <SelectValue placeholder="Theme">
+                  {themeFilter === 'all' ? 'All Themes' : formatThemeName(themeFilter)}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="max-w-[300px]">
+                <SelectItem value="all">All Themes</SelectItem>
+                {themes.map((theme) => (
+                  <SelectItem key={theme} value={theme} className="whitespace-normal">
+                    {formatThemeName(theme)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <div className="flex flex-wrap gap-2 items-center">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger 
+                className={cn(
+                  'w-full border-0 rounded-full h-8 px-3 text-[16px] md:h-9 md:text-sm md:w-auto', // md:w-auto for desktop
+                  statusFilter !== 'all'
+                    ? 'bg-[#8fbc55] text-[#1B4332] font-medium'
+                    : 'bg-gray-200/50 text-gray-600 hover:bg-[#8fbc55] hover:text-[#1B4332]'
+                )}
+              >
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="in-progress">In Progress</SelectItem>
+                <SelectItem value="not-started">Not Started</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Sub-Group 2b: Filter Buttons and View Toggles */}
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-2">
             <TopicsTableFilters
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
@@ -417,7 +422,7 @@ function TopicsTableAllClientComponent({
               showHasResponses={currentRole !== 'LISTENER'}
             />
 
-            <div className="flex items-center gap-2 ml-auto">
+            <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="icon"
@@ -493,8 +498,8 @@ function TopicsTableAllClientComponent({
                         <ArrowUpDown className="h-4 w-4" />
                       </div>
                     </th>
-                    <th className="h-12 px-2 sm:px-4 text-left align-middle font-medium">Status</th>
-                    <th className="h-12 px-2 sm:px-4 text-right align-middle font-medium">Actions</th>
+                    <th className="h-12 px-2 sm:px-4 text-left align-middle font-medium hidden sm:table-cell">Status</th>
+                    <th className="h-12 px-2 sm:px-4 text-center align-middle font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -510,12 +515,19 @@ function TopicsTableAllClientComponent({
                         }}
                       >
                         <td className="p-2 sm:p-4 align-middle font-medium">
-                          {category.category}
+                          <div> {/* Wrapper for topic and theme pill on mobile */}
+                            {category.category}
+                            <div className="mt-1 md:hidden"> {/* Theme pill for mobile */}
+                              <span className="inline-block bg-gray-100 text-gray-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                                {formatThemeName(category.theme)}
+                              </span>
+                            </div>
+                          </div>
                         </td>
                         <td className="p-2 sm:p-4 align-middle text-muted-foreground hidden md:table-cell">
                           {formatThemeName(category.theme || '')}
                         </td>
-                        <td className="p-2 sm:p-4 align-middle">
+                        <td className="p-2 sm:p-4 align-middle hidden sm:table-cell"> {/* Status column - hidden on xs, shown sm and up */}
                           <div className="flex items-center gap-2">
                             <Badge variant={getStatusBadgeVariant(status)} className="hidden sm:inline-flex">
                               {status.status}
@@ -525,8 +537,8 @@ function TopicsTableAllClientComponent({
                             </span>
                           </div>
                         </td>
-                        <td className="p-2 sm:p-4 align-middle text-right">
-                          <div className="flex items-center justify-end gap-1 sm:gap-2" onClick={e => e.stopPropagation()}>
+                        <td className="p-2 sm:p-4 align-middle text-center">
+                          <div className="flex items-center justify-center gap-1 sm:gap-2" onClick={e => e.stopPropagation()}>
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -711,8 +723,8 @@ function TopicsTableAllClientComponent({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredCategories.map((category: ExtendedPromptCategory) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+          {filteredCategories.map((category) => (
             <TopicCard
               key={category.id}
               promptCategory={category}

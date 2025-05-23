@@ -449,16 +449,17 @@ export function AttachmentDialog({
                 )}
               </div>
 
-              {/* Navigation Buttons - Full Width on Mobile, Bottom Fixed on Desktop */}
-              <div className="flex justify-between items-center gap-2 p-4 bg-white border-b lg:border-t lg:border-b-0">
-                <div className="flex gap-2">
+              {/* Navigation Buttons - Individual Stack on Mobile, Grouped on Desktop */}
+              <div className="flex flex-col md:flex-row justify-between items-center gap-2 p-4 bg-white border-b lg:border-t lg:border-b-0">
+                {/* Group 1: Previous/Next Buttons - Stack individually on mobile */} 
+                <div className="w-full md:w-auto flex flex-col md:flex-row gap-2">
                   {hasPrevious && (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => onPrevious?.()}
                       disabled={!hasPrevious || showLoadingState}
-                      className="rounded-full"
+                      className="rounded-full w-full justify-center" // Added w-full justify-center
                       tabIndex={isEditing ? -1 : 0}
                     >
                       <ChevronLeft className="h-4 w-4 mr-2" />
@@ -471,7 +472,7 @@ export function AttachmentDialog({
                       size="sm"
                       onClick={() => onNext?.()}
                       disabled={!hasNext || showLoadingState}
-                      className="rounded-full"
+                      className="rounded-full w-full justify-center" // Added w-full justify-center
                       tabIndex={isEditing ? -1 : 0}
                     >
                       Next
@@ -479,7 +480,8 @@ export function AttachmentDialog({
                     </Button>
                   )}
                 </div>
-                <div className="flex gap-2">
+                {/* Group 2: Download/Delete Buttons - Stack individually on mobile */} 
+                <div className="w-full md:w-auto flex flex-col md:flex-row gap-2 mt-2 md:mt-0">
                   {onDownload && (
                     <Button
                       variant="outline"
@@ -513,7 +515,7 @@ export function AttachmentDialog({
                           toast.error('Failed to download file');
                         }
                       }}
-                      className="rounded-full"
+                      className="rounded-full w-full justify-center" // Added w-full justify-center
                     >
                       <Download className="h-4 w-4 mr-2" />
                       Download
@@ -524,7 +526,7 @@ export function AttachmentDialog({
                       variant="outline"
                       size="sm"
                       onClick={handleDeleteClick}
-                      className="rounded-full text-red-500 hover:text-white hover:bg-red-500 hover:border-red-500"
+                      className="rounded-full text-red-500 hover:text-white hover:bg-red-500 hover:border-red-500 w-full justify-center" // Added w-full justify-center
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
                       Delete

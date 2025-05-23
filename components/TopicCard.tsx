@@ -50,6 +50,15 @@ export default function TopicCard({
   
   // console.log(`[TopicCard Props] Rendering card for ${promptCategory.category}. Received sharerId: ${sharerId}, currentRole: ${currentRole}`);
 
+  // Helper function to format theme name
+  const formatThemeName = (theme: string | null | undefined): string => {
+    if (!theme) return 'General';
+    return theme
+      .split('_')
+      .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
   // Use counts directly from the extended promptCategory prop
   const completedPrompts = promptCategory.completedPromptCount ?? 0;
   const totalPrompts = promptCategory.totalPromptCount ?? 0;
@@ -128,11 +137,20 @@ export default function TopicCard({
       >
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start gap-2">
-            <div className="flex-1">
-              <CardTitle className="text-lg sm:text-xl line-clamp-2 min-h-[2.5rem] sm:min-h-[3rem] flex-grow pr-2">
+            <div className="flex-1"> {/* This div handles the left side: title/theme & progress count */}
+              {/* Title */}
+              <CardTitle className="text-lg sm:text-xl line-clamp-2 pr-2 flex-grow">
                 {promptCategory.category}
               </CardTitle>
+              {/* Theme Pill - directly follows title, allowing natural stacking */}
+              {promptCategory.theme && (
+                <div className="mt-1 inline-block bg-gray-100 text-gray-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                  {formatThemeName(promptCategory.theme)}
+                </div>
+              )}
             </div>
+
+            {/* Right side: Progress count */}
             <div className="flex gap-1 sm:gap-2 flex-shrink-0">
               <TooltipProvider>
                 <div className="flex items-center gap-2">

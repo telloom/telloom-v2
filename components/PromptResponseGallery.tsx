@@ -590,50 +590,52 @@ export function PromptResponseGallery({ promptResponseId, galleryKey }: PromptRe
                 )}
               </div>
 
-              {/* Navigation & Action Buttons */}
-              <div className="flex justify-between items-center gap-2 p-4 bg-white border-t lg:border-t lg:border-b-0">
-                {/* Prev/Next */}
-                <div className="flex gap-2">
+              {/* Navigation & Action Buttons - Single row, icons only on mobile */}
+              <div className="flex flex-row items-center gap-2 p-4 bg-white border-t lg:border-b-0">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePrevious}
+                    disabled={selectedIndex === null || selectedIndex <= 0 || loading}
+                    className="rounded-full flex-1 md:flex-initial justify-center" 
+                    aria-label="Previous attachment"
+                  >
+                    <ChevronLeft className="h-4 w-4 md:mr-2" /> 
+                    <span className="hidden md:inline">Previous</span>
+                  </Button>
+                 <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleNext}
+                    disabled={selectedIndex === null || selectedIndex >= attachments.length - 1 || loading}
+                    className="rounded-full flex-1 md:flex-initial justify-center"
+                    aria-label="Next attachment"
+                  >
+                    <span className="hidden md:inline">Next</span>
+                    <ChevronRight className="h-4 w-4 md:ml-2" />
+                  </Button>
                   <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handlePrevious}
-                      disabled={selectedIndex === null || selectedIndex <= 0 || loading}
-                      className="rounded-full"
-                    >
-                      <ChevronLeft className="h-4 w-4 mr-2" /> Previous
-                    </Button>
-                   <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleNext}
-                      disabled={selectedIndex === null || selectedIndex >= attachments.length - 1 || loading}
-                      className="rounded-full"
-                    >
-                      Next <ChevronRight className="h-4 w-4 ml-2" />
-                    </Button>
-                </div>
-                {/* Download/Delete */}
-                <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDownload(attachments[selectedIndex!].id, attachments[selectedIndex!].fileName, attachments[selectedIndex!].signedUrl)}
-                      disabled={selectedIndex === null || !attachments[selectedIndex]?.signedUrl}
-                      className="rounded-full"
-                    >
-                      <Download className="h-4 w-4 mr-2" /> Download
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteClick(attachments[selectedIndex!].id)}
-                      disabled={selectedIndex === null}
-                      className="rounded-full text-red-500 hover:text-white hover:bg-red-500 hover:border-red-500"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" /> Delete
-                    </Button>
-                </div>
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDownload(attachments[selectedIndex!].id, attachments[selectedIndex!].fileName, attachments[selectedIndex!].signedUrl)}
+                    disabled={selectedIndex === null || !attachments[selectedIndex]?.signedUrl}
+                    className="rounded-full flex-1 md:flex-initial justify-center"
+                    aria-label="Download attachment"
+                  >
+                    <Download className="h-4 w-4 md:mr-2" /> 
+                    <span className="hidden md:inline">Download</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDeleteClick(attachments[selectedIndex!].id)}
+                    disabled={selectedIndex === null}
+                    className="rounded-full text-red-500 hover:text-white hover:bg-red-500 hover:border-red-500 flex-1 md:flex-initial justify-center"
+                    aria-label="Delete attachment"
+                  >
+                    <Trash2 className="h-4 w-4 md:mr-2" /> 
+                    <span className="hidden md:inline">Delete</span>
+                  </Button>
               </div>
             </div>
 

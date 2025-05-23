@@ -116,7 +116,7 @@ export function PromptListPopup({
         aria-labelledby="prompt-list-title"
         aria-describedby="prompt-list-description"
       >
-        <DialogHeader className="px-6 pt-8 pb-3 relative">
+        <DialogHeader className="px-6 pt-8 pb-3 relative text-left">
           <div className="flex items-center gap-2 group cursor-pointer pr-8" onClick={() => {
             if (categoryHref !== '#') { 
               router.push(categoryHref);
@@ -149,13 +149,13 @@ export function PromptListPopup({
             </div>
           ) : (
             <ScrollArea className="h-[calc(65vh-180px)]">
-              <div className="space-y-4 pr-4">
+              <div className="space-y-4 pr-2 md:pr-4">
                 {sortedPrompts.length > 0 ? sortedPrompts.map((prompt, index) => {
                   return (
                     <div 
                       key={prompt.id} 
                       className={cn(
-                        "p-4 rounded-lg transition-all duration-200",
+                        "px-0 py-3 md:p-4 rounded-lg transition-all duration-200",
                         "cursor-pointer hover:bg-gray-50/80"
                       )}
                       onClick={(e) => {
@@ -171,9 +171,9 @@ export function PromptListPopup({
                       <div className="flex items-start gap-3">
                         <span className="text-muted-foreground min-w-[24px] font-medium">{index + 1}.</span>
                         <div className="flex-1">
-                          <div className="flex items-start gap-2">
+                          <div className="flex flex-col items-start gap-1">
                             {prompt.isContextEstablishing && (
-                              <span className="inline-flex shrink-0 px-2 py-0.5 text-xs font-medium bg-[#8fbc55] text-[#1B4332] rounded-full">
+                              <span className="inline-flex shrink-0 px-2 py-0.5 text-xs font-medium bg-[#8fbc55] text-[#1B4332] rounded-full mb-1">
                                 Start Here
                               </span>
                             )}

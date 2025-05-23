@@ -374,7 +374,7 @@ export function PromptDisplayClient({
           background-color: transparent !important;
         }
       `}</style>
-      <div className="container mx-auto px-2 sm:px-3 md:px-4 lg:px-8 py-8 max-w-5xl">
+      <div className="container mx-auto py-8 max-w-5xl px-4 sm:px-6 md:px-8">
         {/* REMOVE Header from here */}
         {/* {roleContext === 'EXECUTOR' && sharerProfileHeaderData && (
           <div className="mb-6">
