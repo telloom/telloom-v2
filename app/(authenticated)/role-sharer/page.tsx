@@ -1,7 +1,6 @@
 // app/role-sharer/page.tsx
 import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
-import RandomPrompt from '@/components/RandomPrompt';
 import TopicsAllButton from '@/components/TopicsAllButton';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { BackButton } from '@/components/ui/BackButton';
@@ -119,7 +118,6 @@ export default async function RoleSharerPage() {
     }
     
     // Remove random prompt logic
-    const randomPrompt = null;
     console.log('[SERVER] Data fetching complete, preparing to render client wrapper');
 
     return (

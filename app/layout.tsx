@@ -1,5 +1,3 @@
-'use client';
-
 // app/layout.tsx
 
 import './styles/globals.css';
@@ -9,6 +7,7 @@ import { Inter } from 'next/font/google';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/hooks/useAuth';
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { createClient } from '@/utils/supabase/server';
 
 // Set export config
 export const dynamic = 'force-dynamic';
@@ -18,12 +17,15 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const runtime = 'nodejs';
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const supabase = await createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <AuthProvider>
-          <SupabaseListener />
+          <SupabaseListener serverSession={!!session} />
           <Toaster position="top-center" richColors />
           {children}
           <SpeedInsights />

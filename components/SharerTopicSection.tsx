@@ -176,7 +176,7 @@ export default function SharerTopicSection({
                     >
                         {/* Map over the *filtered* list */}
                         {filteredCategories.map(category => (
-                            <SwiperSlide key={category.id} className="!h-auto">
+                            <SwiperSlide key={category.id} className="!h-auto max-w-xs">
                                 <TopicCard
                                     promptCategory={category as any} 
                                     currentRole={currentRole}

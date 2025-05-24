@@ -129,7 +129,7 @@ export default function TopicCard({
     <>
       <Card 
         className={cn(
-          "w-full min-h-[150px] border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] transition-all duration-300 relative flex flex-col rounded-2xl",
+          "w-full h-[180px] border-2 border-[#1B4332] shadow-[6px_6px_0_0_#8fbc55] transition-all duration-300 relative flex flex-col rounded-2xl",
           !isListener && "hover:shadow-[8px_8px_0_0_#8fbc55]", // Only apply hover shadow if not listener
           isListener ? "cursor-default" : "cursor-pointer" // Change cursor based on role
         )}

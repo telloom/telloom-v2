@@ -2,7 +2,7 @@
 
 ### Easy Difficulty
 - [ ] Confirm GitHub privacy for the project and that only the right docs are on GitHub (Priority: High, Difficulty: Easy)
-- [ ] Fix UI for emails (Priority: High, Difficulty: Easy)
+
 - [ ] Change prompt structure for summaries and update LLM model (Priority: High, Difficulty: Easy)
 
 ### Medium Difficulty
