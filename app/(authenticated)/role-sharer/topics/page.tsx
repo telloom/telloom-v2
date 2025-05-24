@@ -55,15 +55,25 @@ export default async function TopicsPage({
     
     // console.log('[TOPICS] Found authenticated user:', user.id.substring(0, 8));
     
-    // Extract sharerId from app_metadata
-    const appSharerId = user.app_metadata?.sharer_id as string | undefined;
+    // Fetch UserRoleInfo to get the correct sharerId (ProfileSharer.id)
+    // Ensure you have an RPC function like 'get_user_role_data' or similar
+    // that returns the UserRoleInfo structure including the sharerId.
+    const { data: roleInfo, error: roleInfoError } = await supabase.rpc(
+      'get_user_role_data' // Call without parameters, uses auth.uid() internally
+    ) as { data: UserRoleInfo | null; error: any };
 
-    if (!appSharerId) {
-      console.error('[TOPICS] sharer_id not found in user.app_metadata. User ID:', user.id);
+    if (roleInfoError) {
+      console.error('[TOPICS] Error fetching user role data:', roleInfoError);
+      throw new Error(`Failed to fetch user role data: ${roleInfoError.message}`);
+    }
+
+    // Check if roleInfo exists, confirms the user is a sharer, and has a ProfileSharer record ID
+    if (!roleInfo || !roleInfo.is_sharer || !roleInfo.sharerId) {
+      console.error('[TOPICS] User is not a fully configured sharer or role data is incomplete. User ID:', user.id, 'RoleInfo:', roleInfo);
       // Handle missing sharer_id, perhaps redirect or show an error
       return (
         <div className="container max-w-7xl mx-auto px-4 py-8">
-          <p className="text-red-600">Error: Sharer identity could not be confirmed. Please re-login.</p>
+          <p className="text-red-600">Error: Your sharer profile is not fully configured. Please contact support or try re-logging.</p>
         </div>
       );
     }
@@ -94,10 +104,10 @@ export default async function TopicsPage({
     //   return redirect('/select-role');
     // }
     
-    // Fetch categories using the new RPC function
-    // console.log('[TOPICS] Fetching sharer topic list via RPC for user:', user.id);
+    // Fetch categories using the new RPC function and the correct sharerId from roleInfo
+    // console.log('[TOPICS] Fetching sharer topic list via RPC for user:', user.id, 'using sharerId:', roleInfo.sharerId);
     const { data: topicsData, error: topicsError } = await supabase
-      .rpc('get_sharer_topic_list', { p_sharer_profile_id: user.id });
+      .rpc('get_sharer_topic_list', { p_sharer_profile_id: user.id }); // Use user.id (Profile.id)
 
     if (topicsError) {
       console.error('[TOPICS] Error fetching sharer topic list:', topicsError);
@@ -138,8 +148,8 @@ export default async function TopicsPage({
             <TopicsTableAll 
               initialPromptCategories={normalizedCategories} // Pass the correctly fetched data
               currentRole="SHARER"
-              userId={user.id} // Pass authenticated user's ID
-              sharerId={appSharerId} // Pass ProfileSharer.id from app_metadata
+              userId={user.id} // Pass authenticated user's ID (Profile.id)
+              sharerId={roleInfo.sharerId} // Pass ProfileSharer.id from roleInfo
             />
           ) : (
             <div className="text-center py-8">
