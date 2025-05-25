@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import Replicate from 'replicate';
 import { supabaseAdmin } from '@/utils/supabase/service-role';
 
+// Configure the maximum duration for this function (in seconds)
+export const maxDuration = 60;
+
 // Initialize Replicate outside the handler
 let replicate: Replicate;
 try {
