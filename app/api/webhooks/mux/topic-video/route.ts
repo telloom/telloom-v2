@@ -1,25 +1,35 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { supabaseAdmin } from '@/utils/supabase/service-role';
+import Mux from '@mux/mux-node'; // Import Mux SDK for webhook verification
 
 export async function POST(request: Request) {
   try {
     // Get Mux signature headers
     const headersList = await headers();
     const muxSignature = headersList.get('mux-signature');
+    const rawBody = await request.text(); // Read the raw request body ONCE
 
     // Verify webhook signature in production
     if (process.env.NODE_ENV === 'production' && process.env.MUX_TOPIC_VIDEO_WEBHOOK_SECRET) {
       if (!muxSignature) {
+        console.warn('[Webhook /mux/topic-video] Missing Mux signature in production.');
         return NextResponse.json(
           { error: 'Missing Mux signature' },
           { status: 401 }
         );
       }
-      // TODO: Implement signature verification
+      try {
+        // Use Mux.Webhooks.verifyHeader
+        Mux.Webhooks.verifyHeader(rawBody, muxSignature, process.env.MUX_TOPIC_VIDEO_WEBHOOK_SECRET);
+        console.log('[Webhook /mux/topic-video] Mux signature verified successfully.');
+      } catch (err) {
+        console.error('[Webhook /mux/topic-video] Invalid Mux signature:', err);
+        return NextResponse.json({ error: 'Invalid Mux signature' }, { status: 401 });
+      }
     }
 
-    const body = await request.json();
+    const body = JSON.parse(rawBody); // Parse the raw body after verification
     const { type: eventType, data: eventData } = body;
     console.log('[TopicVideo Webhook] Processing event:', { eventType, eventData });
 
