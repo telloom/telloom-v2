@@ -118,7 +118,7 @@ export function UploadInterface({
 
       await checkStatus();
     },
-    [supabase, handleVideoError, onUploadSuccess, promptId]
+    [supabase, handleVideoError, onUploadSuccess]
   );
 
   const handleUpload = useCallback(
@@ -281,7 +281,7 @@ export function UploadInterface({
       }
       handleUpload(file);
     },
-    [handleUpload, processingState, promptId]
+    [handleUpload, processingState]
   );
 
   const handleClick = useCallback(() => {
@@ -300,7 +300,7 @@ export function UploadInterface({
       handleUpload(file);
     };
     input.click();
-  }, [handleUpload, processingState, promptId]);
+  }, [handleUpload, processingState]);
 
   useEffect(() => {
     const checkExistingVideo = async () => {
@@ -435,9 +435,12 @@ export function UploadInterface({
                       ref={progressBarRef}
                       className={styles.progressBar}
                       role="progressbar"
-                      aria-valuenow={uploadProgress} // Revert to number
-                      aria-valuemin={0}           // Revert to number literal
-                      aria-valuemax={100}          // Revert to number literal
+                      aria-label="Upload progress"
+                      {...{
+                        'aria-valuenow': uploadProgress,
+                        'aria-valuemin': 0,
+                        'aria-valuemax': 100,
+                      }}
                     >
                       {/* Empty */}
                     </div>

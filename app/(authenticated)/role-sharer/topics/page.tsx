@@ -4,7 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import TopicsTableAll from '@/components/TopicsTableAll';
 import { BackButton } from '@/components/ui/BackButton';
-import { checkRole, getCompletedPromptsForSharer } from '@/utils/supabase/server';
+import { checkRole } from '@/utils/supabase/server';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -17,16 +17,19 @@ interface UserRoleInfo {
   timestamp: string;
 }
 
-export default async function TopicsPage({
-  searchParams
-}: {
-  searchParams: { [key: string]: string | string[] | undefined }
-}) {
+export default async function TopicsPage(
+  // Remove searchParams as it's no longer used
+  // {
+  //   searchParams
+  // }: {
+  //   searchParams: { [key: string]: string | string[] | undefined }
+  // }
+) {
   // console.log('[TOPICS] Starting page render');
   
   // Properly await the searchParams to fix the Next.js warning
-  const resolvedSearchParams = await Promise.resolve(searchParams);
-  const categoryId = typeof resolvedSearchParams.categoryId === 'string' ? resolvedSearchParams.categoryId : undefined;
+  // const resolvedSearchParams = await Promise.resolve(searchParams); // Removed as it's unused
+  // const categoryId = typeof resolvedSearchParams.categoryId === 'string' ? resolvedSearchParams.categoryId : undefined; // Removed as it's unused
   
   // Add type for supabase error handling
   let supabaseError: Error | null = null;

@@ -29,7 +29,8 @@ export async function POST(request: Request) {
           async get(name: string) {
             return cookieStore.get(name)?.value;
           },
-          set(name: string, value: string, options: CookieOptions) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          set(name: string, _value: string, options: CookieOptions) {
             console.warn('[API /mux/upload-url] Attempted to set cookie in Route Handler (noop for request)', name);
           },
           remove(name: string, options: CookieOptions) {
